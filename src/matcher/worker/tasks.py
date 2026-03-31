@@ -6,6 +6,7 @@ from pathlib import Path
 
 import httpx
 
+from matcher.config import settings
 from matcher.security.url_validator import SSRFError, validate_url_safe
 
 logger = logging.getLogger(__name__)
@@ -45,6 +46,8 @@ async def batch_match(ctx: dict, request_id: str) -> dict:
                         session=session,
                         line_id=item.line_id,
                         supplier_id=request.supplier_id,
+                        auto_threshold=settings.auto_match_threshold,
+                        review_threshold=settings.review_threshold,
                     )
 
                     # Update item with results

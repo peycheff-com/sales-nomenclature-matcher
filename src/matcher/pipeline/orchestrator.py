@@ -53,6 +53,8 @@ async def match_single(
     strict_mode: bool = False,
     retrieval_top_n: int = 50,
     rerank_top_n: int = 10,
+    auto_threshold: float | None = None,
+    review_threshold: float | None = None,
 ) -> MatchItemResult:
     """Run the full matching pipeline on a single input line."""
     request_item_id = f"item_{uuid.uuid4().hex[:12]}"
@@ -137,7 +139,12 @@ async def match_single(
             rerank_score=rr.rerank_score,
         )
         scoring_result = score_candidate(pair_features)
-        decision = decide(scoring_result, strict_mode=strict_mode)
+        decision = decide(
+            scoring_result,
+            strict_mode=strict_mode,
+            auto_threshold=auto_threshold,
+            review_threshold=review_threshold,
+        )
         reasons = build_reasons(pair_features, scoring_result.short_circuit)
 
         scored_candidates.append({
