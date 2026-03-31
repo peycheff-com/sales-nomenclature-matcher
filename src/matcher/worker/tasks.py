@@ -141,20 +141,36 @@ async def batch_match(ctx: dict, request_id: str) -> dict:
 
 async def catalog_import(ctx: dict, job_id: str, source_type: str, **kwargs) -> dict:
     """Import catalog from CSV/XLSX file."""
+    redis = ctx.get("redis")
+    lock_key = "lock:catalog_import"
+    if redis:
+        acquired = await redis.set(lock_key, job_id, ex=3600, nx=True)
+        if not acquired:
+            return {"job_id": job_id, "status": "failed", "error": "Another import is already running"}
+    try:
+        return await _do_catalog_import(ctx, job_id, source_type, **kwargs)
+    finally:
+        if redis:
+            await redis.delete(lock_key)
+
+
+async def _do_catalog_import(ctx: dict, job_id: str, source_type: str, **kwargs) -> dict:
+    """Inner implementation of catalog import (called under Redis lock)."""
     from matcher.db.repos.catalog import CatalogRepo
     from matcher.ingestion.file_adapter import parse_file
     from matcher.ingestion.transformer import transform_item
 
     db_factory = ctx["db_factory"]
     file_url = kwargs.get("file_url")
+    file_path = kwargs.get("file_path")  # Direct file upload path
     dry_run = kwargs.get("dry_run", False)
 
     if source_type not in ("csv", "xlsx", "onec_api"):
         logger.warning("Unsupported source_type: %s", source_type)
         return {"job_id": job_id, "status": "failed", "error": f"Unsupported source_type: {source_type}"}
 
-    if source_type in ("csv", "xlsx") and not file_url:
-        return {"job_id": job_id, "status": "failed", "error": "file_url is required for file uploads"}
+    if source_type in ("csv", "xlsx") and not file_url and not file_path:
+        return {"job_id": job_id, "status": "failed", "error": "file_url or file_path is required for file imports"}
 
     # Validate file_url to prevent SSRF
     if file_url:
@@ -172,12 +188,15 @@ async def catalog_import(ctx: dict, job_id: str, source_type: str, **kwargs) -> 
     if source_type == "onec_api":
         from matcher.ingestion.onec_adapter import fetch_onec_catalog
         try:
-            raw_items = await fetch_onec_catalog(dry_run)
+            raw_items = await fetch_onec_catalog(dry_run=dry_run)
             logger.info("Fetched %d items from 1C API", len(raw_items))
         except Exception as e:
             return {"job_id": job_id, "status": "failed", "error": str(e)}
+    elif file_path:
+        # Direct file upload — file already on disk
+        tmp_path = Path(file_path)
     else:
-        # Download file
+        # Download file from URL
         suffix = ".xlsx" if source_type == "xlsx" else ".csv"
         try:
             async with httpx.AsyncClient(timeout=120) as client:
