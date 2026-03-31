@@ -15,7 +15,7 @@ from matcher.pipeline.explanations import build_reasons
 from matcher.pipeline.features import extract_features
 from matcher.pipeline.overrides import check_supplier_override
 from matcher.pipeline.reranker import rerank_candidates
-from matcher.pipeline.scoring import compute_pair_features, score_candidate
+from matcher.pipeline.scoring import compute_attribute_overlap, compute_pair_features, score_candidate
 
 logger = logging.getLogger(__name__)
 
@@ -144,6 +144,17 @@ async def match_single(
             rerank_score=rr.rerank_score,
             alias_hit=c.product_id in alias_product_ids,
         )
+        candidate_attrs = {
+            "brand": c.normalized_brand or c.brand,
+            "unit": c.unit,
+            "numbers": candidate_numbers,
+        }
+        query_attrs = {
+            "brand": features.brand,
+            "unit": features.unit,
+            "numbers": features.numbers,
+        }
+        pair_features.attribute_overlap_score = compute_attribute_overlap(query_attrs, candidate_attrs)
         scoring_result = score_candidate(pair_features)
         decision = decide(
             scoring_result,
