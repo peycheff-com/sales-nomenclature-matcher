@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from matcher.db.repos.alias import AliasRepo
 from matcher.indexing.search import SearchCandidate, hybrid_search
 from matcher.normalization.pipeline import run_pipeline
 from matcher.pipeline.decision import decide
@@ -109,6 +110,10 @@ async def match_single(
             reasons=["Кандидаты не найдены"],
         )
 
+    # Stage 3.5: Alias lookup
+    alias_repo = AliasRepo(session)
+    alias_product_ids = await alias_repo.find_product_ids_by_text(normalized_text)
+
     # Stage 4: Rerank
     reranked = await rerank_candidates(
         query=normalized_text,
@@ -137,6 +142,7 @@ async def match_single(
             lexical_score=c.lexical_score,
             semantic_score=c.semantic_score,
             rerank_score=rr.rerank_score,
+            alias_hit=c.product_id in alias_product_ids,
         )
         scoring_result = score_candidate(pair_features)
         decision = decide(
