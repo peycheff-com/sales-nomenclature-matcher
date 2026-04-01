@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { QueryErrorBanner } from "@/components/ui/query-error-banner";
 import { PageLayout } from "@/components/layout/page-layout";
 import { Loader2 } from "lucide-react";
 
@@ -80,6 +81,12 @@ export default function ProfilePage() {
 
   return (
     <PageLayout title="Мой профиль" description="Информация об аккаунте и смена пароля.">
+      {meQuery.isError && (
+        <QueryErrorBanner
+          error={meQuery.error}
+          onRetry={() => meQuery.refetch()}
+        />
+      )}
       <div className="grid gap-6 max-w-xl">
         {/* Account info card */}
         <Card>
@@ -169,7 +176,7 @@ export default function ProfilePage() {
               </div>
 
               {pwError && (
-                <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                <div role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
                   {pwError}
                 </div>
               )}

@@ -8,7 +8,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { ChevronDown, ChevronRight, Check, X, Search, MousePointerClick } from "lucide-react";
+import { ChevronDown, ChevronRight, Check, X, Search, MousePointerClick, PackageSearch } from "lucide-react";
 import { getMatchItems, getItemCandidates } from "@/api/match";
 import { reviewItem, reviewBatch, type BatchReviewItem } from "@/api/review";
 import type { Candidate, MatchResult, ReviewInput, MatchItemsPage } from "@/api/types";
@@ -28,6 +28,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import StatusBadge from "./status-badge";
 import ReviewActions from "@/components/review/review-actions";
 import { toast } from "sonner";
+import { SkeletonTable } from "@/components/ui/skeleton";
+import { Pagination } from "@/components/ui/pagination";
+import { EmptyState } from "@/components/ui/empty-state";
 
 interface ResultsTableProps {
   requestId: string;
@@ -146,6 +149,7 @@ export default function ResultsTable({ requestId }: ResultsTableProps) {
           variant="ghost"
           size="sm"
           className="h-6 w-6 p-0"
+          aria-label={expandedRow === row.original.request_item_id ? "Свернуть" : "Развернуть"}
           onClick={() =>
             setExpandedRow(
               expandedRow === row.original.request_item_id
@@ -290,6 +294,20 @@ export default function ResultsTable({ requestId }: ResultsTableProps) {
     getSortedRowModel: getSortedRowModel(),
   });
 
+  // GAP-1: Auto-advance if the user is filtering by "pending" and the current page is drained
+  useEffect(() => {
+    if (reviewFilter === "pending" && !itemsQuery.isLoading && itemsQuery.data) {
+      if (filteredData.length === 0 && itemsQuery.data.items.length > 0) {
+        if (page < totalPages) {
+          toast.info("Переход к следующей странице...");
+          setPage((p) => p + 1);
+        } else if (page > 1) {
+          setPage(1);
+        }
+      }
+    }
+  }, [filteredData.length, reviewFilter, itemsQuery.isLoading, itemsQuery.data, page, totalPages]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLTextAreaElement) return;
@@ -377,24 +395,38 @@ export default function ResultsTable({ requestId }: ResultsTableProps) {
         </div>
       </div>
 
-      <div className="flex items-center gap-2 p-2 bg-muted/30 border border-border rounded-md min-h-[52px]">
-        {selectedRows.length > 0 ? (
-          <>
-            <span className="text-sm font-medium mr-2 ml-1 text-muted-foreground">
-              Выбрано: {selectedRows.length}
-            </span>
-            <Button size="sm" variant="outline" className="text-green-700 hover:text-green-800" disabled={bulkMutation.isPending} onClick={() => bulkMutation.mutate({ action: "accepted", items: selectedRows })}>
-              <Check className="h-4 w-4 mr-1"/> Принять выбранные
+      <div className="flex items-center justify-between gap-2 p-2 bg-muted/30 border border-border rounded-md min-h-[52px]">
+        <div className="flex items-center gap-2">
+          {selectedRows.length > 0 ? (
+            <>
+              <span className="text-sm font-medium mr-2 ml-1 text-muted-foreground">
+                Выбрано: {selectedRows.length}
+              </span>
+              <Button size="sm" variant="outline" className="text-green-700 hover:text-green-800" disabled={bulkMutation.isPending} onClick={() => bulkMutation.mutate({ action: "accepted", items: selectedRows })}>
+                <Check className="h-4 w-4 mr-1"/> Принять выбранные
+              </Button>
+              <Button size="sm" variant="outline" className="text-red-700 hover:text-red-800" disabled={bulkMutation.isPending} onClick={() => bulkMutation.mutate({ action: "rejected", items: selectedRows })}>
+                <X className="h-4 w-4 mr-1"/> Отклонить выбранные
+              </Button>
+            </>
+          ) : (
+            <Button size="sm" variant="outline" onClick={approveAllAutoMatches} disabled={bulkMutation.isPending || itemsQuery.isLoading}>
+              <Check className="h-4 w-4 mr-1 text-green-600"/> Принять все автоматические
             </Button>
-            <Button size="sm" variant="outline" className="text-red-700 hover:text-red-800" disabled={bulkMutation.isPending} onClick={() => bulkMutation.mutate({ action: "rejected", items: selectedRows })}>
-              <X className="h-4 w-4 mr-1"/> Отклонить выбранные
-            </Button>
-          </>
-        ) : (
-          <Button size="sm" variant="outline" onClick={approveAllAutoMatches} disabled={bulkMutation.isPending || itemsQuery.isLoading}>
-            <Check className="h-4 w-4 mr-1 text-green-600"/> Принять все автоматические
-          </Button>
-        )}
+          )}
+        </div>
+        <div className="hidden lg:flex items-center gap-4 text-[10px] text-muted-foreground mr-2 font-mono opacity-80 cursor-default select-none">
+          <span className="flex items-center gap-1.5" title="Навигация по строкам">
+            <kbd className="bg-background px-1 py-0.5 rounded border border-border/50 text-[10px]">&darr;</kbd>
+            <kbd className="bg-background px-1 py-0.5 rounded border border-border/50 text-[10px]">&uarr;</kbd> Навигация
+          </span>
+          <span className="flex items-center gap-1.5" title="Принять лучшего кандидата">
+            <kbd className="bg-background px-1.5 py-0.5 rounded border border-border/50 text-[10px]">Enter</kbd> Принять
+          </span>
+          <span className="flex items-center gap-1.5" title="Отклонить позицию">
+            <kbd className="bg-background px-1.5 py-0.5 rounded border border-border/50 text-[10px]">Esc</kbd> Отклонить
+          </span>
+        </div>
       </div>
 
       <div className="rounded-md border border-border">
@@ -424,14 +456,19 @@ export default function ResultsTable({ requestId }: ResultsTableProps) {
           <TableBody>
             {itemsQuery.isLoading ? (
               <TableRow>
-                <TableCell colSpan={columns.length} className="text-center py-8">
-                  <span className="text-muted-foreground">Загрузка...</span>
+                <TableCell colSpan={columns.length} className="py-6">
+                  <SkeletonTable rows={5} columns={5} />
                 </TableCell>
               </TableRow>
             ) : table.getRowModel().rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={columns.length} className="text-center py-8">
-                  <span className="text-muted-foreground">Нет данных</span>
+                <TableCell colSpan={columns.length} className="py-4">
+                  <EmptyState
+                    icon={Search}
+                    title="Нет данных"
+                    description="По выбранным фильтрам ничего не найдено"
+                    variant="no-results"
+                  />
                 </TableCell>
               </TableRow>
             ) : (
@@ -478,38 +515,17 @@ export default function ResultsTable({ requestId }: ResultsTableProps) {
       </div>
 
       {totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-muted-foreground">
-            Страница {page} из {totalPages} (всего {" "}
-            {itemsQuery.data?.total ?? 0})
-          </span>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page <= 1}
-              onClick={() => {
-                setPage((p) => p - 1);
-                setExpandedRow(null);
-                setRowSelection({});
-              }}
-            >
-              Назад
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page >= totalPages}
-              onClick={() => {
-                setPage((p) => p + 1);
-                setExpandedRow(null);
-                setRowSelection({});
-              }}
-            >
-              Вперёд
-            </Button>
-          </div>
-        </div>
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          total={itemsQuery.data?.total ?? 0}
+          pageSize={PAGE_SIZE}
+          onPageChange={(p) => {
+            setPage(p);
+            setExpandedRow(null);
+            setRowSelection({});
+          }}
+        />
       )}
     </div>
   );
@@ -535,7 +551,7 @@ function CandidatesPanel({
   hasDecision: boolean;
 }) {
   if (isLoading) {
-    return <div className="text-sm text-muted-foreground py-2 text-center animate-pulse">Загрузка кандидатов...</div>;
+    return <SkeletonTable rows={3} columns={4} className="py-2" />;
   }
 
   return (
@@ -632,9 +648,13 @@ function CandidatesPanel({
       )}
 
       {(!candidates || candidates.length === 0) && !isLoading && (
-        <div className="text-sm text-center py-4 text-muted-foreground bg-muted/20 rounded border border-dashed">
-          Альтернативные кандидаты не найдены
-        </div>
+        <EmptyState
+          icon={PackageSearch}
+          title="Кандидаты не найдены"
+          description="Альтернативные кандидаты для этой позиции не найдены"
+          variant="no-results"
+          className="min-h-[120px]"
+        />
       )}
     </div>
   );

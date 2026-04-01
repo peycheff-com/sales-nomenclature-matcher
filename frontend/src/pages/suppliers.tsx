@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Check, X, Store, Trash2, Edit2, Loader2, ChevronDown, ChevronRight } from "lucide-react";
+import { Plus, X, Store, Trash2, Edit2, Loader2, ChevronDown, ChevronRight, HelpCircle, Package } from "lucide-react";
 import { toast } from "sonner";
 import {
   createSupplier,
@@ -21,7 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   AlertDialog,
@@ -45,6 +45,9 @@ import {
 import { Label } from "@/components/ui/label";
 import { PageLayout } from "@/components/layout/page-layout";
 import { EmptyState } from "@/components/ui/empty-state";
+import { SkeletonTable } from "@/components/ui/skeleton";
+import { QueryErrorBanner } from "@/components/ui/query-error-banner";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
 export default function SuppliersPage() {
   const queryClient = useQueryClient();
@@ -53,10 +56,10 @@ export default function SuppliersPage() {
   const [newSupplierName, setNewSupplierName] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<SupplierProfile | null>(null);
   const [toggleWarning, setToggleWarning] = useState<SupplierProfile | null>(null);
-  
+
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editNameValue, setEditNameValue] = useState("");
-  
+
   const [expandedSupplier, setExpandedSupplier] = useState<string | null>(null);
 
   const suppliersQuery = useQuery({
@@ -116,6 +119,14 @@ export default function SuppliersPage() {
     createMutation.mutate();
   };
 
+  const handleCreateDialogChange = (open: boolean) => {
+    setIsCreateOpen(open);
+    if (!open) {
+      setNewSupplierId("");
+      setNewSupplierName("");
+    }
+  };
+
   const startEditing = (s: SupplierProfile) => {
     setEditingId(s.supplier_id);
     setEditNameValue(s.supplier_name);
@@ -136,7 +147,7 @@ export default function SuppliersPage() {
       title="Управление поставщиками"
       description="Настройка профилей контрагентов."
       actions={
-        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+        <Dialog open={isCreateOpen} onOpenChange={handleCreateDialogChange}>
           <DialogTrigger className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground shadow hover:bg-primary/90 h-9 px-4 py-2">
             <Plus className="mr-2 h-4 w-4" />
             Добавить поставщика
@@ -171,7 +182,7 @@ export default function SuppliersPage() {
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" type="button" onClick={() => setIsCreateOpen(false)}>Отмена</Button>
+                <Button variant="outline" type="button" onClick={() => handleCreateDialogChange(false)}>Отмена</Button>
                 <Button type="submit" disabled={createMutation.isPending}>
                   {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
                   Создать
@@ -183,6 +194,14 @@ export default function SuppliersPage() {
       }
     >
 
+      {suppliersQuery.isError && (
+        <QueryErrorBanner
+          error={suppliersQuery.error}
+          title="Ошибка загрузки поставщиков"
+          onRetry={() => suppliersQuery.refetch()}
+        />
+      )}
+
       <Card>
         <CardContent className="p-0">
           <Table>
@@ -191,7 +210,19 @@ export default function SuppliersPage() {
                 <TableHead className="w-10"></TableHead>
                 <TableHead>Поставщик</TableHead>
                 <TableHead>Системный ID</TableHead>
-                <TableHead>Строгий режим</TableHead>
+                <TableHead>
+                  <div className="flex items-center gap-1">
+                    Строгий режим
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        В строгом режиме система требует точного совпадения артикулов
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                </TableHead>
                 <TableHead>Статус</TableHead>
                 <TableHead className="text-right w-24">Действия</TableHead>
               </TableRow>
@@ -199,14 +230,18 @@ export default function SuppliersPage() {
             <TableBody>
               {suppliersQuery.isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="h-24 text-center">
-                    <Loader2 className="mx-auto h-6 w-6 animate-spin text-muted-foreground" />
+                  <TableCell colSpan={6} className="py-6">
+                    <SkeletonTable rows={3} columns={5} />
                   </TableCell>
                 </TableRow>
               ) : suppliers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
-                    Нет активных поставщиков
+                  <TableCell colSpan={6} className="py-8">
+                    <EmptyState
+                      icon={Store}
+                      title="Нет поставщиков"
+                      description="Добавьте первого поставщика, чтобы начать загрузку прайс-листов."
+                    />
                   </TableCell>
                 </TableRow>
               ) : (
@@ -219,6 +254,7 @@ export default function SuppliersPage() {
                           size="sm"
                           className="h-6 w-6 p-0"
                           onClick={() => setExpandedSupplier(expandedSupplier === s.supplier_id ? null : s.supplier_id)}
+                          aria-label={expandedSupplier === s.supplier_id ? "Свернуть" : "Развернуть"}
                         >
                           {expandedSupplier === s.supplier_id ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                         </Button>
@@ -246,6 +282,7 @@ export default function SuppliersPage() {
                                 variant="ghost"
                                 className="h-6 px-2 text-muted-foreground"
                                 onClick={() => setEditingId(null)}
+                                aria-label="Отменить редактирование"
                               >
                                 <X className="h-3 w-3" />
                               </Button>
@@ -260,6 +297,7 @@ export default function SuppliersPage() {
                               size="icon"
                               className="h-5 w-5 opacity-50 hover:opacity-100"
                               onClick={() => startEditing(s)}
+                              aria-label="Редактировать название"
                             >
                               <Edit2 className="h-3 w-3" />
                             </Button>
@@ -297,6 +335,7 @@ export default function SuppliersPage() {
                           size="icon"
                           className="h-8 w-8 text-red-500 hover:bg-red-50 hover:text-red-700"
                           onClick={() => setDeleteTarget(s)}
+                          aria-label="Удалить поставщика"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -304,7 +343,7 @@ export default function SuppliersPage() {
                     </TableRow>
                     {expandedSupplier === s.supplier_id && (
                       <TableRow className="bg-muted/10">
-                        <TableCell colSpan={7} className="border-t-0 p-4">
+                        <TableCell colSpan={6} className="border-t-0 p-4">
                           <MappingsPanel supplier={s} />
                         </TableCell>
                       </TableRow>
@@ -348,7 +387,7 @@ export default function SuppliersPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Удалить поставщика?</AlertDialogTitle>
             <AlertDialogDescription>
-              Вы собираетесь навсегда удалить <span className="font-medium text-foreground">{deleteTarget?.supplier_name}</span> и 
+              Вы собираетесь навсегда удалить <span className="font-medium text-foreground">{deleteTarget?.supplier_name}</span> и
               все сопутствующие маппинги и настройки. Это действие необратимо.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -384,13 +423,16 @@ function MappingsPanel({ supplier }: { supplier: SupplierProfile }) {
           Маппинги ({mappingsQuery.data?.length ?? 0})
         </h3>
       </div>
-      
+
       {mappingsQuery.isLoading ? (
-        <div className="text-center py-4 text-xs text-muted-foreground animate-pulse">Загрузка маппингов...</div>
+        <SkeletonTable rows={3} columns={3} />
       ) : !mappingsQuery.data || mappingsQuery.data.length === 0 ? (
-        <div className="text-center py-6 text-sm text-muted-foreground border border-dashed rounded">
-          У этого поставщика пока нет сохранённых маппингов (алиасов).
-        </div>
+        <EmptyState
+          icon={Package}
+          title="Нет маппингов"
+          description="У этого поставщика пока нет сохранённых маппингов (алиасов)."
+          variant="no-results"
+        />
       ) : (
         <div className="max-h-[300px] overflow-auto rounded border">
           <Table>

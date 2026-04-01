@@ -1,7 +1,7 @@
-import { type ChangeEvent, type DragEvent, useCallback, useRef, useState } from "react";
+import React, { type ChangeEvent, type DragEvent, useCallback, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { FileUp, Upload, ClipboardList, Loader2, Trash2, AlertTriangle, Database, PackageSearch } from "lucide-react";
+import { FileUp, Upload, ClipboardList, Loader2, Trash2, AlertTriangle, Database, PackageSearch, HelpCircle } from "lucide-react";
 import { toast } from "sonner";
 import { matchBatch, parseFilePreview, parseFileStructured, smartUpload, listMatchRequests, previewGoogleSheet } from "@/api/match";
 import type { FileAnalysisResult } from "@/api/match";
@@ -34,6 +34,17 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { PageLayout } from "@/components/layout/page-layout";
 import { EmptyState } from "@/components/ui/empty-state";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
 const SUPPLIER_KEY = "matcher_supplier_id";
 
@@ -53,6 +64,19 @@ export default function DashboardPage() {
   const [fileName, setFileName] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
 
+  const duplicateKeys = React.useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const item of parsedItems) {
+      const lower = item.raw_text.toLowerCase();
+      counts.set(lower, (counts.get(lower) || 0) + 1);
+    }
+    const dups = new Set<string>();
+    for (const [k, v] of counts.entries()) {
+      if (v > 1) dups.add(k);
+    }
+    return dups;
+  }, [parsedItems]);
+
   // Structured analysis state (two-panel mode)
   const [structuredMode, setStructuredMode] = useState(false);
   const [catalogItems, setCatalogItems] = useState<any[]>([]);
@@ -61,6 +85,7 @@ export default function DashboardPage() {
 
   const [textInput, setTextInput] = useState("");
   const [gsheetUrl, setGsheetUrl] = useState("");
+  const [confirmSubmit, setConfirmSubmit] = useState<{ msg: string; items: MatchItemInput[]; ext: string } | null>(null);
 
 
   const suppliersQuery = useQuery({
@@ -275,24 +300,22 @@ export default function DashboardPage() {
       return;
     }
 
-    const { internalDups, isResubmission } = checkDuplicates(items);
-    if (isResubmission || internalDups > 0) {
-      let msg = "";
-      if (isResubmission) msg += `Кажется, вы уже отправляли запрос с таким же количеством позиций (${items.length}).\n`;
-      if (internalDups > 0) msg += `Внутри списка найдено ${internalDups} дублирующихся строк.\n`;
-      msg += "Хотите продолжить отправку?";
-
-      if (!window.confirm(msg)) {
-        return;
-      }
-    }
-
     let ext = "text";
     if (activeTab === "gsheet") {
       ext = "google_sheet";
     } else if (activeTab === "file" && fileName) {
       const split = fileName.split('.');
       ext = split[split.length - 1].toLowerCase();
+    }
+
+    const { internalDups, isResubmission } = checkDuplicates(items);
+    if (isResubmission || internalDups > 0) {
+      let msg = "";
+      if (isResubmission) msg += `Кажется, вы уже отправляли запрос с таким же количеством позиций (${items.length}). `;
+      if (internalDups > 0) msg += `Внутри списка найдено ${internalDups} дублирующихся строк. `;
+      msg += "Хотите продолжить отправку?";
+      setConfirmSubmit({ msg, items, ext });
+      return;
     }
 
     matchMutation.mutate({
@@ -317,7 +340,7 @@ export default function DashboardPage() {
         {/* Main upload area */}
         <div className="lg:col-span-2 space-y-4">
           {/* Supplier selector */}
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <span className="text-sm text-muted-foreground">Поставщик:</span>
             <Select
               value={supplierId ?? "__all__"}
@@ -383,10 +406,16 @@ export default function DashboardPage() {
                           setUseAi(val);
                           if (selectedFile) parseMutation.mutate({ file: selectedFile, useAiColumnPicker: val });
                         }} />
-                        <Label htmlFor="ai-mode" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                        <Label htmlFor="ai-mode" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 flex items-center gap-1">
                           Использовать ИИ для поиска колонки (умный поиск)
+                          <Tooltip>
+                            <TooltipTrigger render={<button type="button" className="text-muted-foreground" />}>
+                              <HelpCircle className="h-3.5 w-3.5" />
+                            </TooltipTrigger>
+                            <TooltipContent>ИИ автоматически определит нужную колонку с номенклатурой в файле</TooltipContent>
+                          </Tooltip>
                         </Label>
-                        {parseMutation.isPending && <Loader2 className="ml-2 h-4 w-4 text-muted-foreground animate-spin" />}
+                        {parseMutation.isPending && <span role="status" aria-label="Загрузка"><Loader2 className="ml-2 h-4 w-4 text-muted-foreground animate-spin" /></span>}
                       </div>
                     )}
                     
@@ -407,30 +436,37 @@ export default function DashboardPage() {
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {parsedItems.slice(0, 50).map((item, idx) => (
-                                <TableRow key={idx}>
+                              {parsedItems.slice(0, 50).map((item, idx) => {
+                                const isDup = duplicateKeys.has(item.raw_text.toLowerCase());
+                                return (
+                                <TableRow key={idx} className={isDup ? "bg-yellow-50/70" : ""}>
                                   <TableCell className="text-xs text-muted-foreground py-1">
+                                    <div className="flex items-center gap-1.5">
+                                    {isDup && <span title="Дубликат"><AlertTriangle className="h-3.5 w-3.5 text-yellow-600" /></span>}
                                     {item.line_id || ""}
+                                    </div>
                                   </TableCell>
                                   <TableCell className="py-1">
                                     <Input 
                                       value={item.raw_text}
                                       onChange={(e) => handleItemEdit(idx, e.target.value)}
-                                      className="h-7 px-2 text-sm"
+                                      className={`h-7 px-2 text-sm ${isDup ? 'bg-white border-yellow-300' : ''}`}
                                     />
                                   </TableCell>
                                   <TableCell className="py-1 pr-4">
-                                    <Button 
-                                      variant="ghost" 
-                                      size="sm" 
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
                                       className="h-7 w-7 p-0 text-muted-foreground hover:text-red-500"
                                       onClick={() => handleItemRemove(idx)}
+                                      aria-label="Удалить строку"
                                     >
                                       <Trash2 className="h-4 w-4" />
                                     </Button>
                                   </TableCell>
                                 </TableRow>
-                              ))}
+                               );
+                              })}
                             </TableBody>
                           </Table>
                         </div>
@@ -475,12 +511,20 @@ export default function DashboardPage() {
                                   </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                  {parsedItems.slice(0, 50).map((item, idx) => (
-                                    <TableRow key={idx}>
-                                      <TableCell className="text-xs text-muted-foreground py-1 px-2">{item.line_id}</TableCell>
+                                  {parsedItems.slice(0, 50).map((item, idx) => {
+                                    const isDup = duplicateKeys.has(item.raw_text.toLowerCase());
+                                    return (
+                                    <TableRow key={idx} className={isDup ? "bg-yellow-50/70" : ""}>
+                                      <TableCell className="text-xs text-muted-foreground py-1 px-2">
+                                        <div className="flex items-center gap-1">
+                                          {isDup && <span title="Дубликат"><AlertTriangle className="h-3 w-3 text-yellow-600" /></span>}
+                                          {item.line_id}
+                                        </div>
+                                      </TableCell>
                                       <TableCell className="py-1 px-2 text-xs font-medium">{item.raw_text}</TableCell>
                                     </TableRow>
-                                  ))}
+                                    );
+                                  })}
                                 </TableBody>
                               </Table>
                             </div>
@@ -557,38 +601,45 @@ export default function DashboardPage() {
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {parsedItems.slice(0, 50).map((item, idx) => (
-                                <TableRow key={idx}>
+                              {parsedItems.slice(0, 50).map((item, idx) => {
+                                const isDup = duplicateKeys.has(item.raw_text.toLowerCase());
+                                return (
+                                <TableRow key={idx} className={isDup ? "bg-yellow-50/70" : ""}>
                                   <TableCell className="text-xs text-muted-foreground py-1">
-                                    <Input 
-                                      value={item.line_id || ""}
-                                      onChange={(e) => {
-                                        const newItems = [...parsedItems];
-                                        newItems[idx].line_id = e.target.value;
-                                        setParsedItems(newItems);
-                                      }}
-                                      className="h-7 px-2 w-16 text-xs bg-muted/30"
-                                    />
+                                    <div className="flex items-center gap-1">
+                                      {isDup && <span title="Дубликат"><AlertTriangle className="h-3.5 w-3.5 text-yellow-600" /></span>}
+                                      <Input 
+                                        value={item.line_id || ""}
+                                        onChange={(e) => {
+                                          const newItems = [...parsedItems];
+                                          newItems[idx].line_id = e.target.value;
+                                          setParsedItems(newItems);
+                                        }}
+                                        className={`h-7 px-2 w-16 text-xs bg-muted/30 ${isDup ? 'bg-white border-yellow-300' : ''}`}
+                                      />
+                                    </div>
                                   </TableCell>
                                   <TableCell className="py-1">
                                     <Input 
                                       value={item.raw_text}
                                       onChange={(e) => handleItemEdit(idx, e.target.value)}
-                                      className="h-7 px-2 text-sm"
+                                      className={`h-7 px-2 text-sm ${isDup ? 'bg-white border-yellow-300' : ''}`}
                                     />
                                   </TableCell>
                                   <TableCell className="py-1 pr-4">
-                                    <Button 
-                                      variant="ghost" 
-                                      size="sm" 
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
                                       className="h-7 w-7 p-0 text-muted-foreground hover:text-red-500"
                                       onClick={() => handleItemRemove(idx)}
+                                      aria-label="Удалить строку"
                                     >
                                       <Trash2 className="h-4 w-4" />
                                     </Button>
                                   </TableCell>
                                 </TableRow>
-                              ))}
+                               );
+                              })}
                               {parsedItems.length > 50 && (
                                 <TableRow>
                                   <TableCell
@@ -708,6 +759,34 @@ export default function DashboardPage() {
           </Card>
         </div>
       </div>
+
+      <AlertDialog open={!!confirmSubmit} onOpenChange={(open) => !open && setConfirmSubmit(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Подтвердите отправку</AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmSubmit?.msg}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (confirmSubmit) {
+                  matchMutation.mutate({
+                    supplier_id: supplierId,
+                    source_type: confirmSubmit.ext,
+                    items: confirmSubmit.items,
+                  });
+                  setConfirmSubmit(null);
+                }
+              }}
+            >
+              Продолжить
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </PageLayout>
   );
 }

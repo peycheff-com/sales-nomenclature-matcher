@@ -20,7 +20,7 @@ export function PageLayout({ children, header, className = "", title, descriptio
       className={`container py-8 max-w-7xl mx-auto space-y-6 ${className}`}
     >
       {(title || description || actions) && (
-        <div className="flex flex-col md:flex-row items-baseline justify-between gap-4">
+        <div className="flex flex-col md:flex-row flex-wrap items-baseline justify-between gap-4">
           <div className="space-y-1">
             {title && <h1 className="text-3xl font-bold tracking-tight">{title}</h1>}
             {description && <p className="text-muted-foreground">{description}</p>}

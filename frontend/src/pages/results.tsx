@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, Loader2, Trash2 } from "lucide-react";
+import { ArrowLeft, FileSearch, Loader2, Trash2 } from "lucide-react";
 import { getMatchRequest, deleteMatchRequest } from "@/api/match";
 import { POLLING_INTERVAL } from "@/lib/constants";
 import { formatDate } from "@/lib/format";
@@ -9,6 +9,9 @@ import StatsBar from "@/components/match/stats-bar";
 import ResultsTable from "@/components/match/results-table";
 import ExportButton from "@/components/export/export-button";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { QueryErrorBanner } from "@/components/ui/query-error-banner";
+import { SkeletonCard, SkeletonTable } from "@/components/ui/skeleton";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -52,8 +55,9 @@ export default function ResultsPage() {
 
   if (requestQuery.isLoading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <div className="space-y-6 py-6">
+        <SkeletonCard />
+        <SkeletonTable rows={5} columns={6} />
       </div>
     );
   }
@@ -61,17 +65,24 @@ export default function ResultsPage() {
   if (requestQuery.isError || !request) {
     return (
       <div className="space-y-4">
-        <div className="py-12 text-center text-sm text-muted-foreground">
-          Запрос не найден
-        </div>
-        <div className="text-center">
-          <Link to="/requests">
-            <Button variant="outline" size="sm">
-              <ArrowLeft className="mr-1 h-4 w-4" />
-              К списку запросов
-            </Button>
-          </Link>
-        </div>
+        {requestQuery.isError && (
+          <QueryErrorBanner error={requestQuery.error} onRetry={() => requestQuery.refetch()} />
+        )}
+        <EmptyState
+          icon={FileSearch}
+          title="Запрос не найден"
+          description="Запрос не существует или был удалён."
+          variant={requestQuery.isError ? "error" : "empty"}
+          onRetry={requestQuery.isError ? () => requestQuery.refetch() : undefined}
+          action={
+            <Link to="/requests">
+              <Button variant="outline" size="sm">
+                <ArrowLeft className="mr-1 h-4 w-4" />
+                К списку запросов
+              </Button>
+            </Link>
+          }
+        />
       </div>
     );
   }
@@ -83,7 +94,7 @@ export default function ResultsPage() {
       actions={
         <div className="flex gap-2 items-center">
           <Link to="/requests">
-            <Button variant="ghost" size="sm">
+            <Button variant="ghost" size="sm" aria-label="Назад к списку">
               <ArrowLeft className="mr-1 h-4 w-4" />
               Назад
             </Button>
@@ -92,6 +103,7 @@ export default function ResultsPage() {
             variant="outline"
             size="sm"
             className="text-red-600 hover:text-red-700 hover:bg-red-50"
+            aria-label="Удалить запрос"
             disabled={deleteMutation.isPending}
             onClick={() => setShowDelete(true)}
           >
@@ -113,7 +125,7 @@ export default function ResultsPage() {
 
       {/* Processing indicator */}
       {isProcessing && (
-        <div className="flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
+        <div role="status" className="flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
           <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
           <span className="text-sm text-blue-800">
             {request.status === "queued"
@@ -130,7 +142,7 @@ export default function ResultsPage() {
 
       {/* Failed state */}
       {request.status === "failed" && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
           Обработка завершилась с ошибкой. Обратитесь к администратору.
         </div>
       )}

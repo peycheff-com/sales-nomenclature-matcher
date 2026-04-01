@@ -35,7 +35,7 @@ export default function Header() {
 
   return (
     <header className="flex h-14 items-center justify-between border-b border-border bg-background px-4">
-      <Button variant="ghost" size="sm" className="lg:hidden" onClick={toggle}>
+      <Button variant="ghost" size="sm" className="lg:hidden" onClick={toggle} aria-label="Открыть меню">
         <Menu className="h-5 w-5" />
       </Button>
       <div className="flex-1" />

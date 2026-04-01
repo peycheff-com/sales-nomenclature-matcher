@@ -34,6 +34,9 @@ import {
 } from "@/components/ui/alert-dialog";
 import { PageLayout } from "@/components/layout/page-layout";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton, SkeletonTable } from "@/components/ui/skeleton";
+import { QueryErrorBanner } from "@/components/ui/query-error-banner";
+import { Pagination } from "@/components/ui/pagination";
 
 const PAGE_SIZE = 25;
 
@@ -57,7 +60,7 @@ export default function CatalogPage() {
     return () => clearTimeout(timer);
   }, [searchInput]);
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const statsQuery = useQuery({
@@ -143,20 +146,27 @@ export default function CatalogPage() {
     >
       <div className="grid gap-6 md:grid-cols-4">
         <div className="md:col-span-1 space-y-6">
+          {statsQuery.isError && (
+            <QueryErrorBanner
+              error={statsQuery.error}
+              title="Ошибка загрузки статистики"
+              onRetry={() => statsQuery.refetch()}
+            />
+          )}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium">Статистика каталога</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {statsQuery.data?.total_products.toLocaleString() ?? "—"}
+                {statsQuery.isLoading ? <Skeleton className="h-8 w-20" /> : statsQuery.data?.total_products.toLocaleString() ?? "—"}
               </div>
               <p className="text-xs text-muted-foreground mt-1">Всего позиций в индексе</p>
 
               <div className="mt-4 pt-4 border-t border-border flex flex-col gap-2">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
+                <Button
+                  variant="outline"
+                  size="sm"
                   className="w-full justify-start text-xs"
                   onClick={() => importMutation.mutate()}
                   disabled={importMutation.isPending}
@@ -164,16 +174,16 @@ export default function CatalogPage() {
                   <Server className="mr-2 h-4 w-4 text-blue-500" />
                   Синхронизировать с 1С
                 </Button>
-                <input 
-                  type="file" 
-                  ref={fileInputRef} 
-                  onChange={handleFileUpload} 
-                  accept=".csv,.xlsx" 
-                  className="hidden" 
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileUpload}
+                  accept=".csv,.xlsx"
+                  className="hidden"
                 />
-                <Button 
-                  variant="outline" 
-                  size="sm" 
+                <Button
+                  variant="outline"
+                  size="sm"
                   className="w-full justify-start text-xs"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={uploadMutation.isPending}
@@ -181,9 +191,9 @@ export default function CatalogPage() {
                   <Upload className="mr-2 h-4 w-4 text-green-500" />
                   {uploadMutation.isPending ? "Загрузка..." : "Загрузить из файла"}
                 </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
+                <Button
+                  variant="outline"
+                  size="sm"
                   className="w-full justify-start text-xs"
                   onClick={() => reindexMutation.mutate()}
                   disabled={reindexMutation.isPending}
@@ -235,8 +245,8 @@ export default function CatalogPage() {
                       </TableRow>
                     ) : productsQuery.isLoading ? (
                       <TableRow>
-                        <TableCell colSpan={5} className="py-12 text-center text-sm text-muted-foreground animate-pulse">
-                          Поиск...
+                        <TableCell colSpan={5} className="py-6">
+                          <SkeletonTable rows={3} columns={4} />
                         </TableCell>
                       </TableRow>
                     ) : paginatedData.length === 0 ? (
@@ -246,17 +256,21 @@ export default function CatalogPage() {
                             icon={Search}
                             title="Ничего не найдено"
                             description="По вашему запросу не найдено ни одного товара в каталоге."
+                            variant="no-results"
                           />
                         </TableCell>
                       </TableRow>
                     ) : (
                       paginatedData.map((prod) => (
                         <React.Fragment key={prod.product_id}>
-                          <TableRow 
+                          <TableRow
                             className={`cursor-pointer transition-colors ${expandedProduct === prod.product_id ? "bg-muted/30" : "hover:bg-muted/50"}`}
                             onClick={() => setExpandedProduct(expandedProduct === prod.product_id ? null : prod.product_id)}
                           >
-                            <TableCell>
+                            <TableCell
+                              role="button"
+                              aria-label={expandedProduct === prod.product_id ? "Свернуть" : "Развернуть"}
+                            >
                               {expandedProduct === prod.product_id ? (
                                 <ChevronDown className="h-4 w-4 text-muted-foreground" />
                               ) : (
@@ -315,13 +329,14 @@ export default function CatalogPage() {
                                     <p className="text-xs border p-2 rounded bg-muted/30 select-all mb-4">
                                       {prod.name}
                                     </p>
-                                    
+
                                     <div className="flex justify-end pt-4 border-t border-border mt-auto h-full items-end">
                                       <Button
                                         variant="ghost"
                                         size="sm"
                                         className="text-red-500 hover:bg-red-50 hover:text-red-700 h-8"
-                                        onClick={() => setDeleteTarget(prod.product_id)}
+                                        onClick={() => setDeleteTarget({ id: prod.product_id, name: prod.name })}
+                                        aria-label="Удалить товар"
                                       >
                                         <Trash2 className="h-4 w-4 mr-2" />
                                         Удалить товар
@@ -340,35 +355,17 @@ export default function CatalogPage() {
               </div>
 
               {totalPages > 1 && (
-                <div className="mt-4 flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">
-                    Страница {page} из {totalPages} (всего {fetchedData.length})
-                  </span>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={page <= 1}
-                      onClick={() => {
-                        setPage((p) => p - 1);
-                        setExpandedProduct(null);
-                      }}
-                    >
-                      Назад
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={page >= totalPages}
-                      onClick={() => {
-                        setPage((p) => p + 1);
-                        setExpandedProduct(null);
-                      }}
-                    >
-                      Вперёд
-                    </Button>
-                  </div>
-                </div>
+                <Pagination
+                  page={page}
+                  totalPages={totalPages}
+                  total={fetchedData.length}
+                  pageSize={PAGE_SIZE}
+                  onPageChange={(p) => {
+                    setPage(p);
+                    setExpandedProduct(null);
+                  }}
+                  className="mt-4"
+                />
               )}
             </CardContent>
           </Card>
@@ -380,14 +377,14 @@ export default function CatalogPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Удалить товар из каталога?</AlertDialogTitle>
             <AlertDialogDescription>
-              Товар и все привязанные к нему алиасы будут безвозвратно удалены.
+              Товар «{deleteTarget?.name}» и все привязанные к нему алиасы будут безвозвратно удалены.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Отмена</AlertDialogCancel>
             <AlertDialogAction
               className="bg-red-600 hover:bg-red-700 text-white"
-              onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget)}
+              onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
               disabled={deleteMutation.isPending}
             >
               Удалить безвозвратно

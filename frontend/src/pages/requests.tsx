@@ -205,6 +205,7 @@ export default function RequestsPage() {
                         variant="ghost"
                         size="icon"
                         className="h-5 w-5 hover:bg-muted"
+                        aria-label="Копировать ID"
                         onClick={(e) => copyToClipboard(e, req.request_id)}
                       >
                         {copiedId === req.request_id ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
@@ -248,6 +249,7 @@ export default function RequestsPage() {
                       variant="ghost"
                       size="sm"
                       className="text-red-500 hover:text-red-700 hover:bg-red-50 h-8 w-8 p-0"
+                      aria-label="Удалить запрос"
                       onClick={() => setDeleteTarget(req.request_id)}
                       disabled={deleteMutation.isPending}
                     >
@@ -261,31 +263,7 @@ export default function RequestsPage() {
         </div>
       )}
 
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-muted-foreground">
-            Страница {page} из {totalPages} {total > 0 && `(всего ${total})`}
-          </span>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page <= 1}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-            >
-              Назад
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page >= totalPages}
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            >
-              Вперёд
-            </Button>
-          </div>
-        </div>
-      )}
+      <Pagination page={page} totalPages={totalPages} total={total} pageSize={PAGE_SIZE} onPageChange={setPage} />
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>

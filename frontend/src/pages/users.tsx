@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Loader2, KeyRound, UserCog, Copy, Check } from "lucide-react";
+import { Plus, Loader2, KeyRound, UserCog, Copy, Check, Users } from "lucide-react";
 import { toast } from "sonner";
 import {
   listUsers,
@@ -52,6 +52,9 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { SkeletonTable } from "@/components/ui/skeleton";
+import { QueryErrorBanner } from "@/components/ui/query-error-banner";
+import { EmptyState } from "@/components/ui/empty-state";
 import { PageLayout } from "@/components/layout/page-layout";
 
 const ROLE_LABELS: Record<string, string> = {
@@ -300,6 +303,26 @@ export default function UsersPage() {
         </Dialog>
       }
     >
+      {usersQuery.isError && (
+        <QueryErrorBanner
+          error={usersQuery.error}
+          onRetry={() => usersQuery.refetch()}
+        />
+      )}
+
+      {usersQuery.isLoading ? (
+        <Card>
+          <CardContent className="p-6">
+            <SkeletonTable rows={5} columns={5} />
+          </CardContent>
+        </Card>
+      ) : users.length === 0 ? (
+        <EmptyState
+          icon={Users}
+          title="Нет пользователей"
+          description="Создайте первого пользователя, чтобы начать работу."
+        />
+      ) : (
       <Card>
         <CardContent className="p-0">
           <Table>
@@ -313,20 +336,7 @@ export default function UsersPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {usersQuery.isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center">
-                    <Loader2 className="mx-auto h-6 w-6 animate-spin text-muted-foreground" />
-                  </TableCell>
-                </TableRow>
-              ) : users.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
-                    Нет пользователей
-                  </TableCell>
-                </TableRow>
-              ) : (
-                users.map((u) => (
+              {users.map((u) => (
                   <TableRow key={u.user_id}>
                     <TableCell>
                       <div className="flex items-center gap-2">
@@ -385,6 +395,7 @@ export default function UsersPage() {
                           size="sm"
                           className="h-8 px-2 text-xs"
                           onClick={() => openResetDialog(u)}
+                          aria-label="Сбросить пароль"
                         >
                           <KeyRound className="h-3.5 w-3.5" />
                         </Button>
@@ -392,11 +403,12 @@ export default function UsersPage() {
                     </TableCell>
                   </TableRow>
                 ))
-              )}
+              }
             </TableBody>
           </Table>
         </CardContent>
       </Card>
+      )}
 
       {/* Edit dialog */}
       <Dialog open={!!editTarget} onOpenChange={(open) => !open && setEditTarget(null)}>

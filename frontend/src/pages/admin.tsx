@@ -11,6 +11,7 @@ import {
   RefreshCw,
   Server,
   Search,
+  HelpCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { getQualityMetrics } from "@/api/metrics";
@@ -22,6 +23,9 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { QueryErrorBanner } from "@/components/ui/query-error-banner";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { PageLayout } from "@/components/layout/page-layout";
 
 export default function AdminPage() {
@@ -76,7 +80,7 @@ export default function AdminPage() {
         <TabsContent value="metrics" className="space-y-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
             <h2 className="text-lg font-medium">Статистика сопоставления</h2>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Select value={supplierFilter} onValueChange={(val: string | null) => val && setSupplierFilter(val)}>
                 <SelectTrigger className="w-[220px] bg-background">
                   <SelectValue placeholder="Все поставщики" />
@@ -100,6 +104,13 @@ export default function AdminPage() {
             </div>
           </div>
 
+          {metricsQuery.isError && (
+            <QueryErrorBanner
+              error={metricsQuery.error}
+              onRetry={() => metricsQuery.refetch()}
+            />
+          )}
+
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -108,20 +119,28 @@ export default function AdminPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {metricsQuery.isLoading ? <Loader2 className="h-5 w-5 animate-spin"/> : metrics?.total_cases?.toLocaleString() ?? "—"}
+                  {metricsQuery.isLoading ? <Skeleton className="h-8 w-20" /> : metrics?.total_cases?.toLocaleString() ?? "—"}
                 </div>
                 <p className="text-xs text-muted-foreground">обработано за всё время</p>
               </CardContent>
             </Card>
-            
+
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Точность Top-1</CardTitle>
+                <CardTitle className="text-sm font-medium flex items-center gap-1">
+                  Точность Top-1
+                  <Tooltip>
+                    <TooltipTrigger className="cursor-help">
+                      <HelpCircle className="h-3.5 w-3.5 text-muted-foreground" />
+                    </TooltipTrigger>
+                    <TooltipContent>Процент случаев, когда лучший кандидат совпал с выбранным оператором</TooltipContent>
+                  </Tooltip>
+                </CardTitle>
                 <Activity className="h-4 w-4 text-green-500" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-green-600">
-                  {metricsQuery.isLoading ? <Loader2 className="h-5 w-5 animate-spin"/> : metrics ? `${(metrics.top1_accuracy ? metrics.top1_accuracy * 100 : 0).toFixed(1)}%` : "—"}
+                  {metricsQuery.isLoading ? <Skeleton className="h-8 w-20" /> : metrics ? `${(metrics.top1_accuracy ? metrics.top1_accuracy * 100 : 0).toFixed(1)}%` : "—"}
                 </div>
                 <p className="text-xs text-muted-foreground">лучший кандидат совпал с выбором</p>
               </CardContent>
@@ -129,12 +148,20 @@ export default function AdminPage() {
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Полнота Top-3</CardTitle>
+                <CardTitle className="text-sm font-medium flex items-center gap-1">
+                  Полнота Top-3
+                  <Tooltip>
+                    <TooltipTrigger className="cursor-help">
+                      <HelpCircle className="h-3.5 w-3.5 text-muted-foreground" />
+                    </TooltipTrigger>
+                    <TooltipContent>Процент случаев, когда верный ответ был среди трёх лучших кандидатов</TooltipContent>
+                  </Tooltip>
+                </CardTitle>
                 <Settings2 className="h-4 w-4 text-yellow-500" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-yellow-600">
-                  {metricsQuery.isLoading ? <Loader2 className="h-5 w-5 animate-spin"/> : metrics ? `${(metrics.top3_recall ? metrics.top3_recall * 100 : 0).toFixed(1)}%` : "—"}
+                  {metricsQuery.isLoading ? <Skeleton className="h-8 w-20" /> : metrics ? `${(metrics.top3_recall ? metrics.top3_recall * 100 : 0).toFixed(1)}%` : "—"}
                 </div>
                 <p className="text-xs text-muted-foreground">верный ответ в топ 3 кандидатах</p>
               </CardContent>
@@ -147,7 +174,7 @@ export default function AdminPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-primary">
-                  {metricsQuery.isLoading ? <Loader2 className="h-5 w-5 animate-spin"/> : metrics ? `${(metrics.review_acceptance_rate ? metrics.review_acceptance_rate * 100 : 0).toFixed(1)}%` : "—"}
+                  {metricsQuery.isLoading ? <Skeleton className="h-8 w-20" /> : metrics ? `${(metrics.review_acceptance_rate ? metrics.review_acceptance_rate * 100 : 0).toFixed(1)}%` : "—"}
                 </div>
                 <p className="text-xs text-muted-foreground">успешные ручные проверки</p>
               </CardContent>

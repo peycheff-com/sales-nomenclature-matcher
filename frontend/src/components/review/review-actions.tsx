@@ -24,6 +24,7 @@ interface ReviewActionsProps {
 
 export default function ReviewActions({ item, onReviewed }: ReviewActionsProps) {
   const [correcting, setCorrecting] = useState(false);
+  const [isOverriding, setIsOverriding] = useState(false);
   const [correctedProductId, setCorrectedProductId] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchTrigger, setSearchTrigger] = useState("");
@@ -39,6 +40,7 @@ export default function ReviewActions({ item, onReviewed }: ReviewActionsProps) 
       reviewItem(item.request_item_id, input),
     onSuccess: (_, variables) => {
       setCorrecting(false);
+      setIsOverriding(false);
       toast.success("Решение сохранено");
       onReviewed(variables.final_decision);
     },
@@ -76,15 +78,26 @@ export default function ReviewActions({ item, onReviewed }: ReviewActionsProps) 
     );
   }
 
-  if (item.final_decision) {
+  if (item.final_decision && !isOverriding) {
     return (
-      <div className="flex flex-col gap-0.5">
-        <span className={`text-xs font-medium px-2 py-0.5 rounded border ${DECISION_COLORS[item.final_decision]}`}>
+      <div className="flex flex-col gap-0.5 relative group">
+        <span className={`text-xs font-medium px-2 py-0.5 rounded border max-w-max ${DECISION_COLORS[item.final_decision]}`}>
           {DECISION_LABELS[item.final_decision] ?? item.final_decision}
         </span>
         {item.reviewed_by && (
           <span className="text-[10px] text-muted-foreground">{item.reviewed_by}</span>
         )}
+        <div className="absolute right-0 top-0 opacity-0 group-hover:opacity-100 transition-opacity">
+          <Button 
+            variant="outline" 
+            size="icon" 
+            className="h-6 w-6 rounded-full bg-background/80 backdrop-blur-sm text-muted-foreground hover:text-foreground" 
+            onClick={() => setIsOverriding(true)} 
+            title="Изменить решение"
+          >
+            <Pencil className="h-3 w-3" />
+          </Button>
+        </div>
       </div>
     );
   }
@@ -125,6 +138,17 @@ export default function ReviewActions({ item, onReviewed }: ReviewActionsProps) 
           <X className="h-3.5 w-3.5" />
           Нет
         </Button>
+        {isOverriding && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-muted-foreground ml-1 bg-muted/50"
+            onClick={() => setIsOverriding(false)}
+            title="Отменить изменение"
+          >
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        )}
       </div>
 
       <Dialog open={correcting} onOpenChange={setCorrecting}>
