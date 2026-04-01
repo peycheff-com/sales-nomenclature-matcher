@@ -78,12 +78,15 @@ class MatchRequestDetails(BaseModel):
 
     request_id: str
     supplier_id: str | None = None
+    source_type: str | None = None
+    file_name: str | None = None
     status: Literal["queued", "running", "done", "failed"]
     total_items: int = 0
     processed_items: int = 0
     auto_matched_items: int = 0
     review_needed_items: int = 0
     no_match_items: int = 0
+    error_message: str | None = None
     created_at: datetime
     started_at: datetime | None = None
     finished_at: datetime | None = None

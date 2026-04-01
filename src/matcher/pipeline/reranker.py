@@ -142,6 +142,19 @@ async def _http_rerank(
         resp.raise_for_status()
         data = resp.json()
 
+    # Token tracking for HTTP rerank APIs
+    if _token_tracker:
+        # Estimate tokens from query + document lengths
+        est_tokens = len(query.split()) + sum(len(d.split()) for d in documents)
+        billed = data.get("meta", {}).get("billed_units", {})
+        _token_tracker.record(
+            operation="rerank",
+            provider=provider_id,
+            model=model,
+            prompt_tokens=billed.get("search_units", est_tokens),
+            total_tokens=billed.get("search_units", est_tokens),
+        )
+
     results = []
     if provider_id == "dashscope":
         items = data.get("output", {}).get("results", [])

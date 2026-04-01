@@ -371,14 +371,24 @@ async def smart_upload(ctx: dict, request_id: str, **kwargs) -> dict:
     from matcher.api.v1.settings import load_persisted_settings
     from matcher.db.repos.catalog import CatalogRepo
     from matcher.db.repos.match import MatchRepo
+    from matcher.indexing import embedder as embedder_mod
     from matcher.indexing.indexer import reindex_catalog
     from matcher.ingestion.base import RawCatalogItem
     from matcher.ingestion.transformer import transform_item
+    from matcher.pipeline import agent as agent_mod
+    from matcher.pipeline import reranker as reranker_mod
     from matcher.pipeline.orchestrator import match_single
+    from matcher.pipeline.token_tracker import TokenTracker
 
     db_factory = ctx["db_factory"]
     catalog_items = kwargs.get("catalog_items", [])
     catalog_count = kwargs.get("catalog_count", 0)
+
+    # Token tracking for smart_upload
+    tracker = TokenTracker(request_id=request_id)
+    embedder_mod.set_token_tracker(tracker)
+    reranker_mod.set_token_tracker(tracker)
+    agent_mod.set_token_tracker(tracker)
 
     logger.info(
         "Starting smart_upload for request %s (catalog=%d items)",
@@ -535,7 +545,7 @@ async def smart_upload(ctx: dict, request_id: str, **kwargs) -> dict:
                 no_match_count += 1
                 processed += 1
 
-        # Final status
+        # Final status + flush token tracking
         async with db_factory() as session:
             repo = MatchRepo(session)
             await repo.update_request_status(
@@ -546,13 +556,15 @@ async def smart_upload(ctx: dict, request_id: str, **kwargs) -> dict:
                 review_needed_items=review_count,
                 no_match_items=no_match_count,
             )
+            await tracker.flush(session)
             await session.commit()
 
         logger.info(
-            "Smart upload %s done: catalog=%d, matched=%d",
+            "Smart upload %s done: catalog=%d, matched=%d, tokens=%d",
             request_id,
             upserted,
             processed,
+            tracker.total_tokens,
         )
 
     except Exception as e:
@@ -572,6 +584,11 @@ async def smart_upload(ctx: dict, request_id: str, **kwargs) -> dict:
                 await session.commit()
         except Exception:
             logger.exception("Failed to mark request %s as failed", request_id)
+
+    # Clean up trackers
+    embedder_mod.set_token_tracker(None)
+    reranker_mod.set_token_tracker(None)
+    agent_mod.set_token_tracker(None)
 
     return {
         "request_id": request_id,

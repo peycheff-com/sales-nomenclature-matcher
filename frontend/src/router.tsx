@@ -42,7 +42,7 @@ async function ensureAuthenticated(): Promise<{
   }
   try {
     const user = await queryClient.ensureQueryData({
-      queryKey: ["auth", "me"],
+      queryKey: ["me"],
       queryFn: getMe,
       staleTime: 5 * 60 * 1000,
     });
@@ -136,7 +136,7 @@ const adminRoute = createRoute({
   beforeLoad: async () => {
     try {
       const user = await queryClient.ensureQueryData({
-        queryKey: ["auth", "me"],
+        queryKey: ["me"],
         queryFn: getMe,
         staleTime: 5 * 60 * 1000,
       });
@@ -172,7 +172,7 @@ const settingsRoute = createRoute({
   beforeLoad: async () => {
     try {
       const user = await queryClient.ensureQueryData({
-        queryKey: ["auth", "me"],
+        queryKey: ["me"],
         queryFn: getMe,
         staleTime: 5 * 60 * 1000,
       });
@@ -194,7 +194,7 @@ const usersRoute = createRoute({
   beforeLoad: async () => {
     try {
       const user = await queryClient.ensureQueryData({
-        queryKey: ["auth", "me"],
+        queryKey: ["me"],
         queryFn: getMe,
         staleTime: 5 * 60 * 1000,
       });

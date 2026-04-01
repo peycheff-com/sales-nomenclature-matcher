@@ -158,26 +158,3 @@ export interface ProviderConfigInput {
   base_url?: string;
 }
 
-export interface SettingsUpdateInput {
-  llm_provider?: string;
-  embedding_provider?: string;
-  rerank_provider?: string;
-  providers_registry?: ProviderConfigInput[];
-  llm_model?: string;
-  embedding_model?: string;
-  embedding_dimensions?: number;
-  auto_match_threshold?: number;
-  review_threshold?: number;
-  agentic_resolution_enabled?: boolean;
-  onec?: OneCConnectionSettings;
-}
-
-export interface FreeModel {
-  id: string;
-  name: string;
-  context_length: number;
-}
-
-export interface FreeModelsResponse {
-  models: FreeModel[];
-}

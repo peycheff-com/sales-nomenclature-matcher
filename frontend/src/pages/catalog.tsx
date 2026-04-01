@@ -82,7 +82,7 @@ export default function CatalogPage() {
 
   // Debounced live search via hook — fires 400ms after user stops typing
   const debouncedInput = useDebouncedValue(searchInput, 400);
-  const debouncedQuery = debouncedInput.trim().length >= 2 ? debouncedInput.trim() : "";
+  const debouncedQuery = debouncedInput.trim();
 
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
@@ -95,8 +95,7 @@ export default function CatalogPage() {
 
   const productsQuery = useQuery({
     queryKey: ["catalog-search", debouncedQuery],
-    queryFn: () => searchCatalog(debouncedQuery, 1000),
-    enabled: !!debouncedQuery,
+    queryFn: () => searchCatalog(debouncedQuery, 500),
   });
 
   const importMutation = useMutation({
@@ -432,7 +431,7 @@ export default function CatalogPage() {
                     <TableRow>
                       {/* GAP-5.3: Select-all checkbox header */}
                       <TableHead className="w-10">
-                        {debouncedQuery && paginatedData.length > 0 && (
+                        {paginatedData.length > 0 && (
                           <Checkbox
                             checked={allPageSelected}
                             indeterminate={somePageSelected && !allPageSelected}
@@ -449,13 +448,7 @@ export default function CatalogPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {!debouncedQuery ? (
-                      <TableRow>
-                        <TableCell colSpan={6} className="py-12 text-center text-sm text-muted-foreground">
-                          Введите запрос для поиска по каталогу.
-                        </TableCell>
-                      </TableRow>
-                    ) : productsQuery.isLoading ? (
+                    {productsQuery.isLoading ? (
                       <TableRow>
                         <TableCell colSpan={6} className="py-6">
                           <SkeletonTable rows={3} columns={5} />
@@ -466,8 +459,8 @@ export default function CatalogPage() {
                         <TableCell colSpan={6} className="py-8">
                           <EmptyState
                             icon={Search}
-                            title="Ничего не найдено"
-                            description="По вашему запросу не найдено ни одного товара в каталоге."
+                            title={debouncedQuery ? "Ничего не найдено" : "Каталог пуст"}
+                            description={debouncedQuery ? "По вашему запросу не найдено ни одного товара в каталоге." : "В базовом каталоге пока нет данных. Выполните синхронизацию с 1С или загрузите файл."}
                             variant="no-results"
                           />
                         </TableCell>

@@ -185,6 +185,16 @@ async def _embed_texts_google(
 
                     for j, item in enumerate(data.get("embeddings", [])):
                         all_embeddings[i + j] = item["values"]
+                    # Token tracking for Google embeddings (estimate based on text length)
+                    if _token_tracker:
+                        est_tokens = sum(len(t.split()) * 2 for t in batch)
+                        _token_tracker.record(
+                            operation="embed",
+                            provider="google",
+                            model=model,
+                            prompt_tokens=est_tokens,
+                            total_tokens=est_tokens,
+                        )
                     break
                 except Exception as e:
                     if attempt == max_retries - 1:
