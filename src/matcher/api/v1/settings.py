@@ -64,6 +64,12 @@ class SettingsResponse(BaseModel):
     retrieval_top_n: int
     rerank_top_n: int
     agentic_resolution_enabled: bool
+    # Adaptive retrieval
+    small_catalog_threshold: int
+    # LLM Matcher
+    llm_matcher_enabled: bool
+    llm_matcher_model: str
+    llm_matcher_batch_size: int
     # 1C Connection
     onec: OneCConnectionSettings
 
@@ -88,6 +94,10 @@ class SettingsUpdateInput(BaseModel):
     retrieval_top_n: int | None = None
     rerank_top_n: int | None = None
     agentic_resolution_enabled: bool | None = None
+    small_catalog_threshold: int | None = None
+    llm_matcher_enabled: bool | None = None
+    llm_matcher_model: str | None = None
+    llm_matcher_batch_size: int | None = None
     onec: OneCConnectionSettings | None = None
 
     @model_validator(mode="after")
@@ -222,6 +232,10 @@ async def _persist_settings(db: AsyncSession) -> None:
         "agentic_resolution_enabled", str(settings.agentic_resolution_enabled).lower()
     )
     await repo.upsert("embedding_dimensions", str(settings.embedding_dimensions))
+    await repo.upsert("small_catalog_threshold", str(settings.small_catalog_threshold))
+    await repo.upsert("llm_matcher_enabled", str(settings.llm_matcher_enabled).lower())
+    await repo.upsert("llm_matcher_model", str(settings.llm_matcher_model))
+    await repo.upsert("llm_matcher_batch_size", str(settings.llm_matcher_batch_size))
     await repo.upsert("onec", _onec_settings.model_dump_json())
 
     await repo.upsert("providers_registry", json.dumps(settings.providers_registry))
@@ -285,6 +299,10 @@ async def get_settings(
         retrieval_top_n=settings.retrieval_top_n,
         rerank_top_n=settings.rerank_top_n,
         agentic_resolution_enabled=settings.agentic_resolution_enabled,
+        small_catalog_threshold=settings.small_catalog_threshold,
+        llm_matcher_enabled=settings.llm_matcher_enabled,
+        llm_matcher_model=settings.llm_matcher_model,
+        llm_matcher_batch_size=settings.llm_matcher_batch_size,
         onec=OneCConnectionSettings(
             base_url=_onec_settings.base_url,
             username=_onec_settings.username,
@@ -362,6 +380,14 @@ async def update_settings(
         settings.rerank_top_n = body.rerank_top_n
     if body.agentic_resolution_enabled is not None:
         settings.agentic_resolution_enabled = body.agentic_resolution_enabled
+    if body.small_catalog_threshold is not None:
+        settings.small_catalog_threshold = body.small_catalog_threshold
+    if body.llm_matcher_enabled is not None:
+        settings.llm_matcher_enabled = body.llm_matcher_enabled
+    if body.llm_matcher_model is not None:
+        settings.llm_matcher_model = body.llm_matcher_model
+    if body.llm_matcher_batch_size is not None:
+        settings.llm_matcher_batch_size = body.llm_matcher_batch_size
     if body.onec is not None:
         _onec_settings = body.onec
 

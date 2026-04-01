@@ -199,7 +199,12 @@ class Settings(BaseSettings):
             "api_key": "",
             "base_url": "https://api.jina.ai/v1",
         },
-        "google": {"id": "google", "name": "Google Gemini", "api_key": "", "base_url": ""},
+        "google": {
+            "id": "google",
+            "name": "Google Gemini",
+            "api_key": "",
+            "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
+        },
         "cohere": {
             "id": "cohere",
             "name": "Cohere",
