@@ -183,6 +183,6 @@ class CatalogRepo:
         await self.session.execute(
             update(IndexVersion)
             .where(IndexVersion.index_version_id == version_id)
-            .values(is_active=True, activated_at=datetime.now(UTC))
+            .values(is_active=True, activated_at=func.now())
         )
         return True

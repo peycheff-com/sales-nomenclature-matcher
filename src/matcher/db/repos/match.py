@@ -307,7 +307,7 @@ class MatchRepo:
             "final_decision": decision,
             "final_product_id": final_product_id,
             "reviewed_by": reviewed_by,
-            "reviewed_at": datetime.now(UTC),
+            "reviewed_at": func.now(),
         }
         if review_notes is not None:
             values["review_notes"] = review_notes
