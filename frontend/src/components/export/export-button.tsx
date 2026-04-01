@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import { Download } from "lucide-react";
 import Papa from "papaparse";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import { getMatchItems } from "@/api/match";
 import type { MatchResult } from "@/api/types";
 import { STATUS_LABELS } from "@/lib/constants";
@@ -92,10 +92,28 @@ export default function ExportButton({ requestId, totalItems }: ExportButtonProp
     try {
       const items = await fetchAll();
       const rows = toRows(items);
-      const ws = XLSX.utils.json_to_sheet(rows);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Результаты");
-      XLSX.writeFile(wb, `results-${requestId}.xlsx`);
+
+      const wb = new ExcelJS.Workbook();
+      const ws = wb.addWorksheet("Результаты");
+
+      if (rows.length > 0) {
+        const headers = Object.keys(rows[0]);
+        ws.addRow(headers);
+        for (const row of rows) {
+          ws.addRow(headers.map((h) => row[h] ?? ""));
+        }
+      }
+
+      const buffer = await wb.xlsx.writeBuffer();
+      const blob = new Blob([buffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `results-${requestId}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
     } finally {
       setExporting(false);
     }
