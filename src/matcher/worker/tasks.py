@@ -248,11 +248,22 @@ async def batch_match(ctx: dict, request_id: str) -> dict:
         await repo.update_request_status(request_id, "running")
         await session.commit()
 
-        items, _total = await repo.get_request_items(request_id, page=1, page_size=10000)
-        item_rows = [
-            {"request_item_id": it.request_item_id, "raw_text": it.raw_text, "line_id": it.line_id}
-            for it in items
-        ]
+        # Load all item rows in pages to avoid massive single query
+        item_rows = []
+        page = 1
+        while True:
+            items, total = await repo.get_request_items(request_id, page=page, page_size=500)
+            for it in items:
+                item_rows.append(
+                    {
+                        "request_item_id": it.request_item_id,
+                        "raw_text": it.raw_text,
+                        "line_id": it.line_id,
+                    }
+                )
+            if len(item_rows) >= total or not items:
+                break
+            page += 1
 
     counters = await _process_batch(
         db_factory=db_factory,
@@ -532,11 +543,22 @@ async def smart_upload(ctx: dict, request_id: str, **kwargs) -> dict:
         await repo.update_request_status(request_id, "running")
         await session.commit()
 
-        items, _total = await repo.get_request_items(request_id, page=1, page_size=10000)
-        item_rows = [
-            {"request_item_id": it.request_item_id, "raw_text": it.raw_text, "line_id": it.line_id}
-            for it in items
-        ]
+        # Load all item rows in pages to avoid massive single query
+        item_rows = []
+        page = 1
+        while True:
+            items, total = await repo.get_request_items(request_id, page=page, page_size=500)
+            for it in items:
+                item_rows.append(
+                    {
+                        "request_item_id": it.request_item_id,
+                        "raw_text": it.raw_text,
+                        "line_id": it.line_id,
+                    }
+                )
+            if len(item_rows) >= total or not items:
+                break
+            page += 1
 
     counters = await _process_batch(
         db_factory=db_factory,

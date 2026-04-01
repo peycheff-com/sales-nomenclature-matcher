@@ -22,7 +22,7 @@ _XLS_MAGIC = b"\xd0\xcf\x11\xe0"
 
 
 def _validate_excel_content(content: bytes) -> None:
-    """Reject files that don't look like Excel based on magic bytes."""
+    """Reject files that don't look like Excel based on magic bytes and ZIP content."""
     if len(content) < 4:
         raise HTTPException(status_code=400, detail="File is too small to be a valid Excel file.")
     header = content[:4]
@@ -34,6 +34,24 @@ def _validate_excel_content(content: bytes) -> None:
                 " Only .xlsx and .xls files are accepted."
             ),
         )
+    # For XLSX (ZIP-based), verify it contains Excel content markers
+    if header == _XLSX_MAGIC:
+        import io
+        import zipfile
+
+        try:
+            with zipfile.ZipFile(io.BytesIO(content)) as zf:
+                names = zf.namelist()
+                if "[Content_Types].xml" not in names:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="File appears to be a ZIP archive, not a valid Excel file.",
+                    )
+        except zipfile.BadZipFile:
+            raise HTTPException(
+                status_code=400,
+                detail="File is corrupted or not a valid Excel file.",
+            )
 
 
 @router.post("/match/upload", response_model=BatchRequestAccepted, status_code=202)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 
@@ -130,6 +131,7 @@ class OpenRouterModelsResponse(BaseModel):
 
 _onec_settings = OneCConnectionSettings()
 _db_loaded: bool = False
+_settings_lock = asyncio.Lock()
 
 # Keys that are persisted to the system_settings table.
 _PERSIST_KEYS = (
@@ -168,56 +170,64 @@ async def load_persisted_settings(db: AsyncSession, force: bool = False) -> None
         logger.debug("system_settings table not available yet, skipping load")
         return
 
-    if "auto_match_threshold" in stored and stored["auto_match_threshold"] is not None:
-        settings.auto_match_threshold = float(stored["auto_match_threshold"])
-    if "review_threshold" in stored and stored["review_threshold"] is not None:
-        settings.review_threshold = float(stored["review_threshold"])
-    if "retrieval_top_n" in stored and stored["retrieval_top_n"] is not None:
-        settings.retrieval_top_n = int(stored["retrieval_top_n"])
-    if "rerank_top_n" in stored and stored["rerank_top_n"] is not None:
-        settings.rerank_top_n = int(stored["rerank_top_n"])
-    if "agentic_resolution_enabled" in stored and stored["agentic_resolution_enabled"] is not None:
-        settings.agentic_resolution_enabled = stored["agentic_resolution_enabled"].lower() == "true"
-    if "embedding_dimensions" in stored and stored["embedding_dimensions"] is not None:
-        settings.embedding_dimensions = int(stored["embedding_dimensions"])
-    if "small_catalog_threshold" in stored and stored["small_catalog_threshold"] is not None:
-        settings.small_catalog_threshold = int(stored["small_catalog_threshold"])
-    if "llm_matcher_enabled" in stored and stored["llm_matcher_enabled"] is not None:
-        settings.llm_matcher_enabled = stored["llm_matcher_enabled"].lower() == "true"
-    if "llm_matcher_model" in stored and stored["llm_matcher_model"] is not None:
-        settings.llm_matcher_model = str(stored["llm_matcher_model"])
-    if "llm_matcher_batch_size" in stored and stored["llm_matcher_batch_size"] is not None:
-        settings.llm_matcher_batch_size = int(stored["llm_matcher_batch_size"])
+    # Apply all field updates under lock
+    # (minimizes window for concurrent reads to see partial state)
+    async with _settings_lock:
+        if "auto_match_threshold" in stored and stored["auto_match_threshold"] is not None:
+            settings.auto_match_threshold = float(stored["auto_match_threshold"])
+        if "review_threshold" in stored and stored["review_threshold"] is not None:
+            settings.review_threshold = float(stored["review_threshold"])
+        if "retrieval_top_n" in stored and stored["retrieval_top_n"] is not None:
+            settings.retrieval_top_n = int(stored["retrieval_top_n"])
+        if "rerank_top_n" in stored and stored["rerank_top_n"] is not None:
+            settings.rerank_top_n = int(stored["rerank_top_n"])
+        if (
+            "agentic_resolution_enabled" in stored
+            and stored["agentic_resolution_enabled"] is not None
+        ):
+            settings.agentic_resolution_enabled = (
+                stored["agentic_resolution_enabled"].lower() == "true"
+            )
+        if "embedding_dimensions" in stored and stored["embedding_dimensions"] is not None:
+            settings.embedding_dimensions = int(stored["embedding_dimensions"])
+        if "small_catalog_threshold" in stored and stored["small_catalog_threshold"] is not None:
+            settings.small_catalog_threshold = int(stored["small_catalog_threshold"])
+        if "llm_matcher_enabled" in stored and stored["llm_matcher_enabled"] is not None:
+            settings.llm_matcher_enabled = stored["llm_matcher_enabled"].lower() == "true"
+        if "llm_matcher_model" in stored and stored["llm_matcher_model"] is not None:
+            settings.llm_matcher_model = str(stored["llm_matcher_model"])
+        if "llm_matcher_batch_size" in stored and stored["llm_matcher_batch_size"] is not None:
+            settings.llm_matcher_batch_size = int(stored["llm_matcher_batch_size"])
 
-    for k in (
-        "llm_provider",
-        "embedding_provider",
-        "rerank_provider",
-        "llm_model",
-        "llm_rerank_model",
-        "embedding_model",
-    ):
-        if k in stored and stored[k] is not None:
-            setattr(settings, k, stored[k])
+        for k in (
+            "llm_provider",
+            "embedding_provider",
+            "rerank_provider",
+            "llm_model",
+            "llm_rerank_model",
+            "embedding_model",
+        ):
+            if k in stored and stored[k] is not None:
+                setattr(settings, k, stored[k])
 
-    if "providers_registry" in stored and stored["providers_registry"] is not None:
-        try:
-            persisted_providers = json.loads(stored["providers_registry"])
-            for pid, pdata in persisted_providers.items():
-                if pid in settings.providers_registry:
-                    settings.providers_registry[pid].update(pdata)
-                else:
-                    settings.providers_registry[pid] = pdata
-        except Exception as e:
-            logger.warning("Failed to parse providers_registry: %s", e)
+        if "providers_registry" in stored and stored["providers_registry"] is not None:
+            try:
+                persisted_providers = json.loads(stored["providers_registry"])
+                for pid, pdata in persisted_providers.items():
+                    if pid in settings.providers_registry:
+                        settings.providers_registry[pid].update(pdata)
+                    else:
+                        settings.providers_registry[pid] = pdata
+            except Exception as e:
+                logger.warning("Failed to parse providers_registry: %s", e)
 
-    if "onec" in stored and stored["onec"] is not None:
-        try:
-            _onec_settings = OneCConnectionSettings(**json.loads(stored["onec"]))
-        except Exception:
-            logger.warning("Failed to parse persisted 1C settings, keeping defaults")
+        if "onec" in stored and stored["onec"] is not None:
+            try:
+                _onec_settings = OneCConnectionSettings(**json.loads(stored["onec"]))
+            except Exception:
+                logger.warning("Failed to parse persisted 1C settings, keeping defaults")
 
-    _db_loaded = True
+        _db_loaded = True
     logger.info("Loaded persisted settings from DB")
 
 
@@ -347,58 +357,61 @@ async def update_settings(
             detail=f"Провайдер '{body.rerank_provider}' не поддерживает reranking.",
         )
 
-    if body.llm_provider is not None:
-        settings.llm_provider = body.llm_provider
-    if body.embedding_provider is not None:
-        settings.embedding_provider = body.embedding_provider
-    if body.rerank_provider is not None:
-        settings.rerank_provider = body.rerank_provider
+    # Apply all field updates under lock
+    # (minimizes window for concurrent reads to see partial state)
+    async with _settings_lock:
+        if body.llm_provider is not None:
+            settings.llm_provider = body.llm_provider
+        if body.embedding_provider is not None:
+            settings.embedding_provider = body.embedding_provider
+        if body.rerank_provider is not None:
+            settings.rerank_provider = body.rerank_provider
 
-    if body.providers_registry is not None:
-        for p in body.providers_registry:
-            if p.id in settings.providers_registry:
-                if p.api_key is not None:
-                    settings.providers_registry[p.id]["api_key"] = p.api_key
-                if p.base_url is not None:
-                    settings.providers_registry[p.id]["base_url"] = p.base_url
+        if body.providers_registry is not None:
+            for p in body.providers_registry:
+                if p.id in settings.providers_registry:
+                    if p.api_key is not None:
+                        settings.providers_registry[p.id]["api_key"] = p.api_key
+                    if p.base_url is not None:
+                        settings.providers_registry[p.id]["base_url"] = p.base_url
 
-    if body.llm_model is not None:
-        settings.llm_model = body.llm_model
-    if body.llm_rerank_model is not None:
-        settings.llm_rerank_model = body.llm_rerank_model
-    if body.embedding_model is not None:
-        settings.embedding_model = body.embedding_model
-    if body.embedding_dimensions is not None:
-        settings.embedding_dimensions = body.embedding_dimensions
-    if body.auto_match_threshold is not None:
-        settings.auto_match_threshold = body.auto_match_threshold
-    if body.review_threshold is not None:
-        settings.review_threshold = body.review_threshold
-    if body.retrieval_top_n is not None:
-        settings.retrieval_top_n = body.retrieval_top_n
-    if body.rerank_top_n is not None:
-        settings.rerank_top_n = body.rerank_top_n
-    if body.agentic_resolution_enabled is not None:
-        settings.agentic_resolution_enabled = body.agentic_resolution_enabled
-    if body.small_catalog_threshold is not None:
-        settings.small_catalog_threshold = body.small_catalog_threshold
-    if body.llm_matcher_enabled is not None:
-        settings.llm_matcher_enabled = body.llm_matcher_enabled
-    if body.llm_matcher_model is not None:
-        settings.llm_matcher_model = body.llm_matcher_model
-    if body.llm_matcher_batch_size is not None:
-        settings.llm_matcher_batch_size = body.llm_matcher_batch_size
-    if body.onec is not None:
-        # Preserve real password if masked value was sent back
-        if body.onec.password == "********" and _onec_settings.password:
-            body.onec.password = _onec_settings.password
-        _onec_settings = body.onec
+        if body.llm_model is not None:
+            settings.llm_model = body.llm_model
+        if body.llm_rerank_model is not None:
+            settings.llm_rerank_model = body.llm_rerank_model
+        if body.embedding_model is not None:
+            settings.embedding_model = body.embedding_model
+        if body.embedding_dimensions is not None:
+            settings.embedding_dimensions = body.embedding_dimensions
+        if body.auto_match_threshold is not None:
+            settings.auto_match_threshold = body.auto_match_threshold
+        if body.review_threshold is not None:
+            settings.review_threshold = body.review_threshold
+        if body.retrieval_top_n is not None:
+            settings.retrieval_top_n = body.retrieval_top_n
+        if body.rerank_top_n is not None:
+            settings.rerank_top_n = body.rerank_top_n
+        if body.agentic_resolution_enabled is not None:
+            settings.agentic_resolution_enabled = body.agentic_resolution_enabled
+        if body.small_catalog_threshold is not None:
+            settings.small_catalog_threshold = body.small_catalog_threshold
+        if body.llm_matcher_enabled is not None:
+            settings.llm_matcher_enabled = body.llm_matcher_enabled
+        if body.llm_matcher_model is not None:
+            settings.llm_matcher_model = body.llm_matcher_model
+        if body.llm_matcher_batch_size is not None:
+            settings.llm_matcher_batch_size = body.llm_matcher_batch_size
+        if body.onec is not None:
+            # Preserve real password if masked value was sent back
+            if body.onec.password == "********" and _onec_settings.password:
+                body.onec.password = _onec_settings.password
+            _onec_settings = body.onec
 
-    # Persist thresholds + 1C settings to DB
-    try:
-        await _persist_settings(db)
-    except Exception:
-        logger.warning("Failed to persist settings to DB", exc_info=True)
+        # Persist thresholds + 1C settings to DB
+        try:
+            await _persist_settings(db)
+        except Exception:
+            logger.warning("Failed to persist settings to DB", exc_info=True)
 
     # Reset cached embedding client when provider/key changes
     if body.embedding_provider or body.providers_registry:

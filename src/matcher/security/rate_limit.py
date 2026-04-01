@@ -1,4 +1,9 @@
-"""Simple in-memory rate limiter for brute-force protection."""
+"""Simple in-memory rate limiter for brute-force protection.
+
+NOTE: In-memory store is per-worker-process. With multiple uvicorn workers,
+the effective rate limit is multiplied by the number of workers. For
+production with strict rate limiting, migrate to Redis-backed storage.
+"""
 
 from __future__ import annotations
 

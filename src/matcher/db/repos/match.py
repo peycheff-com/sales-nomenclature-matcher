@@ -326,7 +326,7 @@ class MatchRepo:
     async def create_golden_label(
         self,
         raw_query: str,
-        normalized_query: str | None,
+        normalized_query: str,
         supplier_id: str | None,
         product_id: str | None,
         label_type: str,
