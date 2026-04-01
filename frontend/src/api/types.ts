@@ -114,6 +114,7 @@ export interface UserResponse {
   username: string;
   full_name?: string;
   role: string;
+  must_change_password: boolean;
 }
 
 export interface OneCConnectionSettings {

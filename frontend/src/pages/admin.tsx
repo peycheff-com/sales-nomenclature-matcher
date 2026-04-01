@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   BarChart3,
@@ -204,12 +205,14 @@ export default function AdminPage() {
           <Card>
             <CardHeader>
               <CardTitle>Управление пользователями</CardTitle>
-              <CardDescription>Разграничение прав доступа (RBAC)</CardDescription>
+              <CardDescription>Создание учётных записей и разграничение прав доступа.</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="h-[200px] w-full bg-muted/20 border border-dashed rounded-md flex items-center justify-center text-muted-foreground text-sm">
-                Интерфейс управления ролями находится в разработке
-              </div>
+              <Link to="/users">
+                <Button>
+                  Перейти к управлению пользователями
+                </Button>
+              </Link>
             </CardContent>
           </Card>
         </TabsContent>

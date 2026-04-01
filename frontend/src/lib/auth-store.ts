@@ -7,6 +7,7 @@
  */
 
 let _authenticated = false;
+let _mustChangePassword = false;
 
 /** Called after successful login or /auth/me check */
 export function setAuthenticated(value: boolean): void {
@@ -15,6 +16,14 @@ export function setAuthenticated(value: boolean): void {
 
 export function isAuthenticated(): boolean {
   return _authenticated;
+}
+
+export function setMustChangePassword(value: boolean): void {
+  _mustChangePassword = value;
+}
+
+export function mustChangePassword(): boolean {
+  return _mustChangePassword;
 }
 
 /** Read the CSRF token from the non-httpOnly cookie */

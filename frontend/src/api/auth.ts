@@ -3,6 +3,7 @@ import type { UserResponse } from "./types";
 
 export interface LoginResult {
   logged_in: boolean;
+  must_change_password: boolean;
 }
 
 export async function login(username: string, password: string): Promise<LoginResult> {

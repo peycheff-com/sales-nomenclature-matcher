@@ -10,10 +10,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from matcher.api.deps import get_db
 from matcher.auth.deps import get_current_user
-from matcher.auth.security import create_access_token, verify_password
+from matcher.auth.security import create_access_token, hash_password, verify_password
 from matcher.config import settings
 from matcher.db.models import User
 from matcher.db.repos.user import UserRepo
+from matcher.schemas.user import (
+    ForcePasswordChange,
+    PasswordChange,
+    ProfileUpdate,
+    UserBrief,
+)
 from matcher.security.rate_limit import login_rate_limiter
 
 router = APIRouter(tags=["Auth"])
@@ -25,13 +31,7 @@ CSRF_TOKEN_COOKIE = "csrf_token"
 
 class LoginResponse(BaseModel):
     logged_in: bool = True
-
-
-class UserResponse(BaseModel):
-    user_id: str
-    username: str
-    full_name: str | None
-    role: str
+    must_change_password: bool = False
 
 
 def _set_auth_cookies(response: JSONResponse, jwt_token: str) -> None:
@@ -117,7 +117,9 @@ async def login(
 
     token = create_access_token(data={"sub": user.username, "role": user.role})
 
-    response = JSONResponse(content={"logged_in": True})
+    response = JSONResponse(
+        content={"logged_in": True, "must_change_password": user.must_change_password}
+    )
     _set_auth_cookies(response, token)
     return response
 
@@ -130,11 +132,55 @@ async def logout():
     return response
 
 
-@router.get("/auth/me", response_model=UserResponse)
+@router.get("/auth/me", response_model=UserBrief)
 async def get_me(current_user: User = Depends(get_current_user)):
-    return UserResponse(
-        user_id=current_user.user_id,
-        username=current_user.username,
-        full_name=current_user.full_name,
-        role=current_user.role,
-    )
+    return UserBrief.model_validate(current_user)
+
+
+@router.put("/auth/profile", response_model=UserBrief)
+async def update_profile(
+    body: ProfileUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    current_user.full_name = body.full_name
+    await db.commit()
+    return UserBrief.model_validate(current_user)
+
+
+@router.post("/auth/change-password")
+async def change_password(
+    body: PasswordChange,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if not verify_password(body.current_password, current_user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Current password is incorrect",
+        )
+    current_user.hashed_password = hash_password(body.new_password)
+    await db.commit()
+    return {"ok": True}
+
+
+@router.post("/auth/force-change-password")
+async def force_change_password(
+    body: ForcePasswordChange,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if not current_user.must_change_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password change is not required",
+        )
+    current_user.hashed_password = hash_password(body.new_password)
+    current_user.must_change_password = False
+    await db.commit()
+
+    # Re-issue JWT so the session reflects the updated state
+    token = create_access_token(data={"sub": current_user.username, "role": current_user.role})
+    response = JSONResponse(content={"ok": True})
+    _set_auth_cookies(response, token)
+    return response

@@ -5,7 +5,12 @@ import {
   redirect,
   Outlet,
 } from "@tanstack/react-router";
-import { isAuthenticated, setAuthenticated } from "@/lib/auth-store";
+import {
+  isAuthenticated,
+  setAuthenticated,
+  mustChangePassword,
+  setMustChangePassword,
+} from "@/lib/auth-store";
 import { getMe } from "@/api/auth";
 import AppShell from "@/components/layout/app-shell";
 import LoginPage from "@/pages/login";
@@ -16,22 +21,31 @@ import AdminPage from "@/pages/admin";
 import CatalogPage from "@/pages/catalog";
 import SuppliersPage from "@/pages/suppliers";
 import SettingsPage from "@/pages/settings";
+import UsersPage from "@/pages/users";
+import ProfilePage from "@/pages/profile";
+import ForceChangePasswordPage from "@/pages/force-change-password";
 
 /**
- * Check if user is authenticated.
+ * Check if user is authenticated and whether they must change password.
  *
  * Since auth state is in-memory, a page refresh loses it.
  * On first protected route load, we probe /auth/me (cookie is sent
- * automatically). If it succeeds, restore the in-memory flag.
+ * automatically). If it succeeds, restore the in-memory flags.
  */
-async function ensureAuthenticated(): Promise<boolean> {
-  if (isAuthenticated()) return true;
+async function ensureAuthenticated(): Promise<{
+  authed: boolean;
+  mustChange: boolean;
+}> {
+  if (isAuthenticated()) {
+    return { authed: true, mustChange: mustChangePassword() };
+  }
   try {
-    await getMe();
+    const user = await getMe();
     setAuthenticated(true);
-    return true;
+    setMustChangePassword(user.must_change_password);
+    return { authed: true, mustChange: user.must_change_password };
   } catch {
-    return false;
+    return { authed: false, mustChange: false };
   }
 }
 
@@ -46,10 +60,22 @@ const loginRoute = createRoute({
   path: "/login",
   component: LoginPage,
   beforeLoad: async () => {
-    const authed = await ensureAuthenticated();
+    const { authed, mustChange } = await ensureAuthenticated();
     if (authed) {
-      throw redirect({ to: "/" });
+      throw redirect({ to: mustChange ? "/change-password" : "/" });
     }
+  },
+});
+
+// Force change password (requires auth, but outside AppShell)
+const forceChangePasswordRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/change-password",
+  component: ForceChangePasswordPage,
+  beforeLoad: async () => {
+    const { authed, mustChange } = await ensureAuthenticated();
+    if (!authed) throw redirect({ to: "/login" });
+    if (!mustChange) throw redirect({ to: "/" });
   },
 });
 
@@ -59,10 +85,9 @@ const authLayoutRoute = createRoute({
   id: "auth",
   component: AppShell,
   beforeLoad: async () => {
-    const authed = await ensureAuthenticated();
-    if (!authed) {
-      throw redirect({ to: "/login" });
-    }
+    const { authed, mustChange } = await ensureAuthenticated();
+    if (!authed) throw redirect({ to: "/login" });
+    if (mustChange) throw redirect({ to: "/change-password" });
   },
 });
 
@@ -137,9 +162,35 @@ const settingsRoute = createRoute({
   },
 });
 
+// User management (requires admin role)
+const usersRoute = createRoute({
+  getParentRoute: () => authLayoutRoute,
+  path: "/users",
+  component: UsersPage,
+  beforeLoad: async () => {
+    try {
+      const user = await getMe();
+      if (user.role !== "admin") {
+        throw redirect({ to: "/" });
+      }
+    } catch (e) {
+      if (e instanceof Error) throw redirect({ to: "/" });
+      throw e; // re-throw redirect
+    }
+  },
+});
+
+// User profile (any authenticated user)
+const profileRoute = createRoute({
+  getParentRoute: () => authLayoutRoute,
+  path: "/profile",
+  component: ProfilePage,
+});
+
 // Build the route tree
 const routeTree = rootRoute.addChildren([
   loginRoute,
+  forceChangePasswordRoute,
   authLayoutRoute.addChildren([
     dashboardRoute,
     requestsRoute,
@@ -148,6 +199,8 @@ const routeTree = rootRoute.addChildren([
     catalogRoute,
     suppliersRoute,
     settingsRoute,
+    usersRoute,
+    profileRoute,
   ]),
 ]);
 

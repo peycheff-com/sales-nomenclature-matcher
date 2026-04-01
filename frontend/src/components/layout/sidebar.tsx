@@ -1,6 +1,6 @@
 import { Link, useMatchRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { BarChart3, FileSearch, LayoutDashboard, Settings as SettingsIcon, Database, Users, Shield } from "lucide-react";
+import { BarChart3, FileSearch, LayoutDashboard, Settings as SettingsIcon, Database, Users, Shield, UserCog } from "lucide-react";
 import { getMe } from "@/api/auth";
 import { cn } from "@/lib/utils";
 
@@ -10,6 +10,7 @@ const navItems = [
   { to: "/catalog", label: "Каталог", icon: Database, adminOnly: false },
   { to: "/suppliers", label: "Поставщики", icon: Users, adminOnly: false },
   { to: "/admin", label: "Админ / Метрики", icon: Shield, adminOnly: true },
+  { to: "/users", label: "Пользователи", icon: UserCog, adminOnly: true },
   { to: "/settings", label: "Настройки", icon: SettingsIcon, adminOnly: true },
 ] as const;
 

@@ -1,9 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
-import { LogOut, Menu, User } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { LogOut, Menu, User, UserCircle } from "lucide-react";
 import { getMe, logout } from "@/api/auth";
 import { setAuthenticated } from "@/lib/auth-store";
 import { useSidebarContext } from "./app-shell";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export default function Header() {
   const { toggle } = useSidebarContext();
@@ -32,22 +40,38 @@ export default function Header() {
       <div className="flex-1" />
       <div className="flex items-center gap-3">
         {userQuery.data && (
-          <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-            <User className="h-4 w-4" />
-            <span className="hidden sm:inline">
-              {userQuery.data.full_name || userQuery.data.username}
-            </span>
-            {userQuery.data.role === "admin" && (
-              <span className="rounded bg-muted px-1.5 py-0.5 text-xs">
-                admin
-              </span>
-            )}
-          </span>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-muted transition-colors">
+                <User className="h-4 w-4" />
+                <span className="hidden sm:inline">
+                  {userQuery.data.full_name || userQuery.data.username}
+                </span>
+                {userQuery.data.role === "admin" && (
+                  <span className="rounded bg-muted px-1.5 py-0.5 text-xs">
+                    admin
+                  </span>
+                )}
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem asChild>
+                <Link to="/profile" className="flex items-center gap-2 cursor-pointer">
+                  <UserCircle className="h-4 w-4" />
+                  Мой профиль
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="flex items-center gap-2 cursor-pointer"
+                onClick={handleLogout}
+              >
+                <LogOut className="h-4 w-4" />
+                Выйти
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
-        <Button variant="ghost" size="sm" onClick={handleLogout}>
-          <LogOut className="mr-1 h-4 w-4" />
-          <span className="hidden sm:inline">Выйти</span>
-        </Button>
       </div>
     </header>
   );

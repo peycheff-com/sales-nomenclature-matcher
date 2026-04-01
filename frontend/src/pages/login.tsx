@@ -2,7 +2,7 @@ import { type FormEvent, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { BarChart3 } from "lucide-react";
 import { login } from "@/api/auth";
-import { setAuthenticated } from "@/lib/auth-store";
+import { setAuthenticated, setMustChangePassword } from "@/lib/auth-store";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -20,10 +20,11 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
     try {
-      await login(username, password);
+      const result = await login(username, password);
       // Cookie is set by the backend; mark in-memory state
       setAuthenticated(true);
-      navigate({ to: "/" });
+      setMustChangePassword(result.must_change_password);
+      navigate({ to: result.must_change_password ? "/change-password" : "/" });
     } catch (err: unknown) {
       if (err && typeof err === "object" && "response" in err) {
         const httpErr = err as { response: Response };
