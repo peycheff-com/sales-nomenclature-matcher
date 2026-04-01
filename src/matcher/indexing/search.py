@@ -119,14 +119,14 @@ async def _full_catalog_search(
         semantic_cte = """
         semantic_matches AS (
             SELECT e.product_id,
-                   1 - (e.embedding_vector <=> :query_vector::vector) as sem_score,
+                   1 - (e.embedding_vector <=> CAST(:query_vector AS vector)) as sem_score,
                    ROW_NUMBER() OVER (
-                       ORDER BY e.embedding_vector <=> :query_vector::vector
+                       ORDER BY e.embedding_vector <=> CAST(:query_vector AS vector)
                    ) as rank
             FROM catalog_embeddings e
             JOIN catalog_products p ON e.product_id = p.product_id
             WHERE p.is_active = true
-            ORDER BY e.embedding_vector <=> :query_vector::vector
+            ORDER BY e.embedding_vector <=> CAST(:query_vector AS vector)
         )"""
         params["query_vector"] = str(query_embedding)
     else:
