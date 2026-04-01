@@ -35,6 +35,10 @@ export interface SettingsResponse {
   retrieval_top_n: number;
   rerank_top_n: number;
   agentic_resolution_enabled: boolean;
+  small_catalog_threshold: number;
+  llm_matcher_enabled: boolean;
+  llm_matcher_model: string;
+  llm_matcher_batch_size: number;
   onec: OneCConnectionSettings;
 }
 
@@ -58,6 +62,10 @@ export interface SettingsUpdateInput {
   retrieval_top_n?: number;
   rerank_top_n?: number;
   agentic_resolution_enabled?: boolean;
+  small_catalog_threshold?: number;
+  llm_matcher_enabled?: boolean;
+  llm_matcher_model?: string;
+  llm_matcher_batch_size?: number;
   onec?: OneCConnectionSettings;
 }
 
