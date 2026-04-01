@@ -31,7 +31,6 @@ brand_aliases:
   grundfoss: grundfos
   грундфос: grundfos
   грундфосс: grundfos
-  grundfoss: grundfos
   bosch: bosch
   бош: bosch
   makita: makita
@@ -49,7 +48,7 @@ brand_aliases:
   abb: abb
   абб: abb
   danfoss: danfoss
-  данфосс: danfos
+  данфосс: danfoss
   valtec: valtec
   валтек: valtec
   rehau: rehau

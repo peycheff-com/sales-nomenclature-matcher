@@ -787,7 +787,7 @@ export default function SettingsPage() {
             <Button
               type="button"
               variant="ghost"
-              onClick={() => form.reset()}
+              onClick={() => form.reset(settingsQuery.data ? { ...settingsQuery.data, new_api_keys: {} } : undefined)}
               disabled={mutation.isPending}
             >
               Отменить изменения

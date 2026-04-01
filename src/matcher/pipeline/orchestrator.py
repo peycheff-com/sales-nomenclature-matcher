@@ -95,7 +95,7 @@ async def match_single(
     # Use pre-computed embedding if available (batch mode)
     if query_embedding is not ...:
         _precomputed_embedding = query_embedding
-        embed_task = asyncio.create_task(asyncio.sleep(0))  # no-op
+        embed_task = None  # no async task needed
     else:
         _precomputed_embedding = None
         embed_task = asyncio.create_task(embed_single(normalized_text, token_tracker=token_tracker))
@@ -108,11 +108,12 @@ async def match_single(
         session=session,
     )
     if override and override.mapping_type in ("exact", "approved"):
-        embed_task.cancel()
-        try:
-            await embed_task
-        except (asyncio.CancelledError, Exception):
-            pass
+        if embed_task is not None:
+            embed_task.cancel()
+            try:
+                await embed_task
+            except (asyncio.CancelledError, Exception):
+                pass
         return MatchItemResult(
             request_item_id=request_item_id,
             line_id=line_id,
