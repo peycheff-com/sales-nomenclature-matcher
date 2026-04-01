@@ -1,16 +1,20 @@
 """Settings API -- runtime configuration for models, 1C, thresholds."""
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, model_validator
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from matcher.api.deps import get_db
 from matcher.auth.deps import get_current_user, require_role
 from matcher.config import settings
 from matcher.db.models import User
+from matcher.db.repos.settings import SettingsRepo
 from matcher.security.url_validator import SSRFError, validate_url_safe
 
 logger = logging.getLogger(__name__)
@@ -91,9 +95,61 @@ class FreeModelsResponse(BaseModel):
     models: list[FreeModel]
 
 
-# ── In-memory 1C settings (persisted to env in production) ───────────────────
+# ── In-memory 1C settings ──────────────────────────────────────────────────
 
 _onec_settings = OneCConnectionSettings()
+_db_loaded: bool = False
+
+# Keys that are persisted to the system_settings table.
+_PERSIST_KEYS = (
+    "auto_match_threshold",
+    "review_threshold",
+    "retrieval_top_n",
+    "rerank_top_n",
+    "onec",
+)
+
+
+async def _load_persisted_settings(db: AsyncSession) -> None:
+    """One-time load of persisted settings from DB into in-memory state."""
+    global _onec_settings, _db_loaded
+
+    if _db_loaded:
+        return
+
+    try:
+        repo = SettingsRepo(db)
+        stored = await repo.get_all()
+    except Exception:
+        logger.debug("system_settings table not available yet, skipping load")
+        return
+
+    if "auto_match_threshold" in stored and stored["auto_match_threshold"] is not None:
+        settings.auto_match_threshold = float(stored["auto_match_threshold"])
+    if "review_threshold" in stored and stored["review_threshold"] is not None:
+        settings.review_threshold = float(stored["review_threshold"])
+    if "retrieval_top_n" in stored and stored["retrieval_top_n"] is not None:
+        settings.retrieval_top_n = int(stored["retrieval_top_n"])
+    if "rerank_top_n" in stored and stored["rerank_top_n"] is not None:
+        settings.rerank_top_n = int(stored["rerank_top_n"])
+    if "onec" in stored and stored["onec"] is not None:
+        try:
+            _onec_settings = OneCConnectionSettings(**json.loads(stored["onec"]))
+        except Exception:
+            logger.warning("Failed to parse persisted 1C settings, keeping defaults")
+
+    _db_loaded = True
+    logger.info("Loaded persisted settings from DB")
+
+
+async def _persist_settings(db: AsyncSession) -> None:
+    """Write current threshold + 1C settings to DB."""
+    repo = SettingsRepo(db)
+    await repo.upsert("auto_match_threshold", str(settings.auto_match_threshold))
+    await repo.upsert("review_threshold", str(settings.review_threshold))
+    await repo.upsert("retrieval_top_n", str(settings.retrieval_top_n))
+    await repo.upsert("rerank_top_n", str(settings.rerank_top_n))
+    await repo.upsert("onec", _onec_settings.model_dump_json())
 
 
 # ── Endpoints ────────────────────────────────────────────────────────────────
@@ -101,8 +157,10 @@ _onec_settings = OneCConnectionSettings()
 @router.get("/settings", response_model=SettingsResponse)
 async def get_settings(
     current_user: User = Depends(require_role("admin")),
+    db: AsyncSession = Depends(get_db),
 ) -> SettingsResponse:
     """Get current runtime settings."""
+    await _load_persisted_settings(db)
     return SettingsResponse(
         llm_provider=settings.llm_provider,
         embedding_provider=settings.embedding_provider,
@@ -140,6 +198,7 @@ async def get_settings(
 async def update_settings(
     body: SettingsUpdateInput,
     current_user: User = Depends(require_role("admin")),
+    db: AsyncSession = Depends(get_db),
 ) -> SettingsResponse:
     """Update runtime settings. Only provided fields are updated."""
     global _onec_settings
@@ -173,13 +232,19 @@ async def update_settings(
     if body.onec is not None:
         _onec_settings = body.onec
 
+    # Persist thresholds + 1C settings to DB
+    try:
+        await _persist_settings(db)
+    except Exception:
+        logger.warning("Failed to persist settings to DB", exc_info=True)
+
     # Reset cached embedding client when provider/key changes
     if any([body.embedding_provider, body.openrouter_api_key, body.openai_api_key]):
         from matcher.indexing.embedder import reset_client
         reset_client()
 
     logger.info("Settings updated by %s", current_user.username)
-    return await get_settings(current_user=current_user)
+    return await get_settings(current_user=current_user, db=db)
 
 
 @router.get("/settings/free-models", response_model=FreeModelsResponse)
