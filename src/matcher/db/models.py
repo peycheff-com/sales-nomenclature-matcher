@@ -349,3 +349,24 @@ class User(Base):
     )
 
 
+class TokenUsageLog(Base):
+    """Tracks token consumption per API call for cost estimation and monitoring."""
+    __tablename__ = "token_usage_log"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    request_id: Mapped[Optional[str]] = mapped_column(
+        Text, ForeignKey("match_requests.request_id", ondelete="SET NULL"), index=True
+    )
+    operation: Mapped[str] = mapped_column(
+        Text, nullable=False,
+        comment="embed | rerank | llm_rerank | agent",
+    )
+    provider: Mapped[str] = mapped_column(Text, nullable=False)
+    model: Mapped[str] = mapped_column(Text, nullable=False)
+    prompt_tokens: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    completion_tokens: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    total_tokens: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    estimated_cost_usd: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 6))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True
+    )

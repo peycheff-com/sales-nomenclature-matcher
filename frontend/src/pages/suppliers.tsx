@@ -53,6 +53,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { SkeletonTable } from "@/components/ui/skeleton";
 import { QueryErrorBanner } from "@/components/ui/query-error-banner";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 
 const SUPPLIER_ID_PATTERN = /^[a-zA-Z0-9_]*$/;
 
@@ -493,14 +494,7 @@ function MappingsPanel({ supplier }: { supplier: SupplierProfile }) {
 
   // GAP-6.5: Search within mappings
   const [mappingSearch, setMappingSearch] = useState("");
-  const [debouncedMappingSearch, setDebouncedMappingSearch] = useState("");
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedMappingSearch(mappingSearch.trim().toLowerCase());
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [mappingSearch]);
+  const debouncedMappingSearch = useDebouncedValue(mappingSearch.trim().toLowerCase(), 300);
 
   const allMappings = mappingsQuery.data ?? [];
 

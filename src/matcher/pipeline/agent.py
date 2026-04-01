@@ -8,8 +8,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from matcher.config import settings
 from matcher.indexing.search import hybrid_search
+from matcher.pipeline.token_tracker import TokenTracker
 
 logger = logging.getLogger(__name__)
+
+_token_tracker: TokenTracker | None = None
+
+
+def set_token_tracker(tracker: TokenTracker | None) -> None:
+    global _token_tracker
+    _token_tracker = tracker
 
 
 def _make_llm_client() -> tuple[AsyncOpenAI, str, dict]:
@@ -191,6 +199,16 @@ Only return 'exact_match' if you are absolutely certain the product is identical
         except Exception as e:
             logger.error(f"Agentic resolution API call failed: {e}")
             return None
+
+        # Token tracking
+        if hasattr(response, 'usage') and response.usage and _token_tracker:
+            _token_tracker.record(
+                operation="agent",
+                provider=settings.llm_provider,
+                model=model,
+                prompt_tokens=response.usage.prompt_tokens or 0,
+                completion_tokens=response.usage.completion_tokens or 0,
+            )
 
         msg = response.choices[0].message
         

@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { PageLayout } from "@/components/layout/page-layout";
 import { EmptyState } from "@/components/ui/empty-state";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 
 const PAGE_SIZE = 20;
 
@@ -54,6 +55,7 @@ export default function RequestsPage() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearchQuery = useDebouncedValue(searchQuery, 300);
 
   // GAP-3.1: Sorting state
   const [sortBy, setSortBy] = useState<SortField | null>(null);
@@ -127,12 +129,12 @@ export default function RequestsPage() {
   const total = requestsQuery.data?.total ?? 0;
   const totalPages = Math.ceil(total / PAGE_SIZE) || 1;
 
-  // GAP-3.2: Client-side search filter
+  // GAP-3.2: Client-side search filter (debounced to avoid per-keystroke filtering)
   const filteredRequests = useMemo(() => {
-    if (!searchQuery.trim()) return rawRequests;
-    const q = searchQuery.trim().toLowerCase();
+    if (!debouncedSearchQuery.trim()) return rawRequests;
+    const q = debouncedSearchQuery.trim().toLowerCase();
     return rawRequests.filter((req) => req.request_id.toLowerCase().includes(q));
-  }, [rawRequests, searchQuery]);
+  }, [rawRequests, debouncedSearchQuery]);
 
   // GAP-3.1: Client-side sorting
   const requests = useMemo(() => {
@@ -225,7 +227,7 @@ export default function RequestsPage() {
   }, [requests, selectedIds.size]);
 
   const isAllSelected = requests.length > 0 && selectedIds.size === requests.length;
-  const hasFiltersApplied = statusFilter !== "all" || supplierFilter !== "__all__" || dateRange !== "all" || searchQuery.trim() !== "";
+  const hasFiltersApplied = statusFilter !== "all" || supplierFilter !== "__all__" || dateRange !== "all" || debouncedSearchQuery.trim() !== "";
 
   return (
     <PageLayout

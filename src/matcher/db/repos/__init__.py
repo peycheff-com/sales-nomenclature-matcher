@@ -6,6 +6,7 @@ from matcher.db.repos.match import MatchRepo
 from matcher.db.repos.metrics import MetricsRepo
 from matcher.db.repos.settings import SettingsRepo
 from matcher.db.repos.supplier import SupplierRepo
+from matcher.db.repos.token_usage import TokenUsageRepo
 from matcher.db.repos.user import UserRepo
 
 __all__ = [
@@ -15,5 +16,6 @@ __all__ = [
     "MetricsRepo",
     "SettingsRepo",
     "SupplierRepo",
+    "TokenUsageRepo",
     "UserRepo",
 ]

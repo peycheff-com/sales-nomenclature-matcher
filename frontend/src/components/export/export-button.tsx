@@ -1,7 +1,6 @@
 import { useCallback, useState } from "react";
 import { Download, Loader2 } from "lucide-react";
 import Papa from "papaparse";
-import ExcelJS from "exceljs";
 import { getMatchItems } from "@/api/match";
 import type { MatchResult } from "@/api/types";
 import { STATUS_LABELS } from "@/lib/constants";
@@ -97,6 +96,7 @@ export default function ExportButton({ requestId, totalItems }: ExportButtonProp
       const items = await fetchAll();
       const rows = toRows(items);
 
+      const { default: ExcelJS } = await import("exceljs");
       const wb = new ExcelJS.Workbook();
       const ws = wb.addWorksheet("Результаты");
 

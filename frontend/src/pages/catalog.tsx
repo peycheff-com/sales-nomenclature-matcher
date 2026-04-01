@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Search, Server, Upload, RefreshCw, ChevronDown, ChevronRight,
@@ -57,6 +57,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton, SkeletonTable } from "@/components/ui/skeleton";
 import { QueryErrorBanner } from "@/components/ui/query-error-banner";
 import { Pagination } from "@/components/ui/pagination";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 
 const PAGE_SIZE = 25;
 
@@ -65,7 +66,6 @@ type StatusFilter = "all" | "active" | "archive";
 export default function CatalogPage() {
   const queryClient = useQueryClient();
   const [searchInput, setSearchInput] = useState("");
-  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
@@ -81,20 +81,10 @@ export default function CatalogPage() {
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [fileConfirmOpen, setFileConfirmOpen] = useState(false);
 
-  // Debounced live search - fires 400ms after user stops typing
-  useEffect(() => {
-    if (searchInput.trim().length < 2) {
-      setDebouncedQuery("");
-      return;
-    }
-    const timer = setTimeout(() => {
-      setDebouncedQuery(searchInput.trim());
-      setPage(1);
-      setExpandedProduct(null);
-      setSelectedIds(new Set());
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [searchInput]);
+  // Debounced live search via hook — fires 400ms after user stops typing
+  const debouncedInput = useDebouncedValue(searchInput, 400);
+  const debouncedQuery = debouncedInput.trim().length >= 2 ? debouncedInput.trim() : "";
+
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);

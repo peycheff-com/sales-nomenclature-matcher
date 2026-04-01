@@ -8,8 +8,16 @@ from openai import AsyncOpenAI
 
 from matcher.config import settings
 from matcher.indexing.search import SearchCandidate
+from matcher.pipeline.token_tracker import TokenTracker
 
 logger = logging.getLogger(__name__)
+
+_token_tracker: TokenTracker | None = None
+
+
+def set_token_tracker(tracker: TokenTracker | None) -> None:
+    global _token_tracker
+    _token_tracker = tracker
 
 
 @dataclass
@@ -214,6 +222,16 @@ async def _llm_rerank(
         max_tokens=1024,
         extra_body={"no_thinking": True} if "qwen" in model.lower() else {},
     )
+
+    # Token tracking
+    if hasattr(response, 'usage') and response.usage and _token_tracker:
+        _token_tracker.record(
+            operation="llm_rerank",
+            provider=settings.llm_provider,
+            model=model,
+            prompt_tokens=response.usage.prompt_tokens or 0,
+            completion_tokens=response.usage.completion_tokens or 0,
+        )
 
     content = response.choices[0].message.content or "[]"
     # Extract JSON from response (handle markdown code blocks)

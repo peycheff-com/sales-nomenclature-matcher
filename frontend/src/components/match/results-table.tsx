@@ -31,6 +31,7 @@ import { toast } from "sonner";
 import { SkeletonTable } from "@/components/ui/skeleton";
 import { Pagination } from "@/components/ui/pagination";
 import { EmptyState } from "@/components/ui/empty-state";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 
 interface ResultsTableProps {
   requestId: string;
@@ -45,6 +46,7 @@ export default function ResultsTable({ requestId }: ResultsTableProps) {
   const [page, setPage] = useState(1);
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const debouncedSearchQuery = useDebouncedValue(searchQuery, 300);
   const [sorting, setSorting] = useState<SortingState>([]);
   const [rowSelection, setRowSelection] = useState({});
 
@@ -205,6 +207,7 @@ export default function ResultsTable({ requestId }: ResultsTableProps) {
       accessorKey: "confidence",
       header: "Уверенность",
       size: 90,
+      meta: { className: "hidden md:table-cell" },
       cell: ({ row }) => (
         <span className="text-sm">{formatConfidence(row.original.confidence)}</span>
       ),
@@ -214,6 +217,7 @@ export default function ResultsTable({ requestId }: ResultsTableProps) {
       header: "Лучший результат",
       size: 250,
       enableSorting: false,
+      meta: { className: "hidden md:table-cell" },
       cell: ({ row }) => {
         const best = row.original.best_candidate;
         if (!best) return <span className="text-sm text-muted-foreground">\u2014</span>;
@@ -262,10 +266,10 @@ export default function ResultsTable({ requestId }: ResultsTableProps) {
   
   const filteredData = useMemo(() => {
     let result = fetchedData;
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(item => 
-        item.raw_text.toLowerCase().includes(q) || 
+    if (debouncedSearchQuery.trim()) {
+      const q = debouncedSearchQuery.toLowerCase();
+      result = result.filter(item =>
+        item.raw_text.toLowerCase().includes(q) ||
         (item.normalized_text && item.normalized_text.toLowerCase().includes(q))
       );
     }
@@ -275,7 +279,7 @@ export default function ResultsTable({ requestId }: ResultsTableProps) {
       result = result.filter(item => !item.final_decision);
     }
     return result;
-  }, [fetchedData, searchQuery, reviewFilter]);
+  }, [fetchedData, debouncedSearchQuery, reviewFilter]);
 
   const totalPages = itemsQuery.data
     ? Math.ceil(itemsQuery.data.total / PAGE_SIZE)
@@ -413,8 +417,8 @@ export default function ResultsTable({ requestId }: ResultsTableProps) {
         </div>
       )}
 
-      <div className="flex items-center justify-between gap-2 p-2 bg-muted/30 border border-border rounded-md min-h-[52px]">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 p-2 bg-muted/30 border border-border rounded-md min-h-[52px]">
+        <div className="flex flex-wrap items-center gap-2">
           {selectedRows.length > 0 ? (
             <>
               <span className="text-sm font-medium mr-2 ml-1 text-muted-foreground">
@@ -452,11 +456,13 @@ export default function ResultsTable({ requestId }: ResultsTableProps) {
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <TableHead 
-                    key={header.id} 
+                {headerGroup.headers.map((header) => {
+                  const colMeta = header.column.columnDef.meta as { className?: string } | undefined;
+                  return (
+                  <TableHead
+                    key={header.id}
                     style={{ width: header.getSize() }}
-                    className={header.column.getCanSort() ? "cursor-pointer select-none hover:bg-muted/50" : ""}
+                    className={`${header.column.getCanSort() ? "cursor-pointer select-none hover:bg-muted/50" : ""} ${colMeta?.className ?? ""}`}
                     onClick={header.column.getToggleSortingHandler()}
                   >
                     {header.isPlaceholder ? null : (
@@ -467,7 +473,8 @@ export default function ResultsTable({ requestId }: ResultsTableProps) {
                       </div>
                     )}
                   </TableHead>
-                ))}
+                  );
+                })}
               </TableRow>
             ))}
           </TableHeader>
@@ -499,14 +506,17 @@ export default function ResultsTable({ requestId }: ResultsTableProps) {
                 return (
                   <React.Fragment key={row.id}>
                     <TableRow className={`${rowColor} ${expandedRow === row.original.request_item_id ? "border-b-0" : ""}`}>
-                      {row.getVisibleCells().map((cell) => (
-                        <TableCell key={cell.id}>
-                          {flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext(),
-                          )}
-                        </TableCell>
-                      ))}
+                      {row.getVisibleCells().map((cell) => {
+                        const cellMeta = cell.column.columnDef.meta as { className?: string } | undefined;
+                        return (
+                          <TableCell key={cell.id} className={cellMeta?.className}>
+                            {flexRender(
+                              cell.column.columnDef.cell,
+                              cell.getContext(),
+                            )}
+                          </TableCell>
+                        );
+                      })}
                     </TableRow>
                     {expandedRow === row.original.request_item_id && (
                       <TableRow className={rowColor}>

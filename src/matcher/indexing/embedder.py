@@ -8,10 +8,18 @@ import httpx
 from openai import AsyncOpenAI
 
 from matcher.config import settings
+from matcher.pipeline.token_tracker import TokenTracker
 
 logger = logging.getLogger(__name__)
 
 _client: AsyncOpenAI | None = None
+_token_tracker: TokenTracker | None = None
+
+
+def set_token_tracker(tracker: TokenTracker | None) -> None:
+    """Set the active token tracker for embedding operations."""
+    global _token_tracker
+    _token_tracker = tracker
 
 
 def _get_client() -> AsyncOpenAI:
@@ -95,6 +103,15 @@ async def embed_texts(
                 response = await client.embeddings.create(**kwargs)
                 for j, item in enumerate(response.data):
                     all_embeddings[i + j] = item.embedding
+                # Token tracking: capture usage if available
+                if hasattr(response, 'usage') and response.usage and _token_tracker:
+                    _token_tracker.record(
+                        operation="embed",
+                        provider=settings.embedding_provider,
+                        model=model,
+                        prompt_tokens=getattr(response.usage, 'prompt_tokens', 0) or getattr(response.usage, 'total_tokens', 0),
+                        total_tokens=getattr(response.usage, 'total_tokens', 0),
+                    )
                 break
             except Exception as e:
                 if attempt == max_retries - 1:

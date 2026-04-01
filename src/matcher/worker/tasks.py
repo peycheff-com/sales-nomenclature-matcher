@@ -20,10 +20,19 @@ async def batch_match(ctx: dict, request_id: str) -> dict:
     """
     from matcher.db.repos.match import MatchRepo
     from matcher.pipeline.orchestrator import match_single
+    from matcher.pipeline.token_tracker import TokenTracker
+    from matcher.pipeline import agent as agent_mod, reranker as reranker_mod
+    from matcher.indexing import embedder as embedder_mod
     from matcher.api.v1.settings import load_persisted_settings
 
     db_factory = ctx["db_factory"]
     logger.info("Starting batch_match for request %s", request_id)
+
+    # Set up token tracking for this request
+    tracker = TokenTracker(request_id=request_id)
+    embedder_mod.set_token_tracker(tracker)
+    reranker_mod.set_token_tracker(tracker)
+    agent_mod.set_token_tracker(tracker)
 
     # Load request metadata and item IDs into memory with a short-lived session
     async with db_factory() as session:
@@ -131,7 +140,7 @@ async def batch_match(ctx: dict, request_id: str) -> dict:
                 no_match_count += 1
                 processed += 1
 
-        # Final status update
+        # Final status update + flush token tracking
         async with db_factory() as session:
             repo = MatchRepo(session)
             await repo.update_request_status(
@@ -141,8 +150,12 @@ async def batch_match(ctx: dict, request_id: str) -> dict:
                 review_needed_items=review_count,
                 no_match_items=no_match_count,
             )
+            await tracker.flush(session)
             await session.commit()
-        logger.info("Batch match %s done: %d processed", request_id, processed)
+        logger.info(
+            "Batch match %s done: %d processed, %d tokens used (~$%.4f)",
+            request_id, processed, tracker.total_tokens, tracker.total_cost,
+        )
 
     except Exception as e:
         logger.exception("Batch match %s failed", request_id)
@@ -160,6 +173,11 @@ async def batch_match(ctx: dict, request_id: str) -> dict:
                 await session.commit()
         except Exception:
             logger.exception("Failed to mark request %s as failed", request_id)
+
+    # Clean up module-level tracker references
+    embedder_mod.set_token_tracker(None)
+    reranker_mod.set_token_tracker(None)
+    agent_mod.set_token_tracker(None)
 
     return {"request_id": request_id, "status": "done", "processed": processed}
 

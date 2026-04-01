@@ -16,9 +16,10 @@ import {
   Shield,
   UserCog,
   Eye,
+  Coins,
 } from "lucide-react";
 import { toast } from "sonner";
-import { getQualityMetrics } from "@/api/metrics";
+import { getQualityMetrics, getTokenUsage } from "@/api/metrics";
 import { listSuppliers } from "@/api/suppliers";
 import { listUsers } from "@/api/users";
 import { reindexCatalog } from "@/api/catalog";
@@ -29,6 +30,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
 import { QueryErrorBanner } from "@/components/ui/query-error-banner";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { PageLayout } from "@/components/layout/page-layout";
@@ -37,6 +39,7 @@ export default function AdminPage() {
   const queryClient = useQueryClient();
   const [supplierFilter, setSupplierFilter] = useState<string>("__all__");
   const [categoryFilter, setCategoryFilter] = useState<string>("");
+  const [tokenDays, setTokenDays] = useState<number>(30);
 
   const suppliersQuery = useQuery({
     queryKey: ["suppliers"],
@@ -63,6 +66,11 @@ export default function AdminPage() {
     refetchInterval: 30000,
   });
 
+  const tokenUsageQuery = useQuery({
+    queryKey: ["token-usage", tokenDays],
+    queryFn: () => getTokenUsage(tokenDays),
+  });
+
   const usersQuery = useQuery({
     queryKey: ["users"],
     queryFn: listUsers,
@@ -87,6 +95,10 @@ export default function AdminPage() {
           <TabsTrigger value="system">
             <Server className="mr-2 h-4 w-4" />
             Система и Задачи
+          </TabsTrigger>
+          <TabsTrigger value="tokens">
+            <Coins className="mr-2 h-4 w-4" />
+            Токены и расходы
           </TabsTrigger>
           <TabsTrigger value="access">
             <Users className="mr-2 h-4 w-4" />
@@ -329,6 +341,238 @@ export default function AdminPage() {
                   </div>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="tokens" className="space-y-4">
+          {/* Period selector */}
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-sm font-medium text-muted-foreground">Период:</span>
+            {[
+              { label: "7 дн.", value: 7 },
+              { label: "30 дн.", value: 30 },
+              { label: "90 дн.", value: 90 },
+            ].map((p) => (
+              <Button
+                key={p.value}
+                size="sm"
+                variant={tokenDays === p.value ? "default" : "outline"}
+                onClick={() => setTokenDays(p.value)}
+              >
+                {p.label}
+              </Button>
+            ))}
+          </div>
+
+          {tokenUsageQuery.isError && (
+            <QueryErrorBanner
+              error={tokenUsageQuery.error}
+              onRetry={() => tokenUsageQuery.refetch()}
+            />
+          )}
+
+          {/* Summary cards */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Всего токенов</CardTitle>
+                <Database className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {tokenUsageQuery.isLoading ? <Skeleton className="h-8 w-24" /> : tokenUsageQuery.data?.totals.total_tokens.toLocaleString() ?? "—"}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {tokenUsageQuery.data ? `${tokenUsageQuery.data.totals.prompt_tokens.toLocaleString()} prompt / ${tokenUsageQuery.data.totals.completion_tokens.toLocaleString()} completion` : ""}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Расходы ($)</CardTitle>
+                <Coins className="h-4 w-4 text-yellow-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-yellow-600">
+                  {tokenUsageQuery.isLoading ? <Skeleton className="h-8 w-20" /> : tokenUsageQuery.data ? `$${tokenUsageQuery.data.totals.total_cost_usd.toFixed(4)}` : "—"}
+                </div>
+                <p className="text-xs text-muted-foreground">за {tokenDays} дн.</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">API вызовов</CardTitle>
+                <Activity className="h-4 w-4 text-blue-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-blue-600">
+                  {tokenUsageQuery.isLoading ? <Skeleton className="h-8 w-16" /> : tokenUsageQuery.data?.totals.api_calls.toLocaleString() ?? "—"}
+                </div>
+                <p className="text-xs text-muted-foreground">общее кол-во запросов</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Средн. токенов/вызов</CardTitle>
+                <BarChart3 className="h-4 w-4 text-green-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-green-600">
+                  {tokenUsageQuery.isLoading ? (
+                    <Skeleton className="h-8 w-16" />
+                  ) : tokenUsageQuery.data && tokenUsageQuery.data.totals.api_calls > 0 ? (
+                    Math.round(tokenUsageQuery.data.totals.total_tokens / tokenUsageQuery.data.totals.api_calls).toLocaleString()
+                  ) : (
+                    "—"
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">токенов на запрос</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Provider breakdown */}
+          <Card>
+            <CardHeader>
+              <CardTitle>По провайдерам</CardTitle>
+              <CardDescription>Распределение токенов и расходов по провайдерам</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {tokenUsageQuery.isLoading ? (
+                <div className="space-y-3">
+                  {[1, 2, 3].map((i) => (
+                    <Skeleton key={i} className="h-8 w-full" />
+                  ))}
+                </div>
+              ) : tokenUsageQuery.data && tokenUsageQuery.data.by_provider.length > 0 ? (
+                <div className="space-y-3">
+                  {(() => {
+                    const maxTokens = Math.max(...tokenUsageQuery.data.by_provider.map((p) => p.total_tokens), 1);
+                    return tokenUsageQuery.data.by_provider.map((p) => (
+                      <div key={p.provider} className="space-y-1">
+                        <div className="flex justify-between text-sm">
+                          <span className="font-medium">{p.provider}</span>
+                          <span className="text-muted-foreground">
+                            {p.total_tokens.toLocaleString()} токенов &middot; ${p.cost_usd.toFixed(4)} &middot; {p.calls} вызовов
+                          </span>
+                        </div>
+                        <div className="h-3 bg-muted rounded-full overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-primary transition-all"
+                            style={{ width: `${(p.total_tokens / maxTokens) * 100}%` }}
+                          />
+                        </div>
+                      </div>
+                    ));
+                  })()}
+                </div>
+              ) : (
+                <div className="text-sm text-muted-foreground">Нет данных</div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Daily usage chart */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Ежедневное потребление</CardTitle>
+              <CardDescription>Токены по дням за выбранный период</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {tokenUsageQuery.isLoading ? (
+                <div className="flex items-end gap-1 h-32">
+                  {Array.from({ length: 14 }).map((_, i) => (
+                    <Skeleton key={i} className="flex-1 h-full" />
+                  ))}
+                </div>
+              ) : tokenUsageQuery.data && tokenUsageQuery.data.daily.length > 0 ? (
+                <div className="space-y-2">
+                  <div className="flex items-end gap-1 h-40">
+                    {(() => {
+                      const daily = tokenUsageQuery.data.daily;
+                      const maxTokens = Math.max(...daily.map((d) => d.total_tokens), 1);
+                      return daily.map((d) => {
+                        const heightPct = Math.max((d.total_tokens / maxTokens) * 100, 2);
+                        return (
+                          <Tooltip key={d.date}>
+                            <TooltipTrigger asChild>
+                              <div
+                                className="flex-1 bg-primary/80 hover:bg-primary rounded-t transition-all cursor-default min-w-[4px]"
+                                style={{ height: `${heightPct}%` }}
+                              />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <div className="text-xs">
+                                <div className="font-medium">{d.date}</div>
+                                <div>{d.total_tokens.toLocaleString()} токенов</div>
+                                <div>${d.cost_usd.toFixed(4)}</div>
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+                        );
+                      });
+                    })()}
+                  </div>
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>{tokenUsageQuery.data.daily[0]?.date}</span>
+                    <span>{tokenUsageQuery.data.daily[tokenUsageQuery.data.daily.length - 1]?.date}</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-sm text-muted-foreground">Нет данных</div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Model detail table */}
+          <Card>
+            <CardHeader>
+              <CardTitle>По моделям</CardTitle>
+              <CardDescription>Детализация потребления по моделям и операциям</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {tokenUsageQuery.isLoading ? (
+                <div className="space-y-2">
+                  {[1, 2, 3].map((i) => (
+                    <Skeleton key={i} className="h-8 w-full" />
+                  ))}
+                </div>
+              ) : tokenUsageQuery.data && tokenUsageQuery.data.by_model.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Провайдер</TableHead>
+                      <TableHead>Модель</TableHead>
+                      <TableHead>Операция</TableHead>
+                      <TableHead className="text-right">Токены</TableHead>
+                      <TableHead className="text-right">Расход ($)</TableHead>
+                      <TableHead className="text-right">Вызовы</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {tokenUsageQuery.data.by_model.map((m, idx) => (
+                      <TableRow key={`${m.provider}-${m.model}-${m.operation}-${idx}`}>
+                        <TableCell>
+                          <Badge variant="outline">{m.provider}</Badge>
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">{m.model}</TableCell>
+                        <TableCell>
+                          <Badge variant="secondary">{m.operation}</Badge>
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">{m.total_tokens.toLocaleString()}</TableCell>
+                        <TableCell className="text-right tabular-nums">${m.cost_usd.toFixed(4)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{m.calls.toLocaleString()}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className="text-sm text-muted-foreground">Нет данных</div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
