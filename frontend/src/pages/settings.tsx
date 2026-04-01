@@ -37,7 +37,6 @@ import { QueryErrorBanner } from "@/components/ui/query-error-banner";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MetricsTab } from "@/components/features/metrics-tab";
-import { UsersTab } from "@/components/features/users-tab";
 
 export default function SettingsPage() {
   const queryClient = useQueryClient();
@@ -235,7 +234,6 @@ export default function SettingsPage() {
         <TabsList className="mb-4">
           <TabsTrigger value="settings">API и Интеграции</TabsTrigger>
           <TabsTrigger value="metrics">Системные Метрики</TabsTrigger>
-          <TabsTrigger value="users">Доступ и Пользователи</TabsTrigger>
         </TabsList>
 
         <TabsContent value="settings" className="mt-0">
@@ -731,9 +729,6 @@ export default function SettingsPage() {
         </TabsContent>
         <TabsContent value="metrics" className="mt-0">
           <MetricsTab />
-        </TabsContent>
-        <TabsContent value="users" className="mt-0">
-          <UsersTab />
         </TabsContent>
       </Tabs>
     </PageLayout>

@@ -88,6 +88,7 @@ async def import_catalog(
         file_url=body.file_url,
         dry_run=body.dry_run,
         source_version=body.source_version,
+        _queue_name="catalog",
     )
     audit = AuditRepo(db)
     await audit.log(
@@ -145,6 +146,7 @@ async def upload_catalog_file(
         job_id,
         source_type=source_type,
         file_path=tmp_path,
+        _queue_name="catalog",
     )
     return JobAccepted(job_id=job_id, status="queued")
 
@@ -161,6 +163,7 @@ async def reindex_catalog(
         "catalog_reindex",
         job_id,
         **body.model_dump(exclude_none=True),
+        _queue_name="catalog",
     )
     audit = AuditRepo(db)
     await audit.log(
@@ -240,6 +243,7 @@ async def delete_catalog_product(
         raise HTTPException(status_code=404, detail="Product not found")
     await db.commit()
     return None
+
 
 @router.delete("/catalog/products", status_code=204)
 async def delete_all_catalog_products(

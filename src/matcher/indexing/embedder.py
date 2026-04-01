@@ -13,13 +13,6 @@ from matcher.pipeline.token_tracker import TokenTracker
 logger = logging.getLogger(__name__)
 
 _client: AsyncOpenAI | None = None
-_token_tracker: TokenTracker | None = None
-
-
-def set_token_tracker(tracker: TokenTracker | None) -> None:
-    """Set the active token tracker for embedding operations."""
-    global _token_tracker
-    _token_tracker = tracker
 
 
 def _get_client() -> AsyncOpenAI:
@@ -73,6 +66,7 @@ async def embed_texts(
     dimensions: int | None = None,
     batch_size: int = 100,
     max_retries: int = 3,
+    token_tracker: TokenTracker | None = None,
 ) -> list[list[float]]:
     """Embed a list of texts using the configured provider (OpenAI or OpenRouter).
 
@@ -84,7 +78,9 @@ async def embed_texts(
     dimensions = dimensions or settings.embedding_dimensions
 
     if settings.embedding_provider == "google":
-        return await _embed_texts_google(texts, model, dimensions, batch_size, max_retries)
+        return await _embed_texts_google(
+            texts, model, dimensions, batch_size, max_retries, token_tracker
+        )
 
     client = _get_client()
 
@@ -106,8 +102,8 @@ async def embed_texts(
                 for j, item in enumerate(response.data):
                     all_embeddings[i + j] = item.embedding
                 # Token tracking: capture usage if available
-                if hasattr(response, "usage") and response.usage and _token_tracker:
-                    _token_tracker.record(
+                if hasattr(response, "usage") and response.usage and token_tracker:
+                    token_tracker.record(
                         operation="embed",
                         provider=settings.embedding_provider,
                         model=model,
@@ -133,9 +129,12 @@ async def embed_texts(
     return all_embeddings
 
 
-async def embed_single(text: str) -> list[float]:
+async def embed_single(
+    text: str,
+    token_tracker: TokenTracker | None = None,
+) -> list[float]:
     """Embed a single text string."""
-    results = await embed_texts([text])
+    results = await embed_texts([text], token_tracker=token_tracker)
     return results[0]
 
 
@@ -145,6 +144,7 @@ async def _embed_texts_google(
     dimensions: int | None,
     batch_size: int,
     max_retries: int,
+    token_tracker: TokenTracker | None = None,
 ) -> list[list[float]]:
     import httpx
 
@@ -186,9 +186,9 @@ async def _embed_texts_google(
                     for j, item in enumerate(data.get("embeddings", [])):
                         all_embeddings[i + j] = item["values"]
                     # Token tracking for Google embeddings (estimate based on text length)
-                    if _token_tracker:
+                    if token_tracker:
                         est_tokens = sum(len(t.split()) * 2 for t in batch)
-                        _token_tracker.record(
+                        token_tracker.record(
                             operation="embed",
                             provider="google",
                             model=model,

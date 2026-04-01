@@ -85,7 +85,7 @@ async def upload_match_file(
     await db.commit()
 
     # Enqueue ARQ job
-    await arq_pool.enqueue_job("batch_match", request_id)
+    await arq_pool.enqueue_job("batch_match", request_id, _queue_name="match")
 
     return BatchRequestAccepted(request_id=request_id, status="queued")
 
@@ -226,6 +226,7 @@ async def smart_upload(
         request_id,
         catalog_items=catalog_items_payload,
         catalog_count=len(result.catalog_items),
+        _queue_name="match",
     )
 
     return BatchRequestAccepted(request_id=request_id, status="queued")

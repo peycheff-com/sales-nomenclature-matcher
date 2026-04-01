@@ -54,8 +54,6 @@ import {
 } from "@/components/ui/dialog";
 import { PageLayout } from "@/components/layout/page-layout";
 import { EmptyState } from "@/components/ui/empty-state";
-import { SuppliersTab } from "@/components/features/suppliers-tab";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton, SkeletonTable } from "@/components/ui/skeleton";
 import { QueryErrorBanner } from "@/components/ui/query-error-banner";
 import { Pagination } from "@/components/ui/pagination";
@@ -283,14 +281,8 @@ export default function CatalogPage() {
   return (
     <PageLayout
       title="База данных"
-      description="Единый справочник и маппинги"
+      description="Единый справочник"
     >
-      <Tabs defaultValue="catalog" className="w-full">
-        <TabsList className="mb-4">
-          <TabsTrigger value="catalog">Базовый каталог</TabsTrigger>
-          <TabsTrigger value="suppliers">Поставщики / Номенклатура</TabsTrigger>
-        </TabsList>
-        <TabsContent value="catalog" className="mt-0">
           <div className="grid gap-6 md:grid-cols-4">
         <div className="md:col-span-1 space-y-6">
           {statsQuery.isError && (
@@ -800,11 +792,6 @@ export default function CatalogPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-        </TabsContent>
-        <TabsContent value="suppliers" className="mt-0">
-          <SuppliersTab />
-        </TabsContent>
-      </Tabs>
     </PageLayout>
   );
 }

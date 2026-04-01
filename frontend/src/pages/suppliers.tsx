@@ -1,25 +1,24 @@
+import React, { useState, useMemo, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
 import {
-  listSuppliers,
+  Plus, X, Store, Trash2, Edit2, Loader2, ChevronDown, ChevronRight,
+  HelpCircle, Package, Search, Download, AlertTriangle,
+} from "lucide-react";
+import { toast } from "sonner";
+import Papa from "papaparse";
+import {
   createSupplier,
-  listSupplierMappings,
-  createSupplierMapping,
   updateSupplier,
+  listSuppliers,
+  deleteSupplier,
+  listSupplierMappings
 } from "@/api/suppliers";
+import { listMatchRequests } from "@/api/match";
+import type { SupplierProfile } from "@/api/types";
 import { PageLayout } from "@/components/layout/page-layout";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -28,366 +27,620 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { toast } from "sonner";
-import { ArrowLeft, Plus } from "lucide-react";
-import type { SupplierProfile } from "@/api/types";
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { EmptyState } from "@/components/ui/empty-state";
+import { SkeletonTable } from "@/components/ui/skeleton";
+import { QueryErrorBanner } from "@/components/ui/query-error-banner";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
+
+const SUPPLIER_ID_PATTERN = /^[a-zA-Z0-9_]*$/;
 
 export default function SuppliersPage() {
   const queryClient = useQueryClient();
-  const [supplierId, setSupplierId] = useState<string | null>(null);
-  const [createSupplierOpen, setCreateSupplierOpen] = useState(false);
-  const [createMappingOpen, setCreateMappingOpen] = useState(false);
-
-  // Create supplier form state
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newSupplierId, setNewSupplierId] = useState("");
   const [newSupplierName, setNewSupplierName] = useState("");
-  const [newSupplierStrict, setNewSupplierStrict] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<SupplierProfile | null>(null);
+  const [toggleWarning, setToggleWarning] = useState<SupplierProfile | null>(null);
 
-  // Create mapping form state
-  const [newMappingRawText, setNewMappingRawText] = useState("");
-  const [newMappingProductId, setNewMappingProductId] = useState("");
-  const [newMappingType, setNewMappingType] = useState("manual");
+  // GAP-6.1: Real-time ID validation
+  const [idTouched, setIdTouched] = useState(false);
+  const idValid = SUPPLIER_ID_PATTERN.test(newSupplierId);
+  const idError = idTouched && newSupplierId.length > 0 && !idValid;
 
-  // Queries
+  // GAP-6.7: Active request count for deactivation warning
+  const [activeRequestCount, setActiveRequestCount] = useState<number | null>(null);
+  const [activeRequestLoading, setActiveRequestLoading] = useState(false);
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editNameValue, setEditNameValue] = useState("");
+
+  const [expandedSupplier, setExpandedSupplier] = useState<string | null>(null);
+
   const suppliersQuery = useQuery({
     queryKey: ["suppliers"],
     queryFn: listSuppliers,
   });
 
-  const mappingsQuery = useQuery({
-    queryKey: ["supplier-mappings", supplierId],
-    queryFn: () => listSupplierMappings(supplierId!),
-    enabled: !!supplierId,
-  });
-
-  const suppliers: SupplierProfile[] = suppliersQuery.data?.items ?? [];
-  const selectedSupplier = suppliers.find((s) => s.supplier_id === supplierId);
-
-  // Mutations
-  const createSupplierMut = useMutation({
-    mutationFn: () =>
-      createSupplier({
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      return createSupplier({
         supplier_id: newSupplierId,
         supplier_name: newSupplierName,
-        strict_mode: newSupplierStrict,
-      }),
+        strict_mode: false,
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });
-      setCreateSupplierOpen(false);
+      setIsCreateOpen(false);
       setNewSupplierId("");
       setNewSupplierName("");
-      setNewSupplierStrict(false);
-      toast.success("Поставщик создан");
+      setIdTouched(false);
+      toast.success("Поставщик успешно добавлен");
     },
-    onError: () => toast.error("Ошибка при создании поставщика"),
+    onError: (err) => {
+      const msg = err instanceof Error ? err.message : "Неизвестная ошибка";
+      toast.error(`Ошибка при добавлении поставщика: ${msg}`);
+    },
   });
 
-  const updateSupplierMut = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: { strict_mode?: boolean } }) =>
-      updateSupplier(id, data),
+  const updateMutation = useMutation({
+    mutationFn: ({ id, ...data }: { id: string; supplier_name?: string; strict_mode?: boolean; is_active?: boolean }) => {
+      return updateSupplier(id, data);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });
-      toast.success("Поставщик обновлён");
+      toast.success("Изменения сохранены");
+      setEditingId(null);
     },
-    onError: () => toast.error("Ошибка при обновлении поставщика"),
+    onError: (err) => {
+      const msg = err instanceof Error ? err.message : "Неизвестная ошибка";
+      toast.error(`Ошибка при сохранении: ${msg}`);
+    },
   });
 
-  const createMappingMut = useMutation({
-    mutationFn: () =>
-      createSupplierMapping(supplierId!, {
-        supplier_raw_text: newMappingRawText,
-        product_id: newMappingProductId,
-        mapping_type: newMappingType,
-      }),
+  const deleteMutation = useMutation({
+    mutationFn: deleteSupplier,
     onSuccess: () => {
-      queryClient.invalidateQueries({
-        queryKey: ["supplier-mappings", supplierId],
-      });
-      setCreateMappingOpen(false);
-      setNewMappingRawText("");
-      setNewMappingProductId("");
-      setNewMappingType("manual");
-      toast.success("Маппинг создан");
+      queryClient.invalidateQueries({ queryKey: ["suppliers"] });
+      setDeleteTarget(null);
+      toast.success("Поставщик удален");
     },
-    onError: () => toast.error("Ошибка при создании маппинга"),
+    onError: (err) => {
+      setDeleteTarget(null);
+      const msg = err instanceof Error ? err.message : "Неизвестная ошибка";
+      toast.error(`Не удалось удалить поставщика: ${msg}`);
+    },
   });
 
-  // Detail view
-  if (supplierId && selectedSupplier) {
-    const mappings = mappingsQuery.data ?? [];
-    return (
-      <PageLayout title="Поставщики">
-        <div className="space-y-6">
-          <Button
-            variant="ghost"
-            onClick={() => setSupplierId(null)}
-            className="gap-2"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Назад
-          </Button>
+  const handleCreateSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newSupplierId || !newSupplierName) {
+      toast.error("Заполните обязательные поля");
+      return;
+    }
+    if (!idValid) {
+      toast.error("Недопустимый формат ID");
+      return;
+    }
+    createMutation.mutate();
+  };
 
-          {/* Supplier info card */}
-          <div className="rounded-lg border p-6 space-y-4">
-            <h2 className="text-xl font-semibold">
-              {selectedSupplier.supplier_name}
-            </h2>
-            <div className="flex items-center gap-4">
-              <Label htmlFor="strict-mode">Строгий режим</Label>
-              <Switch
-                id="strict-mode"
-                checked={selectedSupplier.strict_mode}
-                onCheckedChange={(checked) =>
-                  updateSupplierMut.mutate({
-                    id: supplierId,
-                    data: { strict_mode: checked },
-                  })
-                }
-              />
-            </div>
-          </div>
+  const handleCreateDialogChange = (open: boolean) => {
+    setIsCreateOpen(open);
+    if (!open) {
+      setNewSupplierId("");
+      setNewSupplierName("");
+      setIdTouched(false);
+    }
+  };
 
-          <Tabs defaultValue="mappings">
-            <TabsList>
-              <TabsTrigger value="mappings">Маппинги</TabsTrigger>
-              <TabsTrigger value="info">Информация</TabsTrigger>
-            </TabsList>
+  const startEditing = (s: SupplierProfile) => {
+    setEditingId(s.supplier_id);
+    setEditNameValue(s.supplier_name);
+  };
 
-            <TabsContent value="mappings" className="space-y-4">
-              <div className="flex justify-end">
+  // GAP-6.7: Check active requests before deactivation
+  const handleToggleActive = async (s: SupplierProfile, val: boolean) => {
+    if (!val) {
+      setActiveRequestLoading(true);
+      setActiveRequestCount(null);
+      try {
+        const [queuedRes, runningRes] = await Promise.all([
+          listMatchRequests({ supplier_id: s.supplier_id, status: "queued", limit: 100 }),
+          listMatchRequests({ supplier_id: s.supplier_id, status: "running", limit: 100 }),
+        ]);
+        const count = (queuedRes.items?.length ?? 0) + (runningRes.items?.length ?? 0);
+        setActiveRequestCount(count);
+      } catch {
+        setActiveRequestCount(null);
+      } finally {
+        setActiveRequestLoading(false);
+      }
+      setToggleWarning(s);
+    } else {
+      updateMutation.mutate({ id: s.supplier_id, is_active: val });
+    }
+  };
+
+  const suppliers = suppliersQuery.data?.items ?? [];
+
+  return (
+    <PageLayout
+      title="Поставщики"
+      description="Управление профилями и маппингами контрагентов."
+    >
+      <div className="space-y-4">
+        <div className="flex justify-end mb-2">
+        <div>
+        <Dialog open={isCreateOpen} onOpenChange={handleCreateDialogChange}>
+          <DialogTrigger className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground shadow hover:bg-primary/90 h-9 px-4 py-2">
+            <Plus className="mr-2 h-4 w-4" />
+            Добавить поставщика
+          </DialogTrigger>
+          <DialogContent>
+            <form onSubmit={handleCreateSubmit}>
+              <DialogHeader>
+                <DialogTitle>Новый поставщик</DialogTitle>
+                <DialogDescription>
+                  Создайте профиль для загрузки прайс-листов и настройки правил.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="id">ID (Системный код)</Label>
+                  <Input
+                    id="id"
+                    placeholder="partner_xyz"
+                    value={newSupplierId}
+                    onChange={(e) => {
+                      setNewSupplierId(e.target.value);
+                      if (!idTouched) setIdTouched(true);
+                    }}
+                    onBlur={() => setIdTouched(true)}
+                    aria-invalid={idError || undefined}
+                    className={idError ? "border-red-500 focus-visible:border-red-500 focus-visible:ring-red-500/20" : ""}
+                  />
+                  {/* GAP-6.1: Validation message */}
+                  {idError ? (
+                    <p className="text-[10px] text-red-600 font-medium">
+                      Только латиница, цифры и подчеркивания
+                    </p>
+                  ) : (
+                    <p className="text-[10px] text-muted-foreground">Только латиница и подчеркивания. Нельзя изменить позже.</p>
+                  )}
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="name">Наименование</Label>
+                  <Input
+                    id="name"
+                    placeholder="ООО Ромашка"
+                    value={newSupplierName}
+                    onChange={(e) => setNewSupplierName(e.target.value)}
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" type="button" onClick={() => handleCreateDialogChange(false)}>Отмена</Button>
                 <Button
-                  onClick={() => setCreateMappingOpen(true)}
-                  className="gap-2"
+                  type="submit"
+                  disabled={createMutation.isPending || !idValid || !newSupplierId || !newSupplierName}
                 >
-                  <Plus className="h-4 w-4" />
+                  {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
                   Создать
                 </Button>
-              </div>
-
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Текст поставщика</TableHead>
-                    <TableHead>Продукт</TableHead>
-                    <TableHead>Тип</TableHead>
-                    <TableHead>Уверенность</TableHead>
-                    <TableHead>Утвердил</TableHead>
-                    <TableHead>Статус</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {mappings.map((m, idx) => (
-                    <TableRow key={m.supplier_raw_text ?? idx}>
-                      <TableCell>{m.supplier_raw_text ?? "—"}</TableCell>
-                      <TableCell className="font-mono text-xs">{m.product_id}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{m.mapping_type ?? "—"}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        {m.confidence != null
-                          ? (m.confidence * 100).toFixed(0) + "%"
-                          : "—"}
-                      </TableCell>
-                      <TableCell>{(m as unknown as Record<string, unknown>).approved_by as string ?? "—"}</TableCell>
-                      <TableCell>
-                        {(m as unknown as Record<string, unknown>).is_active !== false ? (
-                          <Badge variant="default">Активен</Badge>
-                        ) : (
-                          <Badge variant="secondary">Неактивен</Badge>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {mappings.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={6} className="text-center text-muted-foreground">
-                        Нет маппингов
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </TabsContent>
-
-            <TabsContent value="info">
-              <div className="rounded-lg border p-6 space-y-2 text-sm">
-                <p>
-                  <span className="font-medium">ID:</span>{" "}
-                  {selectedSupplier.supplier_id}
-                </p>
-                <p>
-                  <span className="font-medium">Название:</span>{" "}
-                  {selectedSupplier.supplier_name}
-                </p>
-                <p>
-                  <span className="font-medium">Строгий режим:</span>{" "}
-                  {selectedSupplier.strict_mode ? "Да" : "Нет"}
-                </p>
-                <p>
-                  <span className="font-medium">Статус:</span>{" "}
-                  {selectedSupplier.is_active ? "Активен" : "Неактивен"}
-                </p>
-              </div>
-            </TabsContent>
-          </Tabs>
-        </div>
-
-        {/* Create mapping dialog */}
-        <Dialog open={createMappingOpen} onOpenChange={setCreateMappingOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Создать маппинг</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label>Текст поставщика</Label>
-                <Input
-                  value={newMappingRawText}
-                  onChange={(e) => setNewMappingRawText(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>ID продукта</Label>
-                <Input
-                  value={newMappingProductId}
-                  onChange={(e) => setNewMappingProductId(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Тип</Label>
-                <Select value={newMappingType} onValueChange={(v) => setNewMappingType(v || "")}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Выберите тип" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="manual">manual</SelectItem>
-                    <SelectItem value="approved">approved</SelectItem>
-                    <SelectItem value="exact">exact</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button
-                onClick={() => createMappingMut.mutate()}
-                disabled={
-                  !newMappingRawText ||
-                  !newMappingProductId ||
-                  !newMappingType ||
-                  createMappingMut.isPending
-                }
-              >
-                Создать
-              </Button>
-            </DialogFooter>
+              </DialogFooter>
+            </form>
           </DialogContent>
         </Dialog>
-      </PageLayout>
-    );
-  }
-
-  // List view
-  return (
-    <PageLayout title="Поставщики">
-      <div className="space-y-4">
-        <div className="flex justify-end">
-          <Button
-            onClick={() => setCreateSupplierOpen(true)}
-            className="gap-2"
-          >
-            <Plus className="h-4 w-4" />
-            Создать
-          </Button>
         </div>
-
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Название</TableHead>
-              <TableHead>Строгий режим</TableHead>
-              <TableHead>Статус</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {suppliers.map((s) => (
-              <TableRow
-                key={s.supplier_id}
-                className="cursor-pointer"
-                onClick={() => setSupplierId(s.supplier_id)}
-              >
-                <TableCell>{s.supplier_name}</TableCell>
-                <TableCell>
-                  <Badge variant={s.strict_mode ? "default" : "secondary"}>
-                    {s.strict_mode ? "Строгий" : "Обычный"}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <Badge variant={s.is_active ? "default" : "secondary"}>
-                    {s.is_active ? "Активен" : "Неактивен"}
-                  </Badge>
-                </TableCell>
-              </TableRow>
-            ))}
-            {suppliers.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={3} className="text-center text-muted-foreground">
-                  Нет поставщиков
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
       </div>
 
-      {/* Create supplier dialog */}
-      <Dialog open={createSupplierOpen} onOpenChange={setCreateSupplierOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Создать поставщика</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>ID</Label>
-              <Input
-                value={newSupplierId}
-                onChange={(e) => setNewSupplierId(e.target.value)}
-                placeholder="supplier_001"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Название</Label>
-              <Input
-                value={newSupplierName}
-                onChange={(e) => setNewSupplierName(e.target.value)}
-              />
-            </div>
-            <div className="flex items-center gap-4">
-              <Label htmlFor="new-strict-mode">Строгий режим</Label>
-              <Switch
-                id="new-strict-mode"
-                checked={newSupplierStrict}
-                onCheckedChange={setNewSupplierStrict}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              onClick={() => createSupplierMut.mutate()}
-              disabled={!newSupplierId || !newSupplierName || createSupplierMut.isPending}
+      {suppliersQuery.isError && (
+        <QueryErrorBanner
+          error={suppliersQuery.error}
+          title="Ошибка загрузки поставщиков"
+          onRetry={() => suppliersQuery.refetch()}
+        />
+      )}
+
+      <Card>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-10"></TableHead>
+                <TableHead>Поставщик</TableHead>
+                <TableHead>Системный ID</TableHead>
+                <TableHead>
+                  <div className="flex items-center gap-1">
+                    Строгий режим
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <HelpCircle className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        В строгом режиме система требует точного совпадения артикулов
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                </TableHead>
+                <TableHead>Статус</TableHead>
+                <TableHead className="text-right w-24">Действия</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {suppliersQuery.isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="py-6">
+                    <SkeletonTable rows={3} columns={5} />
+                  </TableCell>
+                </TableRow>
+              ) : suppliers.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="py-8">
+                    <EmptyState
+                      icon={Store}
+                      title="Нет поставщиков"
+                      description="Добавьте первого поставщика, чтобы начать загрузку прайс-листов."
+                    />
+                  </TableCell>
+                </TableRow>
+              ) : (
+                suppliers.map((s) => (
+                  <React.Fragment key={s.supplier_id}>
+                    <TableRow className={expandedSupplier === s.supplier_id ? "bg-muted/30" : ""}>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0"
+                          onClick={() => setExpandedSupplier(expandedSupplier === s.supplier_id ? null : s.supplier_id)}
+                          aria-label={expandedSupplier === s.supplier_id ? "Свернуть" : "Развернуть"}
+                        >
+                          {expandedSupplier === s.supplier_id ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        </Button>
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        {editingId === s.supplier_id ? (
+                          <div className="flex flex-col gap-1 w-[200px]">
+                            <Input
+                              value={editNameValue}
+                              onChange={(e) => setEditNameValue(e.target.value)}
+                              className="h-7 text-xs"
+                              autoFocus
+                            />
+                            <div className="flex gap-1">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-6 flex-1 text-[10px]"
+                                onClick={() => updateMutation.mutate({ id: s.supplier_id, supplier_name: editNameValue })}
+                              >
+                                Сохранить
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 px-2 text-muted-foreground"
+                                onClick={() => setEditingId(null)}
+                                aria-label="Отменить редактирование"
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <Store className="h-4 w-4 text-muted-foreground" />
+                            <span className="truncate max-w-[200px]" title={s.supplier_name}>{s.supplier_name}</span>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-5 w-5 opacity-50 hover:opacity-100"
+                              onClick={() => startEditing(s)}
+                              aria-label="Редактировать название"
+                            >
+                              <Edit2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground">
+                        {s.supplier_id}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={s.strict_mode}
+                            onCheckedChange={(val) => updateMutation.mutate({ id: s.supplier_id, strict_mode: val })}
+                          />
+                          <span className="text-xs text-muted-foreground">
+                            {s.strict_mode ? "Вкл" : "Откл"}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={s.is_active}
+                            onCheckedChange={(val) => handleToggleActive(s, val)}
+                          />
+                          <Badge variant="outline" className={s.is_active ? "bg-green-50 text-green-700" : "bg-gray-50 text-gray-700"}>
+                            {s.is_active ? "Активен" : "Отключен"}
+                          </Badge>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-red-500 hover:bg-red-50 hover:text-red-700"
+                          onClick={() => setDeleteTarget(s)}
+                          aria-label="Удалить поставщика"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                    {expandedSupplier === s.supplier_id && (
+                      <TableRow className="bg-muted/10">
+                        <TableCell colSpan={6} className="border-t-0 p-4">
+                          <MappingsPanel supplier={s} />
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </React.Fragment>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* GAP-6.7: Enhanced deactivation warning with active request info */}
+      <AlertDialog open={!!toggleWarning} onOpenChange={(open) => { if (!open) { setToggleWarning(null); setActiveRequestCount(null); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Отключить поставщика?</AlertDialogTitle>
+            <AlertDialogDescription>
+              <div className="space-y-3">
+                <p>
+                  Поставщик <span className="font-medium text-foreground">{toggleWarning?.supplier_name}</span> больше не сможет загружать данные в систему,
+                  а его маппинги не будут применяться.
+                </p>
+                {activeRequestLoading && (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Проверка активных запросов...
+                  </div>
+                )}
+                {activeRequestCount != null && activeRequestCount > 0 && (
+                  <div className="flex items-start gap-2 rounded-md border border-orange-200 bg-orange-50 p-3">
+                    <AlertTriangle className="h-4 w-4 text-orange-600 mt-0.5 shrink-0" />
+                    <p className="text-xs text-orange-800">
+                      У этого поставщика есть {activeRequestCount} активных запросов. Деактивация может повлиять на их обработку.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-orange-600 hover:bg-orange-700 text-white"
+              onClick={() => {
+                if (toggleWarning) {
+                  updateMutation.mutate({ id: toggleWarning.supplier_id, is_active: false });
+                  setToggleWarning(null);
+                  setActiveRequestCount(null);
+                }
+              }}
             >
-              Создать
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+              Отключить
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Удалить поставщика?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Вы собираетесь навсегда удалить <span className="font-medium text-foreground">{deleteTarget?.supplier_name}</span> и
+              все сопутствующие маппинги и настройки. Это действие необратимо.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700 text-white"
+              onClick={() => {
+                if (deleteTarget) {
+                  deleteMutation.mutate(deleteTarget.supplier_id);
+                }
+              }}
+            >
+              Удалить безвозвратно
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      </div>
     </PageLayout>
+  );
+}
+
+const MAPPINGS_PAGE_SIZE = 50;
+
+function MappingsPanel({ supplier }: { supplier: SupplierProfile }) {
+  const mappingsQuery = useQuery({
+    queryKey: ["supplier-mappings", supplier.supplier_id],
+    queryFn: () => listSupplierMappings(supplier.supplier_id, 500),
+  });
+
+  // GAP-6.5: Search within mappings
+  const [mappingSearch, setMappingSearch] = useState("");
+  const debouncedMappingSearch = useDebouncedValue(mappingSearch.trim().toLowerCase(), 300);
+
+  const allMappings = useMemo(() => mappingsQuery.data ?? [], [mappingsQuery.data]);
+
+  const filteredMappings = useMemo(() => {
+    if (!debouncedMappingSearch) return allMappings;
+    return allMappings.filter(
+      (m) =>
+        (m.supplier_raw_text ?? "").toLowerCase().includes(debouncedMappingSearch) ||
+        (m.product_id ?? "").toLowerCase().includes(debouncedMappingSearch) ||
+        (m.supplier_article ?? "").toLowerCase().includes(debouncedMappingSearch)
+    );
+  }, [allMappings, debouncedMappingSearch]);
+
+  // GAP-6.4: Pagination for mappings — track extra pages loaded per search term
+  const [pagination, setPagination] = useState({ search: debouncedMappingSearch, extra: 0 });
+  const visibleCount = MAPPINGS_PAGE_SIZE + (pagination.search === debouncedMappingSearch ? pagination.extra : 0);
+  const displayedMappings = filteredMappings.slice(0, visibleCount);
+  const hasMore = filteredMappings.length > visibleCount;
+
+  // GAP-6.6: Export mappings to CSV
+  const handleExportCSV = useCallback(() => {
+    if (!allMappings.length) return;
+
+    const rows = allMappings.map((m) => ({
+      "Исходный текст поставщика": m.supplier_raw_text ?? "",
+      "Артикул поставщика": m.supplier_article ?? "",
+      "ID целевого товара": m.product_id ?? "",
+    }));
+
+    const csv = Papa.unparse(rows);
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `mappings-${supplier.supplier_id}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [allMappings, supplier.supplier_id]);
+
+  return (
+    <div className="bg-background rounded-md border p-4 shadow-sm">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <h3 className="font-medium text-sm flex items-center gap-2">
+          Маппинги ({allMappings.length})
+        </h3>
+        <div className="flex items-center gap-2">
+          {/* GAP-6.5: Search within mappings */}
+          {allMappings.length > 0 && (
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Поиск по маппингам..."
+                value={mappingSearch}
+                onChange={(e) => setMappingSearch(e.target.value)}
+                className="h-7 w-[200px] pl-7 text-xs"
+              />
+            </div>
+          )}
+          {/* GAP-6.6: Export button */}
+          {allMappings.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={handleExportCSV}
+            >
+              <Download className="mr-1.5 h-3.5 w-3.5" />
+              CSV
+            </Button>
+          )}
+        </div>
+      </div>
+
+      <p className="text-[10px] text-muted-foreground mb-3">
+        Маппинги создаются автоматически при проверке результатов
+      </p>
+
+      {mappingsQuery.isLoading ? (
+        <SkeletonTable rows={3} columns={3} />
+      ) : !allMappings.length ? (
+        <EmptyState
+          icon={Package}
+          title="Нет маппингов"
+          description="У этого поставщика пока нет сохранённых маппингов (алиасов)."
+          variant="no-results"
+        />
+      ) : (
+        <>
+          {/* Show filtered count when searching */}
+          {debouncedMappingSearch && (
+            <p className="text-[10px] text-muted-foreground mb-2">
+              Найдено: {filteredMappings.length} из {allMappings.length}
+            </p>
+          )}
+          <div className="max-h-[300px] overflow-auto rounded border">
+            <Table>
+              <TableHeader className="bg-muted/50 sticky top-0 z-10">
+                <TableRow>
+                  <TableHead className="py-2.5">Исходный текст поставщика</TableHead>
+                  <TableHead className="py-2.5">Артикул поставщика</TableHead>
+                  <TableHead className="py-2.5">ID Целевого товара (База)</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {displayedMappings.map((m, idx) => (
+                  <TableRow key={idx} className="text-xs">
+                    <TableCell className="py-2 font-medium">{m.supplier_raw_text ?? "\u2014"}</TableCell>
+                    <TableCell className="py-2 text-muted-foreground">{m.supplier_article ?? "\u2014"}</TableCell>
+                    <TableCell className="py-2 font-mono text-muted-foreground">{m.product_id}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* GAP-6.4: Pagination info and "show more" */}
+          {filteredMappings.length > MAPPINGS_PAGE_SIZE && (
+            <div className="mt-2 flex items-center justify-between">
+              <p className="text-[10px] text-muted-foreground">
+                Показаны {Math.min(visibleCount, filteredMappings.length)} из {filteredMappings.length} маппингов
+              </p>
+              {hasMore && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 text-[10px]"
+                  onClick={() => setPagination(prev => ({ search: debouncedMappingSearch, extra: (prev.search === debouncedMappingSearch ? prev.extra : 0) + MAPPINGS_PAGE_SIZE }))}
+                >
+                  Показать ещё
+                </Button>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </div>
   );
 }

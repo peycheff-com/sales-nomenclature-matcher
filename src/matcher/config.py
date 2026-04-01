@@ -16,9 +16,9 @@ class ProviderCapabilities(BaseModel):
     supports_tool_calling: bool = False
     supports_structured_outputs: bool = False
     supports_web_search: bool = False
-    api_style: Literal[
-        "openai-compatible", "google-native", "cohere-v2", "dashscope"
-    ] = "openai-compatible"
+    api_style: Literal["openai-compatible", "google-native", "cohere-v2", "dashscope"] = (
+        "openai-compatible"
+    )
     region: str | None = None
     is_beta: bool = False
     notes: str | None = None
@@ -248,6 +248,7 @@ class Settings(BaseSettings):
     # Matching thresholds
     auto_match_threshold: float = 0.93
     review_threshold: float = 0.75
+    batch_concurrency: int = 5  # Max concurrent items in batch processing
     retrieval_top_n: int = 50
     rerank_top_n: int = 5
     rerank_enabled: bool = True

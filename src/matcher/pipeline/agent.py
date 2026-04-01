@@ -11,13 +11,6 @@ from matcher.pipeline.token_tracker import TokenTracker
 
 logger = logging.getLogger(__name__)
 
-_token_tracker: TokenTracker | None = None
-
-
-def set_token_tracker(tracker: TokenTracker | None) -> None:
-    global _token_tracker
-    _token_tracker = tracker
-
 
 def _make_llm_client() -> tuple[AsyncOpenAI, str, dict]:
     """Create an OpenAI-compatible client configured for Agentic tool use."""
@@ -64,10 +57,18 @@ def _web_search(query: str, max_results: int = 4) -> str:
         return f"Web search failed: {e}"
 
 
-async def _catalog_search(query: str, session: AsyncSession) -> str:
+async def _catalog_search(
+    query: str,
+    session: AsyncSession,
+    token_tracker: TokenTracker | None = None,
+) -> str:
     """Searches the local product catalog for specific articles or keywords."""
     candidates = await hybrid_search(
-        query_text=query, normalized_text=query, session=session, top_n=10
+        query_text=query,
+        normalized_text=query,
+        session=session,
+        top_n=10,
+        token_tracker=token_tracker,
     )
     if not candidates:
         return "No catalog matches found for that query."
@@ -106,7 +107,7 @@ def _decompose_query(query: str) -> str:
         "tokens": ctx.tokens[:20] if ctx.tokens else [],
     }
     # Identify the leading category word (first alpha token > 3 chars)
-    for token in (ctx.tokens or []):
+    for token in ctx.tokens or []:
         if len(token) > 3 and token.isalpha():
             result["category_word"] = token
             break
@@ -186,9 +187,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "final_decision",
-            "description": (
-                "Submit your final matching decision after gathering enough context."
-            ),
+            "description": ("Submit your final matching decision after gathering enough context."),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -204,9 +203,7 @@ TOOLS = [
                     },
                     "product_id": {
                         "type": "string",
-                        "description": (
-                            "The catalog product ID if exact_match or likely_match."
-                        ),
+                        "description": ("The catalog product ID if exact_match or likely_match."),
                     },
                     "reasoning": {
                         "type": "string",
@@ -292,6 +289,7 @@ async def resolve_agentically(
     top_candidates: list[dict],
     session: AsyncSession,
     extracted_attrs: dict | None = None,
+    token_tracker: TokenTracker | None = None,
 ) -> dict | None:
     """
     Adaptive agentic resolution with think-then-act strategy.
@@ -341,8 +339,8 @@ async def resolve_agentically(
             return None
 
         # Token tracking
-        if hasattr(response, "usage") and response.usage and _token_tracker:
-            _token_tracker.record(
+        if hasattr(response, "usage") and response.usage and token_tracker:
+            token_tracker.record(
                 operation="agent",
                 provider=settings.llm_provider,
                 model=model,
@@ -385,7 +383,7 @@ async def resolve_agentically(
 
                 elif fn_name == "search_catalog":
                     query = args.get("query", raw_text)
-                    result = await _catalog_search(query, session)
+                    result = await _catalog_search(query, session, token_tracker=token_tracker)
                     messages.append(
                         {"role": "tool", "tool_call_id": tool_call.id, "content": result}
                     )

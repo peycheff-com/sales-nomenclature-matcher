@@ -1,73 +1,33 @@
-# React + TypeScript + Vite
+# Sales Nomenclature Matcher Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This is the React Single Page Application (SPA) for the Sales Nomenclature Matcher tool.
 
-Currently, two official plugins are available:
+## Tech Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **Framework:** React 19 + TypeScript 5.9
+- **Build Tool:** Vite 8
+- **Styling:** Tailwind CSS 4 + shadcn/ui components
+- **Routing:** TanStack Router
+- **Data Fetching:** TanStack Query + `ky`
+- **Tables:** TanStack Table v8
 
-## React Compiler
+## Project Structure
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- `src/api/` — Typed API clients mapping to the backend endpoints (Auth, Match, Review, Suppliers, Users, Catalog, Metrics)
+- `src/components/` — Reusable UI components (shadcn/ui, layout, tables, forms)
+- `src/pages/` — Main application views (Dashboard, Match Requests, Result Review, Catalog, Settings, Suppliers, Users)
+- `src/lib/` — Utilities, auth store, theme context
+- `src/router.tsx` — TanStack Router configuration and route definitions
 
-## Expanding the ESLint configuration
+## Development
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm ci                     # Install dependencies cleanly
+npm run dev                # Start dev server on :5173 (proxies /api to backend)
+npm run lint               # Run ESLint
+npm run build              # Type-check and build production bundle
+npx tsc --noEmit           # Type checking only
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Ensure the backend API is running on `http://localhost:8000` to properly proxy requests during development.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```

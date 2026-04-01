@@ -54,7 +54,7 @@ Sum of weights = 1.00
 
 ## Penalties
 
-- critical_number_conflict: -0.18
+- critical_number_conflict: -0.18 (if specific product with identifiers), -0.08 (if generic product, no identifiers)
 - category_conflict: -0.15
 - packaging_conflict: -0.12
 - unit_conflict: -0.10
@@ -62,7 +62,7 @@ Sum of weights = 1.00
 
 ## Hard Gates (block auto_match)
 
-1. critical_number_conflict AND NOT article_exact AND NOT manufacturer_code_exact
+1. critical_number_conflict AND NOT article_exact AND NOT manufacturer_code_exact AND candidate_has_identifiers
 2. category_conflict AND rerank_score < 0.95
 3. brand_conflict AND number_signature_score < 0.6
 

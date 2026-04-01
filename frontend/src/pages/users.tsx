@@ -1,25 +1,28 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Plus, Loader2, KeyRound, UserCog, Copy, Check, Users, AlertTriangle, Info } from "lucide-react";
+import { toast } from "sonner";
 import {
   listUsers,
   createUser,
   updateUser,
   resetUserPassword,
   type UserDetail,
+  type UserCreateInput,
+  type UserUpdateInput,
 } from "@/api/users";
+import { getMe } from "@/api/auth";
 import { PageLayout } from "@/components/layout/page-layout";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -28,341 +31,580 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { toast } from "sonner";
-import { Plus, KeyRound } from "lucide-react";
-
-const ROLES = ["admin", "operator", "viewer", "reviewer", "catalog_operator"] as const;
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { SkeletonTable } from "@/components/ui/skeleton";
+import { QueryErrorBanner } from "@/components/ui/query-error-banner";
+import { EmptyState } from "@/components/ui/empty-state";
 
 const ROLE_LABELS: Record<string, string> = {
-  admin: "Админ",
+  admin: "Администратор",
   operator: "Оператор",
   viewer: "Наблюдатель",
-  reviewer: "Ревьюер",
-  catalog_operator: "Каталог-оператор",
 };
+
+const ROLE_COLORS: Record<string, string> = {
+  admin: "bg-purple-50 text-purple-700",
+  operator: "bg-blue-50 text-blue-700",
+  viewer: "bg-gray-50 text-gray-700",
+};
+
+function generatePassword(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+  let result = "";
+  for (let i = 0; i < 12; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
 
 export default function UsersPage() {
   const queryClient = useQueryClient();
 
-  const [createOpen, setCreateOpen] = useState(false);
-  const [editUser, setEditUser] = useState<UserDetail | null>(null);
-  const [resetUser, setResetUser] = useState<UserDetail | null>(null);
-
-  // Create form state
-  const [createForm, setCreateForm] = useState({
-    username: "",
-    password: "",
-    full_name: "",
-    role: "operator" as string,
-  });
-
-  // Edit form state
-  const [editForm, setEditForm] = useState({
-    full_name: "",
-    role: "",
-    is_active: true,
-  });
-
-  // Reset password state
+  // State for create dialog
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [newUsername, setNewUsername] = useState("");
+  const [newFullName, setNewFullName] = useState("");
+  const [newRole, setNewRole] = useState<"admin" | "operator" | "viewer">("operator");
   const [newPassword, setNewPassword] = useState("");
+  const [copied, setCopied] = useState(false);
 
-  const usersQuery = useQuery({
-    queryKey: ["users"],
-    queryFn: listUsers,
-  });
+  // State for edit dialog
+  const [editTarget, setEditTarget] = useState<UserDetail | null>(null);
+  const [editFullName, setEditFullName] = useState("");
+  const [editRole, setEditRole] = useState<"admin" | "operator" | "viewer">("operator");
+
+  // State for reset password dialog
+  const [resetTarget, setResetTarget] = useState<UserDetail | null>(null);
+  const [resetPassword, setResetPassword] = useState("");
+
+  // State for deactivation confirmation
+  const [deactivateTarget, setDeactivateTarget] = useState<UserDetail | null>(null);
+
+  const meQuery = useQuery({ queryKey: ["me"], queryFn: getMe, retry: false });
+  const usersQuery = useQuery({ queryKey: ["users"], queryFn: listUsers });
 
   const createMutation = useMutation({
-    mutationFn: (data: typeof createForm) => createUser(data as Parameters<typeof createUser>[0]),
+    mutationFn: (input: UserCreateInput) => createUser(input),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
-      setCreateOpen(false);
-      setCreateForm({ username: "", password: "", full_name: "", role: "operator" });
+      setIsCreateOpen(false);
+      resetCreateForm();
       toast.success("Пользователь создан");
     },
-    onError: () => toast.error("Ошибка при создании пользователя"),
+    onError: (err) => {
+      const msg = err instanceof Error ? err.message : "Неизвестная ошибка";
+      toast.error(`Ошибка при создании пользователя: ${msg}`);
+    },
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: { id: string; payload: typeof editForm }) =>
-      updateUser(data.id, data.payload as Parameters<typeof updateUser>[1]),
+    mutationFn: ({ userId, ...data }: { userId: string } & UserUpdateInput) =>
+      updateUser(userId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
-      setEditUser(null);
-      toast.success("Пользователь обновлён");
+      setEditTarget(null);
+      toast.success("Изменения сохранены");
     },
-    onError: () => toast.error("Ошибка при обновлении пользователя"),
+    onError: (err) => {
+      const msg = err instanceof Error ? err.message : "Неизвестная ошибка";
+      toast.error(`Ошибка при сохранении: ${msg}`);
+    },
   });
 
-  const resetMutation = useMutation({
-    mutationFn: (data: { id: string; password: string }) =>
-      resetUserPassword(data.id, data.password),
+  const resetPasswordMutation = useMutation({
+    mutationFn: ({ userId, password }: { userId: string; password: string }) =>
+      resetUserPassword(userId, password),
     onSuccess: () => {
-      setResetUser(null);
-      setNewPassword("");
-      toast.success("Пароль сброшен");
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      setResetTarget(null);
+      setResetPassword("");
+      toast.success("Пароль сброшен. Пользователю потребуется сменить пароль при следующем входе.");
     },
-    onError: () => toast.error("Ошибка при сбросе пароля"),
+    onError: (err) => {
+      const msg = err instanceof Error ? err.message : "Неизвестная ошибка";
+      toast.error(`Ошибка при сбросе пароля: ${msg}`);
+    },
   });
 
-  function openEdit(user: UserDetail) {
-    setEditForm({
-      full_name: user.full_name ?? "",
-      role: user.role,
-      is_active: user.is_active,
-    });
-    setEditUser(user);
+  function resetCreateForm() {
+    setNewUsername("");
+    setNewFullName("");
+    setNewRole("operator");
+    setNewPassword("");
+    setCopied(false);
   }
 
-  function openReset(e: React.MouseEvent, user: UserDetail) {
-    e.stopPropagation();
-    setNewPassword("");
-    setResetUser(user);
+  function handleGeneratePassword() {
+    const pw = generatePassword();
+    setNewPassword(pw);
+    navigator.clipboard.writeText(pw).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      toast.success("Пароль скопирован в буфер обмена");
+    });
+  }
+
+  function handleCreateSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newUsername || !newPassword) {
+      toast.error("Заполните обязательные поля");
+      return;
+    }
+    createMutation.mutate({
+      username: newUsername,
+      full_name: newFullName || undefined,
+      role: newRole,
+      password: newPassword,
+    });
+  }
+
+  function openEditDialog(user: UserDetail) {
+    setEditTarget(user);
+    setEditFullName(user.full_name ?? "");
+    setEditRole(user.role as "admin" | "operator" | "viewer");
+  }
+
+  function handleEditSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editTarget) return;
+    updateMutation.mutate({
+      userId: editTarget.user_id,
+      full_name: editFullName || undefined,
+      role: editRole,
+    });
+  }
+
+  function handleToggleActive(user: UserDetail, val: boolean) {
+    if (!val) {
+      setDeactivateTarget(user);
+    } else {
+      updateMutation.mutate({ userId: user.user_id, is_active: true });
+    }
+  }
+
+  function openResetDialog(user: UserDetail) {
+    setResetTarget(user);
+    const pw = generatePassword();
+    setResetPassword(pw);
   }
 
   const users = usersQuery.data?.items ?? [];
+  const currentUserId = meQuery.data?.user_id;
 
-  return (
-    <PageLayout title="Пользователи">
-      <div className="flex justify-end mb-4">
-        <Button onClick={() => setCreateOpen(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Создать
-        </Button>
-      </div>
-
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Логин</TableHead>
-              <TableHead>Полное имя</TableHead>
-              <TableHead>Роль</TableHead>
-              <TableHead>Активен</TableHead>
-              <TableHead>Создан</TableHead>
-              <TableHead className="w-[100px]" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {users.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                  {usersQuery.isLoading ? "Загрузка..." : "Нет пользователей"}
-                </TableCell>
-              </TableRow>
-            )}
-            {users.map((user) => (
-              <TableRow
-                key={user.user_id}
-                className="cursor-pointer"
-                onClick={() => openEdit(user)}
-              >
-                <TableCell className="font-medium">{user.username}</TableCell>
-                <TableCell>{user.full_name ?? "—"}</TableCell>
-                <TableCell>
-                  <Badge variant="outline">
-                    {ROLE_LABELS[user.role] ?? user.role}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <Badge variant={user.is_active ? "default" : "secondary"}>
-                    {user.is_active ? "Да" : "Нет"}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  {new Date(user.created_at).toLocaleDateString("ru-RU")}
-                </TableCell>
-                <TableCell>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    title="Сбросить пароль"
-                    onClick={(e) => openReset(e, user)}
-                  >
-                    <KeyRound className="h-4 w-4" />
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-
-      {/* Create user dialog */}
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+  const pageActions = (
+    <div className="flex items-center gap-2">
+      <Dialog
+        open={isCreateOpen}
+        onOpenChange={(open) => {
+          setIsCreateOpen(open);
+          if (!open) resetCreateForm();
+        }}
+      >
+        <DialogTrigger className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground shadow hover:bg-primary/90 h-9 px-4 py-2">
+          <Plus className="mr-2 h-4 w-4" />
+          Создать пользователя
+        </DialogTrigger>
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Создать пользователя</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="create-username">Логин</Label>
-              <Input
-                id="create-username"
-                value={createForm.username}
-                onChange={(e) =>
-                  setCreateForm((f) => ({ ...f, username: e.target.value }))
-                }
-              />
+          <form onSubmit={handleCreateSubmit}>
+            <DialogHeader>
+              <DialogTitle>Новый пользователь</DialogTitle>
+              <DialogDescription>
+                Создайте учётную запись. Пользователю потребуется сменить пароль при первом входе.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="create-username">Имя пользователя</Label>
+                <Input
+                  id="create-username"
+                  placeholder="ivanov"
+                  value={newUsername}
+                  onChange={(e) => setNewUsername(e.target.value)}
+                  autoComplete="off"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Латиница, цифры, подчёркивания. Нельзя изменить позже.
+                </p>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="create-fullname">Полное имя</Label>
+                <Input
+                  id="create-fullname"
+                  placeholder="Иванов Иван Иванович"
+                  value={newFullName}
+                  onChange={(e) => setNewFullName(e.target.value)}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>Роль</Label>
+                <Select value={newRole} onValueChange={(v) => setNewRole(v as typeof newRole)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">Администратор</SelectItem>
+                    <SelectItem value="operator">Оператор</SelectItem>
+                    <SelectItem value="viewer">Наблюдатель</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="create-password">Временный пароль</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="create-password"
+                    type="text"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Минимум 6 символов"
+                    autoComplete="off"
+                  />
+                  <Button type="button" variant="outline" size="sm" onClick={handleGeneratePassword}>
+                    {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                  </Button>
+                </div>
+                <p className="text-[10px] text-muted-foreground">
+                  Нажмите кнопку для генерации и копирования пароля.
+                </p>
+              </div>
+              {newPassword && (
+                <div className="flex items-start gap-2 rounded-md bg-yellow-50 border border-yellow-200 px-3 py-2">
+                  <AlertTriangle className="h-4 w-4 text-yellow-600 mt-0.5 shrink-0" />
+                  <p className="text-xs text-yellow-800">
+                    Скопируйте пароль и передайте его пользователю. После закрытия окна пароль не будет доступен.
+                  </p>
+                </div>
+              )}
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="create-password">Пароль</Label>
-              <Input
-                id="create-password"
-                type="password"
-                value={createForm.password}
-                onChange={(e) =>
-                  setCreateForm((f) => ({ ...f, password: e.target.value }))
-                }
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="create-fullname">Полное имя</Label>
-              <Input
-                id="create-fullname"
-                value={createForm.full_name}
-                onChange={(e) =>
-                  setCreateForm((f) => ({ ...f, full_name: e.target.value }))
-                }
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label>Роль</Label>
-              <Select
-                value={createForm.role}
-                onValueChange={(v) => setCreateForm((f) => ({ ...f, role: v || "" }))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {ROLES.map((r) => (
-                    <SelectItem key={r} value={r}>
-                      {ROLE_LABELS[r] ?? r}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              onClick={() => createMutation.mutate(createForm)}
-              disabled={
-                !createForm.username ||
-                !createForm.password ||
-                createMutation.isPending
-              }
-            >
-              {createMutation.isPending ? "Создание..." : "Создать"}
-            </Button>
-          </DialogFooter>
+            <DialogFooter>
+              <Button variant="outline" type="button" onClick={() => setIsCreateOpen(false)}>
+                Отмена
+              </Button>
+              <Button type="submit" disabled={createMutation.isPending}>
+                {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Создать
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
+    </div>
+  );
 
-      {/* Edit user dialog */}
-      <Dialog open={!!editUser} onOpenChange={(open) => !open && setEditUser(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              Редактирование: {editUser?.username}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="edit-fullname">Полное имя</Label>
-              <Input
-                id="edit-fullname"
-                value={editForm.full_name}
-                onChange={(e) =>
-                  setEditForm((f) => ({ ...f, full_name: e.target.value }))
-                }
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label>Роль</Label>
-              <Select
-                value={editForm.role}
-                onValueChange={(v) => setEditForm((f) => ({ ...f, role: v || "" }))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {ROLES.map((r) => (
-                    <SelectItem key={r} value={r}>
-                      {ROLE_LABELS[r] ?? r}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="edit-active">Активен</Label>
-              <Switch
-                id="edit-active"
-                checked={editForm.is_active}
-                onCheckedChange={(checked) =>
-                  setEditForm((f) => ({ ...f, is_active: checked }))
-                }
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              onClick={() =>
-                editUser &&
-                updateMutation.mutate({ id: editUser.user_id, payload: editForm })
+  return (
+    <PageLayout 
+      title="Пользователи" 
+      description="Создание, редактирование и управление учётными записями."
+      actions={pageActions}
+    >
+      <div className="space-y-4">
+      {usersQuery.isError && (
+        <QueryErrorBanner
+          error={usersQuery.error}
+          onRetry={() => usersQuery.refetch()}
+        />
+      )}
+
+      {usersQuery.isLoading ? (
+        <Card>
+          <CardContent className="p-6">
+            <SkeletonTable rows={5} columns={5} />
+          </CardContent>
+        </Card>
+      ) : users.length === 0 ? (
+        <EmptyState
+          icon={Users}
+          title="Нет пользователей"
+          description="Создайте первого пользователя, чтобы начать работу."
+        />
+      ) : (
+      <Card>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Пользователь</TableHead>
+                <TableHead>Роль</TableHead>
+                <TableHead>Статус</TableHead>
+                <TableHead>Создан</TableHead>
+                <TableHead>Последний вход</TableHead>
+                <TableHead className="text-right w-32">Действия</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {users.map((u) => (
+                  <TableRow key={u.user_id}>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <UserCog className="h-4 w-4 text-muted-foreground" />
+                        <div>
+                          <div className="font-medium text-sm">
+                            {u.full_name || u.username}
+                          </div>
+                          {u.full_name && (
+                            <div className="text-xs text-muted-foreground">
+                              @{u.username}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={ROLE_COLORS[u.role] ?? ""}>
+                        {ROLE_LABELS[u.role] ?? u.role}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={u.is_active}
+                          disabled={u.user_id === currentUserId}
+                          onCheckedChange={(val) => handleToggleActive(u, val)}
+                        />
+                        <Badge
+                          variant="outline"
+                          className={
+                            u.is_active
+                              ? "bg-green-50 text-green-700"
+                              : "bg-gray-50 text-gray-700"
+                          }
+                        >
+                          {u.is_active ? "Активен" : "Отключён"}
+                        </Badge>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {new Date(u.created_at).toLocaleDateString("ru-RU")}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {u.last_login
+                        ? new Date(u.last_login).toLocaleDateString("ru-RU", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
+                        : "\u2014"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-2 text-xs"
+                          onClick={() => openEditDialog(u)}
+                        >
+                          Изменить
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-2 text-xs"
+                          onClick={() => openResetDialog(u)}
+                          aria-label="Сбросить пароль"
+                        >
+                          <KeyRound className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
               }
-              disabled={updateMutation.isPending}
-            >
-              {updateMutation.isPending ? "Сохранение..." : "Сохранить"}
-            </Button>
-          </DialogFooter>
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+      )}
+
+      {/* Edit dialog */}
+      <Dialog open={!!editTarget} onOpenChange={(open) => !open && setEditTarget(null)}>
+        <DialogContent>
+          <form onSubmit={handleEditSubmit}>
+            <DialogHeader>
+              <DialogTitle>Редактировать пользователя</DialogTitle>
+              <DialogDescription>
+                @{editTarget?.username}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="edit-fullname">Полное имя</Label>
+                <Input
+                  id="edit-fullname"
+                  value={editFullName}
+                  onChange={(e) => setEditFullName(e.target.value)}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>Роль</Label>
+                <Select
+                  value={editRole}
+                  onValueChange={(v) => setEditRole(v as typeof editRole)}
+                >
+                  <SelectTrigger disabled={editTarget?.user_id === currentUserId}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">Администратор</SelectItem>
+                    <SelectItem value="operator">Оператор</SelectItem>
+                    <SelectItem value="viewer">Наблюдатель</SelectItem>
+                  </SelectContent>
+                </Select>
+                {editTarget?.user_id === currentUserId && (
+                  <p className="text-[10px] text-muted-foreground">
+                    Нельзя изменить свою роль.
+                  </p>
+                )}
+                {editTarget?.user_id !== currentUserId && editRole !== editTarget?.role && (
+                  <div className="flex items-start gap-2 rounded-md bg-blue-50 border border-blue-200 px-3 py-2">
+                    <Info className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
+                    <p className="text-xs text-blue-800">
+                      Изменение роли вступит в силу при следующем входе пользователя.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" type="button" onClick={() => setEditTarget(null)}>
+                Отмена
+              </Button>
+              <Button type="submit" disabled={updateMutation.isPending}>
+                {updateMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Сохранить
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 
       {/* Reset password dialog */}
-      <Dialog open={!!resetUser} onOpenChange={(open) => !open && setResetUser(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              Сбросить пароль: {resetUser?.username}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="new-password">Новый пароль</Label>
-              <Input
-                id="new-password"
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-              />
+      <AlertDialog open={!!resetTarget} onOpenChange={(open) => !open && setResetTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Сбросить пароль?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Пользователь{" "}
+              <span className="font-medium text-foreground">
+                {resetTarget?.full_name || resetTarget?.username}
+              </span>{" "}
+              будет обязан установить новый пароль при следующем входе.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="px-6 pb-2 space-y-3">
+            <div>
+              <Label htmlFor="reset-pw">Новый временный пароль</Label>
+              <div className="mt-1.5 flex gap-2">
+                <Input
+                  id="reset-pw"
+                  type="text"
+                  value={resetPassword}
+                  onChange={(e) => setResetPassword(e.target.value)}
+                  autoComplete="off"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(resetPassword);
+                    toast.success("Скопировано");
+                  }}
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            <div className="flex items-start gap-2 rounded-md bg-yellow-50 border border-yellow-200 px-3 py-2">
+              <AlertTriangle className="h-4 w-4 text-yellow-600 mt-0.5 shrink-0" />
+              <p className="text-xs text-yellow-800">
+                Скопируйте пароль и передайте его пользователю. После закрытия окна пароль не будет доступен.
+              </p>
+            </div>
+            <div className="flex items-start gap-2 rounded-md bg-blue-50 border border-blue-200 px-3 py-2">
+              <Info className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
+              <p className="text-xs text-blue-800">
+                Уведомление пользователю не отправляется. Передайте пароль лично или через защищённый канал.
+              </p>
             </div>
           </div>
-          <DialogFooter>
-            <Button
-              onClick={() =>
-                resetUser &&
-                resetMutation.mutate({
-                  id: resetUser.user_id,
-                  password: newPassword,
-                })
-              }
-              disabled={!newPassword || resetMutation.isPending}
+          <AlertDialogFooter>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={!resetPassword || resetPassword.length < 6 || resetPasswordMutation.isPending}
+              onClick={() => {
+                if (resetTarget) {
+                  resetPasswordMutation.mutate({
+                    userId: resetTarget.user_id,
+                    password: resetPassword,
+                  });
+                }
+              }}
             >
-              {resetMutation.isPending ? "Сброс..." : "Сбросить пароль"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+              Сбросить пароль
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Deactivate confirmation */}
+      <AlertDialog
+        open={!!deactivateTarget}
+        onOpenChange={(open) => !open && setDeactivateTarget(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Отключить пользователя?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Пользователь{" "}
+              <span className="font-medium text-foreground">
+                {deactivateTarget?.full_name || deactivateTarget?.username}
+              </span>{" "}
+              не сможет войти в систему до повторной активации.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-orange-600 hover:bg-orange-700 text-white"
+              onClick={() => {
+                if (deactivateTarget) {
+                  updateMutation.mutate({
+                    userId: deactivateTarget.user_id,
+                    is_active: false,
+                  });
+                  setDeactivateTarget(null);
+                }
+              }}
+            >
+              Отключить
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
     </PageLayout>
   );
 }

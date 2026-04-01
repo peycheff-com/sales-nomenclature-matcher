@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import tempfile
 from pathlib import Path
@@ -12,56 +13,52 @@ from matcher.security.url_validator import SSRFError, validate_url_safe
 logger = logging.getLogger(__name__)
 
 
-async def batch_match(ctx: dict, request_id: str) -> dict:
-    """Process a batch match request.
+async def _process_batch(
+    *,
+    db_factory,
+    request_id: str,
+    item_rows: list[dict],
+    supplier_id: str | None,
+    tracker,
+    auto_threshold: float | None = None,
+    review_threshold: float | None = None,
+    commit_every: int = 50,
+    max_concurrency: int | None = None,
+) -> dict:
+    """Process a list of match items concurrently, persisting results per item.
 
-    Uses a fresh DB session per commit window (every 50 items) to avoid stale
-    connections on long-running batches.
+    Uses a semaphore to limit concurrent processing. Each item gets its own
+    DB session for isolation.
+
+    Returns {"auto": int, "review": int, "no_match": int, "processed": int}.
     """
-    from matcher.api.v1.settings import load_persisted_settings
     from matcher.db.repos.match import MatchRepo
-    from matcher.indexing import embedder as embedder_mod
-    from matcher.pipeline import agent as agent_mod
-    from matcher.pipeline import reranker as reranker_mod
+    from matcher.db.repos.synonym import SynonymRepo
     from matcher.pipeline.orchestrator import match_single
-    from matcher.pipeline.token_tracker import TokenTracker
 
-    db_factory = ctx["db_factory"]
-    logger.info("Starting batch_match for request %s", request_id)
+    if max_concurrency is None:
+        max_concurrency = settings.batch_concurrency
 
-    # Set up token tracking for this request
-    tracker = TokenTracker(request_id=request_id)
-    embedder_mod.set_token_tracker(tracker)
-    reranker_mod.set_token_tracker(tracker)
-    agent_mod.set_token_tracker(tracker)
+    sem = asyncio.Semaphore(max_concurrency)
+    lock = asyncio.Lock()
+    counters = {"auto": 0, "review": 0, "no_match": 0, "processed": 0}
 
-    # Load request metadata and item IDs into memory with a short-lived session
-    async with db_factory() as session:
-        await load_persisted_settings(session, force=True)
-        repo = MatchRepo(session)
-        request = await repo.get_request(request_id)
-        if not request:
-            logger.error("Request %s not found", request_id)
-            return {"request_id": request_id, "status": "failed", "error": "not found"}
+    effective_auto = auto_threshold if auto_threshold is not None else settings.auto_match_threshold
+    effective_review = (
+        review_threshold if review_threshold is not None else settings.review_threshold
+    )
 
-        supplier_id = request.supplier_id
-        await repo.update_request_status(request_id, "running")
-        await session.commit()
-
-        items, _total = await repo.get_request_items(request_id, page=1, page_size=10000)
-        item_rows = [
-            {"request_item_id": it.request_item_id, "raw_text": it.raw_text, "line_id": it.line_id}
-            for it in items
-        ]
-
-    auto_count = 0
-    review_count = 0
-    no_match_count = 0
-    processed = 0
-    COMMIT_EVERY = 50
-
+    # Pre-load synonym map once for the entire batch
+    cached_synonym_map: dict[str, str] | None = None
     try:
-        for item in item_rows:
+        async with db_factory() as session:
+            synonym_repo = SynonymRepo(session)
+            cached_synonym_map = await synonym_repo.build_synonym_map(supplier_id=supplier_id)
+    except Exception:
+        logger.warning("Failed to pre-load synonym map, will load per item")
+
+    async def _process_one(item: dict) -> None:
+        async with sem:
             try:
                 async with db_factory() as session:
                     repo = MatchRepo(session)
@@ -70,8 +67,10 @@ async def batch_match(ctx: dict, request_id: str) -> dict:
                         session=session,
                         line_id=item["line_id"],
                         supplier_id=supplier_id,
-                        auto_threshold=settings.auto_match_threshold,
-                        review_threshold=settings.review_threshold,
+                        auto_threshold=effective_auto,
+                        review_threshold=effective_review,
+                        token_tracker=tracker,
+                        synonym_map=cached_synonym_map,
                     )
 
                     best_product_id = None
@@ -105,27 +104,37 @@ async def batch_match(ctx: dict, request_id: str) -> dict:
                     if candidates_data:
                         await repo.save_candidates(item["request_item_id"], candidates_data)
 
-                    if result.status == "auto_match":
-                        auto_count += 1
-                    elif result.status == "review_needed":
-                        review_count += 1
-                    else:
-                        no_match_count += 1
-
-                    processed += 1
-
-                    # Progress update every COMMIT_EVERY items
-                    if processed % COMMIT_EVERY == 0:
-                        await repo.update_request_status(
-                            request_id,
-                            "running",
-                            processed_items=processed,
-                            auto_matched_items=auto_count,
-                            review_needed_items=review_count,
-                            no_match_items=no_match_count,
-                        )
-
                     await session.commit()
+
+                # Update counters outside the DB session
+                should_report = False
+                async with lock:
+                    if result.status == "auto_match":
+                        counters["auto"] += 1
+                    elif result.status == "review_needed":
+                        counters["review"] += 1
+                    else:
+                        counters["no_match"] += 1
+                    counters["processed"] += 1
+                    should_report = counters["processed"] % commit_every == 0
+                    snapshot = dict(counters) if should_report else None
+
+                # Progress update outside the lock to avoid blocking other items
+                if should_report:
+                    try:
+                        async with db_factory() as progress_session:
+                            progress_repo = MatchRepo(progress_session)
+                            await progress_repo.update_request_status(
+                                request_id,
+                                "running",
+                                processed_items=snapshot["processed"],
+                                auto_matched_items=snapshot["auto"],
+                                review_needed_items=snapshot["review"],
+                                no_match_items=snapshot["no_match"],
+                            )
+                            await progress_session.commit()
+                    except Exception:
+                        logger.warning("Failed to report progress for %s", request_id)
 
             except Exception as exc:
                 logger.exception("Error processing item %s", item["request_item_id"])
@@ -141,8 +150,12 @@ async def batch_match(ctx: dict, request_id: str) -> dict:
                         await err_session.commit()
                 except Exception:
                     logger.exception("Failed to record error for item %s", item["request_item_id"])
-                no_match_count += 1
-                processed += 1
+                async with lock:
+                    counters["no_match"] += 1
+                    counters["processed"] += 1
+
+    try:
+        await asyncio.gather(*[_process_one(item) for item in item_rows])
 
         # Final status update + flush token tracking
         async with db_factory() as session:
@@ -150,45 +163,82 @@ async def batch_match(ctx: dict, request_id: str) -> dict:
             await repo.update_request_status(
                 request_id,
                 "done",
-                processed_items=processed,
-                auto_matched_items=auto_count,
-                review_needed_items=review_count,
-                no_match_items=no_match_count,
+                processed_items=counters["processed"],
+                auto_matched_items=counters["auto"],
+                review_needed_items=counters["review"],
+                no_match_items=counters["no_match"],
             )
             await tracker.flush(session)
             await session.commit()
-        logger.info(
-            "Batch match %s done: %d processed, %d tokens used (~$%.4f)",
-            request_id,
-            processed,
-            tracker.total_tokens,
-            tracker.total_cost,
-        )
 
     except Exception as e:
-        logger.exception("Batch match %s failed", request_id)
+        logger.exception("Batch processing for %s failed", request_id)
         try:
             async with db_factory() as session:
                 repo = MatchRepo(session)
                 await repo.update_request_status(
                     request_id,
                     "failed",
-                    processed_items=processed,
-                    auto_matched_items=auto_count,
-                    review_needed_items=review_count,
-                    no_match_items=no_match_count,
+                    processed_items=counters["processed"],
+                    auto_matched_items=counters["auto"],
+                    review_needed_items=counters["review"],
+                    no_match_items=counters["no_match"],
                     error_message=str(e),
                 )
                 await session.commit()
         except Exception:
             logger.exception("Failed to mark request %s as failed", request_id)
 
-    # Clean up module-level tracker references
-    embedder_mod.set_token_tracker(None)
-    reranker_mod.set_token_tracker(None)
-    agent_mod.set_token_tracker(None)
+    return counters
 
-    return {"request_id": request_id, "status": "done", "processed": processed}
+
+async def batch_match(ctx: dict, request_id: str) -> dict:
+    """Process a batch match request."""
+    from matcher.api.v1.settings import load_persisted_settings
+    from matcher.db.repos.match import MatchRepo
+    from matcher.pipeline.token_tracker import TokenTracker
+
+    db_factory = ctx["db_factory"]
+    logger.info("Starting batch_match for request %s", request_id)
+
+    tracker = TokenTracker(request_id=request_id)
+
+    # Load request metadata and item IDs into memory with a short-lived session
+    async with db_factory() as session:
+        await load_persisted_settings(session, force=True)
+        repo = MatchRepo(session)
+        request = await repo.get_request(request_id)
+        if not request:
+            logger.error("Request %s not found", request_id)
+            return {"request_id": request_id, "status": "failed", "error": "not found"}
+
+        supplier_id = request.supplier_id
+        await repo.update_request_status(request_id, "running")
+        await session.commit()
+
+        items, _total = await repo.get_request_items(request_id, page=1, page_size=10000)
+        item_rows = [
+            {"request_item_id": it.request_item_id, "raw_text": it.raw_text, "line_id": it.line_id}
+            for it in items
+        ]
+
+    counters = await _process_batch(
+        db_factory=db_factory,
+        request_id=request_id,
+        item_rows=item_rows,
+        supplier_id=supplier_id,
+        tracker=tracker,
+    )
+
+    logger.info(
+        "Batch match %s done: %d processed, %d tokens used (~$%.4f)",
+        request_id,
+        counters["processed"],
+        tracker.total_tokens,
+        tracker.total_cost,
+    )
+
+    return {"request_id": request_id, "status": "done", "processed": counters["processed"]}
 
 
 async def catalog_import(ctx: dict, job_id: str, source_type: str, **kwargs) -> dict:
@@ -354,7 +404,7 @@ async def catalog_reindex(ctx: dict, job_id: str, **kwargs) -> dict:
 
 
 async def smart_upload(ctx: dict, request_id: str, **kwargs) -> dict:
-    """Smart upload pipeline: catalog ingest → reindex → batch match.
+    """Smart upload pipeline: catalog ingest -> reindex -> batch match.
 
     Receives pre-extracted catalog items and the request_id for supplier items
     that are already stored in the database.
@@ -369,24 +419,16 @@ async def smart_upload(ctx: dict, request_id: str, **kwargs) -> dict:
     from matcher.api.v1.settings import load_persisted_settings
     from matcher.db.repos.catalog import CatalogRepo
     from matcher.db.repos.match import MatchRepo
-    from matcher.indexing import embedder as embedder_mod
     from matcher.indexing.indexer import reindex_catalog
     from matcher.ingestion.base import RawCatalogItem
     from matcher.ingestion.transformer import transform_item
-    from matcher.pipeline import agent as agent_mod
-    from matcher.pipeline import reranker as reranker_mod
-    from matcher.pipeline.orchestrator import match_single
     from matcher.pipeline.token_tracker import TokenTracker
 
     db_factory = ctx["db_factory"]
     catalog_items = kwargs.get("catalog_items", [])
     catalog_count = kwargs.get("catalog_count", 0)
 
-    # Token tracking for smart_upload
     tracker = TokenTracker(request_id=request_id)
-    embedder_mod.set_token_tracker(tracker)
-    reranker_mod.set_token_tracker(tracker)
-    agent_mod.set_token_tracker(tracker)
 
     logger.info(
         "Starting smart_upload for request %s (catalog=%d items)",
@@ -452,144 +494,26 @@ async def smart_upload(ctx: dict, request_id: str, **kwargs) -> dict:
             for it in items
         ]
 
-    auto_count = 0
-    review_count = 0
-    no_match_count = 0
-    processed = 0
-    COMMIT_EVERY = 50
+    counters = await _process_batch(
+        db_factory=db_factory,
+        request_id=request_id,
+        item_rows=item_rows,
+        supplier_id=supplier_id,
+        tracker=tracker,
+    )
 
-    try:
-        for item in item_rows:
-            try:
-                async with db_factory() as session:
-                    repo = MatchRepo(session)
-                    result = await match_single(
-                        raw_text=item["raw_text"],
-                        session=session,
-                        line_id=item["line_id"],
-                        supplier_id=supplier_id,
-                        auto_threshold=settings.auto_match_threshold,
-                        review_threshold=settings.review_threshold,
-                    )
-
-                    best_product_id = None
-                    if result.best_candidate:
-                        best_product_id = result.best_candidate["product_id"]
-
-                    await repo.update_item_result(
-                        item["request_item_id"],
-                        status=result.status,
-                        best_product_id=best_product_id,
-                        confidence=result.confidence,
-                        normalized_text=result.normalized_text,
-                        extracted_attributes=result.extracted_attributes,
-                        reasons_json=result.reasons,
-                        decision_trace_json=result.decision_trace or None,
-                    )
-
-                    candidates_data = []
-                    for alt in result.alternatives:
-                        candidates_data.append(
-                            {
-                                "product_id": alt["product_id"],
-                                "lexical_score": alt.get("lexical_score"),
-                                "semantic_score": alt.get("semantic_score"),
-                                "rerank_score": alt.get("rerank_score"),
-                                "rules_score": alt.get("rules_score"),
-                                "final_score": alt.get("final_score"),
-                                "reasons": alt.get("reasons", []),
-                            }
-                        )
-                    if candidates_data:
-                        await repo.save_candidates(item["request_item_id"], candidates_data)
-
-                    if result.status == "auto_match":
-                        auto_count += 1
-                    elif result.status == "review_needed":
-                        review_count += 1
-                    else:
-                        no_match_count += 1
-
-                    processed += 1
-
-                    if processed % COMMIT_EVERY == 0:
-                        await repo.update_request_status(
-                            request_id,
-                            "running",
-                            processed_items=processed,
-                            auto_matched_items=auto_count,
-                            review_needed_items=review_count,
-                            no_match_items=no_match_count,
-                        )
-
-                    await session.commit()
-
-            except Exception as exc:
-                logger.exception("Error processing item %s", item["request_item_id"])
-                try:
-                    async with db_factory() as err_session:
-                        err_repo = MatchRepo(err_session)
-                        await err_repo.update_item_result(
-                            item["request_item_id"],
-                            status="no_match",
-                            confidence=0.0,
-                            decision_trace_json={"error": str(exc), "stage": "pipeline"},
-                        )
-                        await err_session.commit()
-                except Exception:
-                    logger.exception("Failed to record error for item %s", item["request_item_id"])
-                no_match_count += 1
-                processed += 1
-
-        # Final status + flush token tracking
-        async with db_factory() as session:
-            repo = MatchRepo(session)
-            await repo.update_request_status(
-                request_id,
-                "done",
-                processed_items=processed,
-                auto_matched_items=auto_count,
-                review_needed_items=review_count,
-                no_match_items=no_match_count,
-            )
-            await tracker.flush(session)
-            await session.commit()
-
-        logger.info(
-            "Smart upload %s done: catalog=%d, matched=%d, tokens=%d",
-            request_id,
-            upserted,
-            processed,
-            tracker.total_tokens,
-        )
-
-    except Exception as e:
-        logger.exception("Smart upload %s failed at match phase", request_id)
-        try:
-            async with db_factory() as session:
-                repo = MatchRepo(session)
-                await repo.update_request_status(
-                    request_id,
-                    "failed",
-                    processed_items=processed,
-                    auto_matched_items=auto_count,
-                    review_needed_items=review_count,
-                    no_match_items=no_match_count,
-                    error_message=str(e),
-                )
-                await session.commit()
-        except Exception:
-            logger.exception("Failed to mark request %s as failed", request_id)
-
-    # Clean up trackers
-    embedder_mod.set_token_tracker(None)
-    reranker_mod.set_token_tracker(None)
-    agent_mod.set_token_tracker(None)
+    logger.info(
+        "Smart upload %s done: catalog=%d, matched=%d, tokens=%d",
+        request_id,
+        upserted,
+        counters["processed"],
+        tracker.total_tokens,
+    )
 
     return {
         "request_id": request_id,
         "status": "done",
         "catalog_upserted": upserted,
         "catalog_errors": len(catalog_errors),
-        "matched": processed,
+        "matched": counters["processed"],
     }

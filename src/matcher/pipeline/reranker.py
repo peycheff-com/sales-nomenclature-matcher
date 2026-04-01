@@ -13,13 +13,6 @@ from matcher.pipeline.token_tracker import TokenTracker
 
 logger = logging.getLogger(__name__)
 
-_token_tracker: TokenTracker | None = None
-
-
-def set_token_tracker(tracker: TokenTracker | None) -> None:
-    global _token_tracker
-    _token_tracker = tracker
-
 
 @dataclass
 class RerankResult:
@@ -168,12 +161,11 @@ async def _http_rerank(
         data = resp.json()
 
     # Token tracking for HTTP rerank APIs
-    _effective_tracker = token_tracker or _token_tracker
-    if _effective_tracker:
+    if token_tracker:
         # Estimate tokens from query + document lengths
         est_tokens = len(query.split()) + sum(len(d.split()) for d in documents)
         billed = data.get("meta", {}).get("billed_units", {})
-        _effective_tracker.record(
+        token_tracker.record(
             operation="rerank",
             provider=provider_id,
             model=model,
@@ -259,9 +251,8 @@ async def _llm_rerank(
     )
 
     # Token tracking
-    _effective_tracker = token_tracker or _token_tracker
-    if hasattr(response, "usage") and response.usage and _effective_tracker:
-        _effective_tracker.record(
+    if hasattr(response, "usage") and response.usage and token_tracker:
+        token_tracker.record(
             operation="llm_rerank",
             provider=settings.llm_provider,
             model=model,
