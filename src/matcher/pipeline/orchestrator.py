@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 from dataclasses import asdict, dataclass, field
@@ -10,6 +11,7 @@ from matcher.config import settings
 from matcher.db.repos.alias import AliasRepo
 from matcher.db.repos.supplier import SupplierRepo
 from matcher.db.repos.synonym import SynonymRepo
+from matcher.indexing.embedder import embed_single
 from matcher.indexing.search import hybrid_search
 from matcher.normalization.db_synonyms import apply_db_synonyms
 from matcher.normalization.pipeline import run_pipeline
@@ -24,6 +26,7 @@ from matcher.pipeline.scoring import (
     compute_pair_features,
     score_candidate,
 )
+from matcher.pipeline.token_tracker import TokenTracker
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +58,8 @@ async def match_single(
     rerank_top_n: int = 10,
     auto_threshold: float | None = None,
     review_threshold: float | None = None,
+    token_tracker: TokenTracker | None = None,
+    synonym_map: dict[str, str] | None = None,
 ) -> MatchItemResult:
     """Run the full matching pipeline on a single input line."""
     request_item_id = f"item_{uuid.uuid4().hex[:12]}"
@@ -71,14 +76,16 @@ async def match_single(
 
     # Stage 1.5: Apply DB-driven synonyms (global + supplier-specific)
     synonym_repo = SynonymRepo(session)
-    ctx = await apply_db_synonyms(ctx, synonym_repo, supplier_id)
+    ctx = await apply_db_synonyms(ctx, synonym_repo, supplier_id, synonym_map=synonym_map)
     normalized_text = ctx.text
 
     # Stage 2: Extract features
     features = extract_features(ctx)
     extracted_attrs = features.to_dict()
 
-    # Stage 0: Supplier override check
+    # Stage 0+3: Parallel override check and embedding (saves ~200ms/item)
+    embed_task = asyncio.create_task(embed_single(normalized_text, token_tracker=token_tracker))
+
     override = await check_supplier_override(
         supplier_id=supplier_id,
         raw_text=raw_text,
@@ -87,6 +94,11 @@ async def match_single(
         session=session,
     )
     if override and override.mapping_type in ("exact", "approved"):
+        embed_task.cancel()
+        try:
+            await embed_task
+        except (asyncio.CancelledError, Exception):
+            pass
         return MatchItemResult(
             request_item_id=request_item_id,
             line_id=line_id,
@@ -103,13 +115,22 @@ async def match_single(
             },
         )
 
-    # Stage 3: Candidate retrieval
+    # Await embedding result
+    try:
+        query_embedding = await embed_task
+    except Exception as e:
+        logger.warning("Pre-computed embedding failed: %s", e)
+        query_embedding = None
+
+    # Stage 3: Candidate retrieval (use pre-computed embedding)
     # Don't hard-filter by brand — scoring handles brand matching downstream
     candidates = await hybrid_search(
         query_text=raw_text,
         normalized_text=normalized_text,
         session=session,
         top_n=retrieval_top_n,
+        token_tracker=token_tracker,
+        query_embedding=query_embedding,
     )
 
     if not candidates:
@@ -120,7 +141,11 @@ async def match_single(
             and settings.active_llm_api_key not in ("", "none")
         ):
             agent_decision = await resolve_agentically(
-                raw_text, [], session, extracted_attrs=extracted_attrs
+                raw_text,
+                [],
+                session,
+                extracted_attrs=extracted_attrs,
+                token_tracker=token_tracker,
             )
             if agent_decision and agent_decision.get("product_id"):
                 return MatchItemResult(
@@ -164,6 +189,7 @@ async def match_single(
         query=normalized_text,
         candidates=candidates,
         top_n=rerank_top_n,
+        token_tracker=token_tracker,
     )
 
     # Stage 5+6: Score each reranked candidate
@@ -203,9 +229,7 @@ async def match_single(
             query_attrs, candidate_attrs
         )
         scoring_result = score_candidate(pair_features)
-        supplier_thresholds = (
-            supplier.normalization_rules.get("thresholds") if supplier else None
-        )
+        supplier_thresholds = supplier.normalization_rules.get("thresholds") if supplier else None
         decision = decide(
             scoring_result,
             strict_mode=strict_mode,
@@ -290,10 +314,14 @@ async def match_single(
         result_status != "auto_match"
         and settings.agentic_resolution_enabled
         and settings.active_llm_api_key
-        and settings.active_llm_api_key != "none"
+        and settings.active_llm_api_key not in ("", "none")
     ):
         agent_decision = await resolve_agentically(
-            raw_text, scored_candidates[:5], session, extracted_attrs=extracted_attrs
+            raw_text,
+            scored_candidates[:5],
+            session,
+            extracted_attrs=extracted_attrs,
+            token_tracker=token_tracker,
         )
         if agent_decision:
             new_status = agent_decision.get("status")

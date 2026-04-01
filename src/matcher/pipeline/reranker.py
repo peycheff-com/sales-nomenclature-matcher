@@ -33,6 +33,7 @@ async def rerank_candidates(
     query: str,
     candidates: list[SearchCandidate],
     top_n: int | None = None,
+    token_tracker: TokenTracker | None = None,
 ) -> list[RerankResult]:
     """Rerank candidates using the best available method.
 
@@ -75,11 +76,16 @@ async def rerank_candidates(
 
     try:
         if provider_id == "llm-fallback":
-            result = await _llm_rerank(query, candidates, top_n)
+            if not settings.active_llm_api_key or settings.active_llm_api_key in ("", "none"):
+                logger.debug("LLM API key not configured, skipping LLM reranking")
+                return _fallback_rerank(candidates, top_n)
+            result = await _llm_rerank(query, candidates, top_n, token_tracker=token_tracker)
         elif provider_id == "local":
             result = await _local_rerank(query, candidates, top_n)
         elif provider_id in ("cohere", "together", "jina", "dashscope"):
-            result = await _http_rerank(query, candidates, top_n, provider_id, provider)
+            result = await _http_rerank(
+                query, candidates, top_n, provider_id, provider, token_tracker=token_tracker
+            )
         else:
             logger.warning(f"Rerank processor for '{provider_id}' not implemented. Falling back.")
             return _fallback_rerank(candidates, top_n)
@@ -130,6 +136,7 @@ async def _http_rerank(
     top_n: int,
     provider_id: str,
     provider_config: dict,
+    token_tracker: TokenTracker | None = None,
 ) -> list[RerankResult]:
     """Rerank using standardized Cohere-like or DashScope HTTP APIs."""
     import httpx
@@ -161,11 +168,12 @@ async def _http_rerank(
         data = resp.json()
 
     # Token tracking for HTTP rerank APIs
-    if _token_tracker:
+    _effective_tracker = token_tracker or _token_tracker
+    if _effective_tracker:
         # Estimate tokens from query + document lengths
         est_tokens = len(query.split()) + sum(len(d.split()) for d in documents)
         billed = data.get("meta", {}).get("billed_units", {})
-        _token_tracker.record(
+        _effective_tracker.record(
             operation="rerank",
             provider=provider_id,
             model=model,
@@ -198,6 +206,7 @@ async def _llm_rerank(
     query: str,
     candidates: list[SearchCandidate],
     top_n: int,
+    token_tracker: TokenTracker | None = None,
 ) -> list[RerankResult]:
     """Rerank using LLM scoring via OpenAI-compatible API (OpenAI or OpenRouter).
 
@@ -250,8 +259,9 @@ async def _llm_rerank(
     )
 
     # Token tracking
-    if hasattr(response, "usage") and response.usage and _token_tracker:
-        _token_tracker.record(
+    _effective_tracker = token_tracker or _token_tracker
+    if hasattr(response, "usage") and response.usage and _effective_tracker:
+        _effective_tracker.record(
             operation="llm_rerank",
             provider=settings.llm_provider,
             model=model,

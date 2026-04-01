@@ -7,6 +7,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from matcher.indexing.embedder import embed_single
+from matcher.pipeline.token_tracker import TokenTracker
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +44,8 @@ async def hybrid_search(
     category_id: str | None = None,
     brand_hint: str | None = None,
     rrf_k: int = 60,
+    token_tracker: TokenTracker | None = None,
+    query_embedding: list[float] | None = ...,
 ) -> list[SearchCandidate]:
     """Run hybrid search combining exact, lexical, and semantic retrieval.
 
@@ -59,12 +62,13 @@ async def hybrid_search(
     Returns:
         List of SearchCandidate ordered by RRF score descending.
     """
-    # Get query embedding
-    try:
-        query_embedding = await embed_single(normalized_text)
-    except Exception as e:
-        logger.warning(f"Embedding failed for query, falling back to lexical-only: {e}")
-        query_embedding = None
+    # Get query embedding (use pre-computed if provided, ... sentinel means "compute it")
+    if query_embedding is ...:
+        try:
+            query_embedding = await embed_single(normalized_text, token_tracker=token_tracker)
+        except Exception as e:
+            logger.warning(f"Embedding failed for query, falling back to lexical-only: {e}")
+            query_embedding = None
 
     # Build the hybrid search query
     params: dict = {
@@ -195,6 +199,7 @@ async def hybrid_search(
 
     # Relaxed fallback: if primary search returned nothing, try broader search
     if not rows:
+        filter_params = {k: params[k] for k in ("category_id", "brand_hint") if k in params}
         rows = await _relaxed_fallback_search(
             session=session,
             normalized_text=normalized_text,
@@ -202,6 +207,7 @@ async def hybrid_search(
             top_n=top_n // 2,
             rrf_k=rrf_k,
             filter_clause=filter_clause,
+            filter_params=filter_params,
         )
 
     candidates = []
@@ -238,6 +244,7 @@ async def _relaxed_fallback_search(
     top_n: int,
     rrf_k: int,
     filter_clause: str,
+    filter_params: dict | None = None,
 ) -> list:
     """Broader search with lower thresholds and leading-word tsvector.
 
@@ -341,5 +348,7 @@ async def _relaxed_fallback_search(
     LIMIT :top_n
     """
 
+    if filter_params:
+        params.update(filter_params)
     result = await session.execute(text(sql), params)
     return result.fetchall()

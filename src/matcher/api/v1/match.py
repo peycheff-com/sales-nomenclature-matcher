@@ -165,7 +165,7 @@ async def match_batch(
     await db.commit()
 
     # Enqueue ARQ job
-    await arq_pool.enqueue_job("batch_match", request_id)
+    await arq_pool.enqueue_job("batch_match", request_id, _queue_name="match")
 
     return BatchRequestAccepted(request_id=request_id, status="queued")
 
@@ -251,6 +251,7 @@ async def list_match_requests(
             auto_matched_items=r.auto_matched_items,
             review_needed_items=r.review_needed_items,
             no_match_items=r.no_match_items,
+            error_message=r.error_message,
             created_at=r.created_at,
             started_at=r.started_at,
             finished_at=r.finished_at,
@@ -280,6 +281,7 @@ async def get_match_request(
         auto_matched_items=request.auto_matched_items,
         review_needed_items=request.review_needed_items,
         no_match_items=request.no_match_items,
+        error_message=request.error_message,
         created_at=request.created_at,
         started_at=request.started_at,
         finished_at=request.finished_at,
@@ -362,7 +364,7 @@ async def retry_match_request(
     await repo.clear_item_results(request_id)
     await db.commit()
 
-    await arq.enqueue_job("batch_match", request_id)
+    await arq.enqueue_job("batch_match", request_id, _queue_name="match")
     return {"ok": True, "request_id": request_id, "status": "queued"}
 
 
