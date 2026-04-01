@@ -33,6 +33,7 @@ class TestAuthEndpoints:
             hashed_password="x",
             role="admin",
             is_active=True,
+            must_change_password=False,
         )
         with patch("matcher.auth.deps.UserRepo") as MockRepo:
             MockRepo.return_value.get_by_username = AsyncMock(return_value=mock_user)
@@ -57,6 +58,7 @@ class TestAuthEndpoints:
             hashed_password=hashed,
             role="admin",
             is_active=True,
+            must_change_password=False,
         )
         with patch("matcher.api.v1.auth.UserRepo") as MockRepo:
             MockRepo.return_value.get_by_username = AsyncMock(return_value=mock_user)
@@ -78,6 +80,7 @@ class TestAuthEndpoints:
             hashed_password=hashed,
             role="admin",
             is_active=False,
+            must_change_password=False,
         )
         with patch("matcher.api.v1.auth.UserRepo") as MockRepo:
             MockRepo.return_value.get_by_username = AsyncMock(return_value=mock_user)
@@ -95,6 +98,7 @@ class TestAuthEndpoints:
             hashed_password="x",
             role="admin",
             is_active=False,
+            must_change_password=False,
         )
         with patch("matcher.auth.deps.UserRepo") as MockRepo:
             MockRepo.return_value.get_by_username = AsyncMock(return_value=mock_user)

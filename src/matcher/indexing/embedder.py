@@ -27,10 +27,10 @@ def _get_client() -> AsyncOpenAI:
         api_key = settings.active_embedding_api_key
         base_url = settings.active_embedding_base_url
 
-        if not api_key or api_key in ("sk-your-key-here", "your-key-here"):
+        if settings.embedding_provider != "local" and (not api_key or api_key in ("sk-your-key-here", "your-key-here")):
             raise RuntimeError(
                 f"No API key configured for embedding provider '{settings.embedding_provider}'. "
-                f"Set {'OPENROUTER_API_KEY' if settings.embedding_provider == 'openrouter' else 'OPENAI_API_KEY' if settings.embedding_provider == 'openai' else 'GOOGLE_API_KEY'} in .env"
+                "Configure it in Settings -> AI Gateway."
             )
 
         extra_headers = {}
@@ -128,9 +128,9 @@ async def _embed_texts_google(
 ) -> list[list[float]]:
     import httpx
 
-    api_key = settings.google_api_key
+    api_key = settings.active_embedding_api_key
     if not api_key or api_key in ("your-key-here", ""):
-        raise RuntimeError("No API key configured for embedding provider 'google'. Set GOOGLE_API_KEY in .env")
+        raise RuntimeError("No API key configured for Google. Configure it in Settings -> AI Gateway.")
 
     # Google's model names often don't have the 'models/' prefix when supplied in configs
     model_name = model if model.startswith("models/") else f"models/{model}"

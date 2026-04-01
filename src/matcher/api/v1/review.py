@@ -53,7 +53,7 @@ async def review_item(
     label_type = "positive" if body.final_decision in ("accepted", "corrected") else "negative"
     await match_repo.create_golden_label(
         raw_query=item.raw_text,
-        normalized_query=item.normalized_text,
+        normalized_query=item.normalized_text or item.raw_text,
         supplier_id=request.supplier_id if request else None,
         product_id=final_product_id,
         label_type=label_type,
@@ -123,7 +123,7 @@ async def batch_review_items(
         label_type = "positive" if req_item.final_decision in ("accepted", "corrected") else "negative"
         await match_repo.create_golden_label(
             raw_query=item.raw_text,
-            normalized_query=item.normalized_text,
+            normalized_query=item.normalized_text or item.raw_text,
             supplier_id=request.supplier_id if request else None,
             product_id=final_product_id,
             label_type=label_type,

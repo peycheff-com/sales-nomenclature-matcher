@@ -5,7 +5,7 @@ from arq.connections import RedisSettings
 
 from matcher.config import settings
 from matcher.db.engine import async_session_factory, engine
-from matcher.worker.tasks import batch_match, catalog_import, catalog_reindex
+from matcher.worker.tasks import batch_match, catalog_import, catalog_reindex, smart_upload
 
 
 async def startup(ctx: dict) -> None:
@@ -21,6 +21,7 @@ class WorkerSettings:
         func(batch_match, timeout=1800),       # 30 min
         func(catalog_import, timeout=1800),     # 30 min
         func(catalog_reindex, timeout=3600),    # 60 min
+        func(smart_upload, timeout=3600),       # 60 min (catalog + reindex + match)
     ]
     redis_settings = RedisSettings.from_dsn(settings.redis_url)
     max_jobs = 10

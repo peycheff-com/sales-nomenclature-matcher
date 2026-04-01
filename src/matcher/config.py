@@ -1,11 +1,29 @@
 from __future__ import annotations
 
-from pydantic import model_validator
+from pydantic import BaseModel, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+class ProviderConfig(BaseModel):
+    api_key: str = ""
+    base_url: str = ""
+
+
+def _default_providers() -> dict[str, ProviderConfig]:
+    return {
+        "openai": ProviderConfig(base_url="https://api.openai.com/v1"),
+        "openrouter": ProviderConfig(base_url="https://openrouter.ai/api/v1"),
+        "together": ProviderConfig(base_url="https://api.together.xyz/v1"),
+        "dashscope": ProviderConfig(base_url="https://dashscope.aliyuncs.com/compatible-mode/v1"),
+        "jina": ProviderConfig(base_url="https://api.jina.ai/v1"),
+        "cohere": ProviderConfig(base_url="https://api.cohere.ai/v1"),
+        "google": ProviderConfig(),
+        "local": ProviderConfig(api_key="none", base_url="http://localhost:11434/v1"),
+    }
+
+
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     _INSECURE_JWT_SECRETS: frozenset[str] = frozenset({
         "change-me-in-production",
@@ -52,20 +70,19 @@ class Settings(BaseSettings):
     # Provider: "openai" | "openrouter" | "google"
     embedding_provider: str = "openai"
     llm_provider: str = "openai"
+    rerank_provider: str = "llm-fallback"
 
-    # OpenAI
-    openai_api_key: str = ""
-    openai_base_url: str = "https://api.openai.com/v1"
-
-    # OpenRouter
-    openrouter_api_key: str = ""
-    openrouter_base_url: str = "https://openrouter.ai/api/v1"
-
-    # Cohere (for reranker)
-    cohere_api_key: str = ""
-
-    # Google
-    google_api_key: str = ""
+    # Dynamic Provider Registry
+    providers_registry: dict[str, dict[str, str]] = {
+        "local": {"id": "local", "name": "Local Pipeline (OSS)", "api_key": "none", "base_url": "http://localhost:11434/v1"},
+        "openai": {"id": "openai", "name": "OpenAI", "api_key": "", "base_url": "https://api.openai.com/v1"},
+        "openrouter": {"id": "openrouter", "name": "OpenRouter", "api_key": "", "base_url": "https://openrouter.ai/api/v1"},
+        "together": {"id": "together", "name": "Together AI", "api_key": "", "base_url": "https://api.together.xyz/v1"},
+        "dashscope": {"id": "dashscope", "name": "Alibaba DashScope", "api_key": "", "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1"},
+        "jina": {"id": "jina", "name": "Jina AI", "api_key": "", "base_url": "https://api.jina.ai/v1"},
+        "google": {"id": "google", "name": "Google Gemini", "api_key": "", "base_url": ""},
+        "cohere": {"id": "cohere", "name": "Cohere", "api_key": "", "base_url": "https://api.cohere.com/v1"},
+    }
 
     # JWT auth
     jwt_secret_key: str = "change-me-in-production"
@@ -103,29 +120,23 @@ class Settings(BaseSettings):
 
     @property
     def active_embedding_api_key(self) -> str:
-        if self.embedding_provider == "openrouter":
-            return self.openrouter_api_key
-        if self.embedding_provider == "google":
-            return self.google_api_key
-        return self.openai_api_key
+        provider = self.providers_registry.get(self.embedding_provider)
+        return provider.get("api_key", "") if provider else ""
 
     @property
     def active_embedding_base_url(self) -> str:
-        if self.embedding_provider == "openrouter":
-            return self.openrouter_base_url
-        return self.openai_base_url
+        provider = self.providers_registry.get(self.embedding_provider)
+        return provider.get("base_url", "") if provider else ""
 
     @property
     def active_llm_api_key(self) -> str:
-        if self.llm_provider == "openrouter":
-            return self.openrouter_api_key
-        return self.openai_api_key
+        provider = self.providers_registry.get(self.llm_provider)
+        return provider.get("api_key", "") if provider else ""
 
     @property
     def active_llm_base_url(self) -> str:
-        if self.llm_provider == "openrouter":
-            return self.openrouter_base_url
-        return self.openai_base_url
+        provider = self.providers_registry.get(self.llm_provider)
+        return provider.get("base_url", "") if provider else ""
 
     @property
     def async_database_url(self) -> str:

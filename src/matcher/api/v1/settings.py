@@ -32,20 +32,23 @@ class OneCConnectionSettings(BaseModel):
     enabled: bool = False
 
 
+class ProviderConfigResponse(BaseModel):
+    id: str
+    name: str
+    api_key_set: bool
+    base_url: str
+
 class SettingsResponse(BaseModel):
     # Provider
     llm_provider: str
     embedding_provider: str
+    rerank_provider: str
+    providers_registry: list[ProviderConfigResponse]
     # Models
     llm_model: str
     llm_rerank_model: str
     embedding_model: str
     embedding_dimensions: int
-    # API Keys (masked)
-    openrouter_api_key_set: bool
-    openai_api_key_set: bool
-    google_api_key_set: bool
-    cohere_api_key_set: bool
     # Thresholds
     auto_match_threshold: float
     review_threshold: float
@@ -55,17 +58,20 @@ class SettingsResponse(BaseModel):
     onec: OneCConnectionSettings
 
 
+class ProviderConfigInput(BaseModel):
+    id: str
+    api_key: str | None = None
+    base_url: str | None = None
+
 class SettingsUpdateInput(BaseModel):
     llm_provider: str | None = None
     embedding_provider: str | None = None
+    rerank_provider: str | None = None
+    providers_registry: list[ProviderConfigInput] | None = None
     llm_model: str | None = None
     llm_rerank_model: str | None = None
     embedding_model: str | None = None
     embedding_dimensions: int | None = None
-    openrouter_api_key: str | None = None
-    openai_api_key: str | None = None
-    google_api_key: str | None = None
-    cohere_api_key: str | None = None
     auto_match_threshold: float | None = None
     review_threshold: float | None = None
     retrieval_top_n: int | None = None
@@ -111,14 +117,12 @@ _PERSIST_KEYS = (
     "onec",
     "llm_provider",
     "embedding_provider",
+    "rerank_provider",
     "llm_model",
     "llm_rerank_model",
     "embedding_model",
     "embedding_dimensions",
-    "openrouter_api_key",
-    "openai_api_key",
-    "google_api_key",
-    "cohere_api_key",
+    "providers_registry",
 )
 
 
@@ -147,9 +151,20 @@ async def load_persisted_settings(db: AsyncSession, force: bool = False) -> None
     if "embedding_dimensions" in stored and stored["embedding_dimensions"] is not None:
         settings.embedding_dimensions = int(stored["embedding_dimensions"])
 
-    for k in ("llm_provider", "embedding_provider", "llm_model", "llm_rerank_model", "embedding_model", "openrouter_api_key", "openai_api_key", "google_api_key", "cohere_api_key"):
+    for k in ("llm_provider", "embedding_provider", "rerank_provider", "llm_model", "llm_rerank_model", "embedding_model"):
         if k in stored and stored[k] is not None:
             setattr(settings, k, stored[k])
+
+    if "providers_registry" in stored and stored["providers_registry"] is not None:
+        try:
+            persisted_providers = json.loads(stored["providers_registry"])
+            for pid, pdata in persisted_providers.items():
+                if pid in settings.providers_registry:
+                    settings.providers_registry[pid].update(pdata)
+                else:
+                    settings.providers_registry[pid] = pdata
+        except Exception as e:
+            logger.warning("Failed to parse providers_registry: %s", e)
 
     if "onec" in stored and stored["onec"] is not None:
         try:
@@ -171,7 +186,9 @@ async def _persist_settings(db: AsyncSession) -> None:
     await repo.upsert("embedding_dimensions", str(settings.embedding_dimensions))
     await repo.upsert("onec", _onec_settings.model_dump_json())
 
-    for k in ("llm_provider", "embedding_provider", "llm_model", "llm_rerank_model", "embedding_model", "openrouter_api_key", "openai_api_key", "google_api_key", "cohere_api_key"):
+    await repo.upsert("providers_registry", json.dumps(settings.providers_registry))
+
+    for k in ("llm_provider", "embedding_provider", "rerank_provider", "llm_model", "llm_rerank_model", "embedding_model"):
         val = getattr(settings, k)
         if val is not None:
             await repo.upsert(k, str(val))
@@ -186,29 +203,26 @@ async def get_settings(
 ) -> SettingsResponse:
     """Get current runtime settings."""
     await load_persisted_settings(db)
+    prov_resp = []
+    for pid, pdata in settings.providers_registry.items():
+        prov_resp.append(
+            ProviderConfigResponse(
+                id=pid,
+                name=pdata.get("name", pid),
+                api_key_set=bool(pdata.get("api_key") and pdata.get("api_key") not in ("none", "", "your-key-here", "sk-your-key-here")),
+                base_url=pdata.get("base_url", "")
+            )
+        )
+
     return SettingsResponse(
         llm_provider=settings.llm_provider,
         embedding_provider=settings.embedding_provider,
+        rerank_provider=settings.rerank_provider,
+        providers_registry=prov_resp,
         llm_model=settings.llm_model,
         llm_rerank_model=settings.llm_rerank_model,
         embedding_model=settings.embedding_model,
         embedding_dimensions=settings.embedding_dimensions,
-        openrouter_api_key_set=bool(
-            settings.openrouter_api_key
-            and settings.openrouter_api_key not in ("", "sk-your-key-here")
-        ),
-        openai_api_key_set=bool(
-            settings.openai_api_key
-            and settings.openai_api_key not in ("", "sk-your-key-here")
-        ),
-        google_api_key_set=bool(
-            settings.google_api_key
-            and settings.google_api_key not in ("", "your-key-here")
-        ),
-        cohere_api_key_set=bool(
-            settings.cohere_api_key
-            and settings.cohere_api_key not in ("", "your-key-here")
-        ),
         auto_match_threshold=settings.auto_match_threshold,
         review_threshold=settings.review_threshold,
         retrieval_top_n=settings.retrieval_top_n,
@@ -236,6 +250,17 @@ async def update_settings(
         settings.llm_provider = body.llm_provider
     if body.embedding_provider is not None:
         settings.embedding_provider = body.embedding_provider
+    if body.rerank_provider is not None:
+        settings.rerank_provider = body.rerank_provider
+        
+    if body.providers_registry is not None:
+        for p in body.providers_registry:
+            if p.id in settings.providers_registry:
+                if p.api_key is not None:
+                    settings.providers_registry[p.id]["api_key"] = p.api_key
+                if p.base_url is not None:
+                    settings.providers_registry[p.id]["base_url"] = p.base_url
+
     if body.llm_model is not None:
         settings.llm_model = body.llm_model
     if body.llm_rerank_model is not None:
@@ -244,14 +269,6 @@ async def update_settings(
         settings.embedding_model = body.embedding_model
     if body.embedding_dimensions is not None:
         settings.embedding_dimensions = body.embedding_dimensions
-    if body.openrouter_api_key is not None:
-        settings.openrouter_api_key = body.openrouter_api_key
-    if body.openai_api_key is not None:
-        settings.openai_api_key = body.openai_api_key
-    if body.google_api_key is not None:
-        settings.google_api_key = body.google_api_key
-    if body.cohere_api_key is not None:
-        settings.cohere_api_key = body.cohere_api_key
     if body.auto_match_threshold is not None:
         settings.auto_match_threshold = body.auto_match_threshold
     if body.review_threshold is not None:
@@ -270,7 +287,7 @@ async def update_settings(
         logger.warning("Failed to persist settings to DB", exc_info=True)
 
     # Reset cached embedding client when provider/key changes
-    if any([body.embedding_provider, body.openrouter_api_key, body.openai_api_key, body.google_api_key]):
+    if body.embedding_provider or body.providers_registry:
         from matcher.indexing.embedder import reset_client
         reset_client()
 

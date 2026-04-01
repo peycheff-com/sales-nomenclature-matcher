@@ -30,6 +30,7 @@ class MatchRepo:
         source_type: str,
         submitted_by: str | None,
         total_items: int,
+        file_name: str | None = None,
     ) -> MatchRequest:
         req = MatchRequest(
             request_id=request_id,
@@ -38,6 +39,7 @@ class MatchRepo:
             submitted_by=submitted_by,
             status="queued",
             total_items=total_items,
+            file_name=file_name,
         )
         self.session.add(req)
         await self.session.flush()

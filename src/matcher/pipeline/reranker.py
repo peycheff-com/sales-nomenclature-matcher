@@ -41,50 +41,122 @@ async def rerank_candidates(
         logger.debug("Reranking disabled via RERANK_ENABLED=false")
         return _fallback_rerank(candidates, top_n)
 
-    # Try Cohere first
-    if settings.cohere_api_key and settings.cohere_api_key != "your-key-here":
-        try:
-            return await _cohere_rerank(query, candidates, top_n)
-        except Exception as e:
-            logger.warning(f"Cohere rerank failed: {e}")
+    provider_id = settings.rerank_provider
+    provider = settings.providers_registry.get(provider_id)
+    if not provider:
+        logger.warning(f"Rerank provider '{provider_id}' not found in registry. Falling back to lexical.")
+        return _fallback_rerank(candidates, top_n)
 
-    # Try LLM-based reranking
-    llm_key = settings.active_llm_api_key
-    if llm_key and llm_key not in ("", "sk-your-key-here", "your-key-here"):
-        try:
+    try:
+        if provider_id == "llm-fallback":
             return await _llm_rerank(query, candidates, top_n)
-        except Exception as e:
-            logger.warning(f"LLM rerank failed: {e}")
+        elif provider_id == "local":
+            return await _local_rerank(query, candidates, top_n)
+        elif provider_id in ("cohere", "together", "jina", "dashscope"):
+            return await _http_rerank(query, candidates, top_n, provider_id, provider)
+        else:
+            logger.warning(f"Rerank processor for '{provider_id}' not implemented. Falling back.")
+            return _fallback_rerank(candidates, top_n)
+    except Exception as e:
+        logger.error(f"Reranking failed for provider {provider_id}: {e}", exc_info=True)
+        return _fallback_rerank(candidates, top_n)
 
-    # Fallback
-    logger.info("No reranker available, using lexical scores as proxy")
-    return _fallback_rerank(candidates, top_n)
 
-
-async def _cohere_rerank(
+async def _local_rerank(
     query: str,
     candidates: list[SearchCandidate],
     top_n: int,
 ) -> list[RerankResult]:
-    """Rerank using Cohere Rerank API."""
-    import cohere
+    """Rerank using a local HuggingFace CrossEncoder running in-memory."""
+    try:
+        from sentence_transformers import CrossEncoder
+    except ImportError:
+        logger.error("sentence-transformers not installed. Cannot use local reranking.")
+        return _fallback_rerank(candidates, top_n)
 
-    client = cohere.AsyncClientV2(api_key=settings.cohere_api_key)
+    # Load globally scoped to avoid reloading
+    global _local_scorer
+    if '_local_scorer' not in globals() or _local_scorer is None:
+        model_name = settings.llm_rerank_model or "BAAI/bge-reranker-v2-m3"
+        logger.info(f"Loading local CrossEncoder model: {model_name}")
+        _local_scorer = CrossEncoder(model_name)
+
     documents = [_candidate_to_document(c) for c in candidates]
+    pairs = [[query, doc] for doc in documents]
+    
+    # Predict returns array of logits/scores
+    scores = _local_scorer.predict(pairs)
+    
+    results = []
+    for i, score in enumerate(scores):
+        results.append(RerankResult(
+            candidate=candidates[i],
+            rerank_score=float(score)
+        ))
+    
+    results.sort(key=lambda r: r.rerank_score, reverse=True)
+    return results[:top_n]
 
-    response = await client.rerank(
-        query=query,
-        documents=documents,
-        model="rerank-multilingual-v3.0",
-        top_n=top_n,
-    )
+async def _http_rerank(
+    query: str,
+    candidates: list[SearchCandidate],
+    top_n: int,
+    provider_id: str,
+    provider_config: dict,
+) -> list[RerankResult]:
+    """Rerank using standardized Cohere-like or DashScope HTTP APIs."""
+    import httpx
+    
+    documents = [_candidate_to_document(c) for c in candidates]
+    model = settings.llm_rerank_model or "rerank-multilingual-v3.0"
+    base_url = provider_config.get("base_url", "").rstrip("/")
+    api_key = provider_config.get("api_key", "")
+    
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+
+    if provider_id == "dashscope":
+        endpoint = f"{base_url}/services/aigc/text-rerank/text-rerank"
+        payload = {
+            "model": model or "gte-rerank",
+            "input": {"query": query, "documents": documents},
+            "parameters": {"top_n": top_n}
+        }
+    else:
+        # Standard format (Cohere, Together, Jina)
+        endpoint = f"{base_url}/rerank" if not base_url.endswith("/rerank") else base_url
+        if provider_id == "jina":
+            model = model or "jina-reranker-v2-base-multilingual"
+        payload = {
+            "model": model,
+            "query": query,
+            "documents": documents,
+            "top_n": top_n
+        }
+
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(endpoint, json=payload, headers=headers, timeout=30.0)
+        resp.raise_for_status()
+        data = resp.json()
 
     results = []
-    for item in response.results:
-        results.append(RerankResult(
-            candidate=candidates[item.index],
-            rerank_score=item.relevance_score,
-        ))
+    if provider_id == "dashscope":
+        items = data.get("output", {}).get("results", [])
+        for item in items:
+            results.append(RerankResult(
+                candidate=candidates[item["index"]],
+                rerank_score=float(item["relevance_score"])
+            ))
+    else:
+        items = data.get("results", [])
+        for item in items:
+            results.append(RerankResult(
+                candidate=candidates[item["index"]],
+                rerank_score=float(item["relevance_score"])
+            ))
+
     return results
 
 

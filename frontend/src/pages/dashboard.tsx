@@ -1,9 +1,10 @@
 import { type ChangeEvent, type DragEvent, useCallback, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { FileUp, Upload, ClipboardList, Loader2, Trash2, AlertTriangle } from "lucide-react";
+import { FileUp, Upload, ClipboardList, Loader2, Trash2, AlertTriangle, Database, PackageSearch } from "lucide-react";
 import { toast } from "sonner";
-import { matchBatch, parseFilePreview, listMatchRequests, previewGoogleSheet } from "@/api/match";
+import { matchBatch, parseFilePreview, parseFileStructured, smartUpload, listMatchRequests, previewGoogleSheet } from "@/api/match";
+import type { FileAnalysisResult } from "@/api/match";
 import { listSuppliers } from "@/api/suppliers";
 import type { MatchItemInput } from "@/api/types";
 import { REQUEST_STATUS_LABELS } from "@/lib/constants";
@@ -45,15 +46,22 @@ export default function DashboardPage() {
   });
 
   const [activeTab, setActiveTab] = useState<string>("file");
-  const [useAi, setUseAi] = useState(false);
+  const [useAi, setUseAi] = useState(true);
 
   const [parsedItems, setParsedItems] = useState<MatchItemInput[]>([]);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
 
+  // Structured analysis state (two-panel mode)
+  const [structuredMode, setStructuredMode] = useState(false);
+  const [catalogItems, setCatalogItems] = useState<any[]>([]);
+  const [detectedSupplierName, setDetectedSupplierName] = useState<string | null>(null);
+  const [editedSupplierName, setEditedSupplierName] = useState("");
+
   const [textInput, setTextInput] = useState("");
   const [gsheetUrl, setGsheetUrl] = useState("");
+
 
   const suppliersQuery = useQuery({
     queryKey: ["suppliers"],
@@ -90,11 +98,52 @@ export default function DashboardPage() {
   const parseMutation = useMutation({
     mutationFn: ({ file, supplierId, useAiColumnPicker }: { file: File; supplierId?: string, useAiColumnPicker: boolean }) => parseFilePreview(file, useAiColumnPicker),
     onSuccess: (data) => {
+      setStructuredMode(false);
+      setCatalogItems([]);
+      setDetectedSupplierName(null);
       setParsedItems(data.items);
       toast.success(`Извлечено ${data.items.length} позиций для предпросмотра`);
     },
     onError: (err: any) => {
       toast.error("Ошибка при разборе файла. Проверьте формат.");
+    },
+  });
+
+  const structuredMutation = useMutation({
+    mutationFn: (file: File) => parseFileStructured(file),
+    onSuccess: (data) => {
+      setStructuredMode(true);
+      const supplierItems = (data.supplier_items || []).map((item: any, idx: number) => ({
+        raw_text: item.raw_text,
+        line_id: item.line_id || String(idx + 1),
+        original_row: item.original_row,
+      }));
+      setParsedItems(supplierItems);
+      setCatalogItems(data.catalog_items || []);
+      const sn = data.supplier_name || null;
+      setDetectedSupplierName(sn);
+      setEditedSupplierName(sn || "");
+      
+      const msgs: string[] = [];
+      if (supplierItems.length > 0) msgs.push(`${supplierItems.length} позиций поставщика`);
+      if ((data.catalog_items || []).length > 0) msgs.push(`${data.catalog_items.length} позиций каталога`);
+      if (sn) msgs.push(`поставщик: ${sn}`);
+      toast.success(`Обнаружено ${data.tables_detected} таблиц: ${msgs.join(", ")}`);
+    },
+    onError: () => {
+      toast.error("Ошибка при анализе структуры файла.");
+    },
+  });
+
+  const smartUploadMutation = useMutation({
+    mutationFn: ({ file, supplierName, supplierId }: { file: File; supplierName?: string; supplierId?: string }) =>
+      smartUpload(file, { supplierName, supplierId }),
+    onSuccess: (data) => {
+      toast.success("Каталог + сопоставление запущены");
+      navigate({ to: "/requests/$requestId", params: { requestId: data.request_id } });
+    },
+    onError: () => {
+      toast.error("Ошибка при умной загрузке");
     },
   });
 
@@ -118,7 +167,7 @@ export default function DashboardPage() {
         row["name"] ||
         row["наименование"] ||
         row["Наименование"] ||
-        Object.values(row).find(v => typeof v === 'string' && isNaN(Number(v))) || // Skip purely numeric columns like "№"
+        Object.values(row).find(v => typeof v === 'string' && isNaN(Number(v))) ||
         Object.values(row)[0] ||
         "";
       const lineId = row["line_id"] || row["id"] || row["№"] || String(idx + 1);
@@ -130,11 +179,16 @@ export default function DashboardPage() {
     if (file.name.endsWith(".xls") || file.name.endsWith(".xlsx") || file.name.endsWith(".csv") || file.name.endsWith(".tsv") || file.name.endsWith(".txt")) {
       setSelectedFile(file);
       setFileName(file.name);
-      parseMutation.mutate({ file, supplierId, useAiColumnPicker: useAi });
+      if (useAi) {
+        structuredMutation.mutate(file);
+      } else {
+        parseMutation.mutate({ file, supplierId, useAiColumnPicker: false });
+      }
     } else {
       toast.error("Поддерживаются только форматы .xlsx, .xls, .csv, .txt");
     }
   }
+
 
   function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -199,6 +253,22 @@ export default function DashboardPage() {
   };
 
   function handleSubmit() {
+    // Smart upload path: structured mode with catalog items
+    if (structuredMode && catalogItems.length > 0 && selectedFile) {
+      const items = parsedItems;
+      if (items.length === 0) {
+        toast.error("Нет данных поставщика для сопоставления");
+        return;
+      }
+      smartUploadMutation.mutate({
+        file: selectedFile,
+        supplierName: editedSupplierName || undefined,
+        supplierId: supplierId,
+      });
+      return;
+    }
+
+    // Standard path
     const items = activeTab === "text" ? getTextItems() : parsedItems;
     if (items.length === 0) {
       toast.error("Нет данных для сопоставления");
@@ -321,7 +391,7 @@ export default function DashboardPage() {
                     )}
                     
                     {/* Preview table (Editable) */}
-                    {parsedItems.length > 0 && activeTab === "file" && (
+                    {parsedItems.length > 0 && activeTab === "file" && !structuredMode && (
                       <div className="space-y-2 mt-4">
                         <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
                           <span>Убедитесь, что ИИ или система выбрала правильную колонку (отображается до 50 строк)</span>
@@ -363,6 +433,88 @@ export default function DashboardPage() {
                               ))}
                             </TableBody>
                           </Table>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Structured Mode Preview (Two-Panel UI) */}
+                    {structuredMode && activeTab === "file" && (
+                      <div className="mt-6 space-y-6">
+                        <div className="rounded-lg border border-purple-200 bg-purple-50 p-4">
+                          <h3 className="font-semibold text-purple-900 mb-2 flex items-center gap-2">
+                            <Database className="h-4 w-4" />
+                            Программный анализ структуры
+                          </h3>
+                          <p className="text-sm text-purple-800 mb-4">
+                            ИИ успешно разобрал сложный файл и выделил отдельную таблицу каталога и прайс-лист поставщика.
+                          </p>
+                          <div className="space-y-3 max-w-sm">
+                            <Label className="text-purple-900 font-medium text-xs uppercase tracking-wider">Определенный поставщик (исправьте при необходимости)</Label>
+                            <Input 
+                              value={editedSupplierName} 
+                              onChange={(e) => setEditedSupplierName(e.target.value)}
+                              placeholder="Название поставщика"
+                              className="bg-white border-purple-200"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                          {/* Supplier Panel */}
+                          <div className="space-y-2 border rounded-md p-3 relative">
+                            <div className="flex items-center justify-between text-sm font-semibold mb-2">
+                              <span className="flex items-center gap-2"><ClipboardList className="h-4 w-4 text-primary" /> Позиции поставщика</span>
+                              <Badge variant="secondary">{parsedItems.length}</Badge>
+                            </div>
+                            <div className="max-h-[300px] overflow-auto rounded border border-border">
+                              <Table>
+                                <TableHeader className="bg-muted/50 sticky top-0 z-10">
+                                  <TableRow>
+                                    <TableHead className="py-2 px-2 text-xs">#</TableHead>
+                                    <TableHead className="py-2 px-2 text-xs">Номенклатура для сопоставления</TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  {parsedItems.slice(0, 50).map((item, idx) => (
+                                    <TableRow key={idx}>
+                                      <TableCell className="text-xs text-muted-foreground py-1 px-2">{item.line_id}</TableCell>
+                                      <TableCell className="py-1 px-2 text-xs font-medium">{item.raw_text}</TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            </div>
+                            <p className="text-[10px] text-muted-foreground text-center mt-1">Отображаются первые 50 строк. Проверьте правильность выделения колонки.</p>
+                          </div>
+
+                          {/* Catalog Panel */}
+                          <div className="space-y-2 border rounded-md p-3 border-blue-200 bg-blue-50/20">
+                            <div className="flex items-center justify-between text-sm font-semibold mb-2">
+                              <span className="flex items-center gap-2"><PackageSearch className="h-4 w-4 text-blue-600" /> Таблица каталога (Будет добавлена в базу)</span>
+                              <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">{catalogItems.length}</Badge>
+                            </div>
+                            <div className="max-h-[300px] overflow-auto rounded border border-blue-100 bg-white">
+                              <Table>
+                                <TableHeader className="bg-blue-50/50 sticky top-0 z-10">
+                                  <TableRow>
+                                    <TableHead className="py-2 px-2 text-xs">Наименование для каталога</TableHead>
+                                    <TableHead className="py-2 px-2 text-xs w-[60px]">Ед.изм.</TableHead>
+                                    <TableHead className="py-2 px-2 text-xs w-[60px]">Цена</TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  {catalogItems.slice(0, 50).map((item, idx) => (
+                                    <TableRow key={idx}>
+                                      <TableCell className="py-1 px-2 text-xs font-medium">{item.raw_text}</TableCell>
+                                      <TableCell className="py-1 px-2 text-xs text-muted-foreground">{item.unit || "—"}</TableCell>
+                                      <TableCell className="py-1 px-2 text-xs text-muted-foreground">{item.price || "—"}</TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            </div>
+                            <p className="text-[10px] text-muted-foreground text-center mt-1">При нажатии "Начать сопоставление", эти позиции пополнят ваш каталог перед алгоритмами поиска.</p>
+                          </div>
                         </div>
                       </div>
                     )}

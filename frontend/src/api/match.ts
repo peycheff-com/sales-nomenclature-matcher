@@ -37,9 +37,36 @@ export async function parseFilePreview(file: File, useAiColumnPicker: boolean = 
   return api.post("match/parse", { body: formData }).json<{ items: any[] }>();
 }
 
+export interface FileAnalysisResult {
+  mode: "structured";
+  supplier_items: any[];
+  catalog_items: any[];
+  supplier_name: string | null;
+  tables_detected: number;
+}
+
+export async function parseFileStructured(file: File): Promise<FileAnalysisResult> {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("analyze_structure", "true");
+  return api.post("match/parse", { body: formData }).json<FileAnalysisResult>();
+}
+
+export async function smartUpload(
+  file: File,
+  opts: { supplierName?: string; supplierId?: string },
+): Promise<BatchRequestAccepted> {
+  const formData = new FormData();
+  formData.append("file", file);
+  if (opts.supplierName) formData.append("supplier_name", opts.supplierName);
+  if (opts.supplierId) formData.append("supplier_id", opts.supplierId);
+  return api.post("match/smart-upload", { body: formData }).json<BatchRequestAccepted>();
+}
+
 export async function previewGoogleSheet(url: string): Promise<{ rows: Record<string, any>[] }> {
   return api.get("match/google-sheet/preview", { searchParams: { url } }).json<{ rows: Record<string, any>[] }>();
 }
+
 
 export async function getMatchRequest(requestId: string): Promise<MatchRequestDetails> {
   return api.get(`match/requests/${requestId}`).json<MatchRequestDetails>();

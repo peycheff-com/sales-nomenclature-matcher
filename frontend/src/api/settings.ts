@@ -8,17 +8,22 @@ export interface OneCConnectionSettings {
   enabled: boolean;
 }
 
+export interface ProviderConfigResponse {
+  id: string;
+  name: string;
+  api_key_set: boolean;
+  base_url: string;
+}
+
 export interface SettingsResponse {
   llm_provider: string;
   embedding_provider: string;
+  rerank_provider: string;
+  providers_registry: ProviderConfigResponse[];
   llm_model: string;
   llm_rerank_model: string;
   embedding_model: string;
   embedding_dimensions: number;
-  openrouter_api_key_set: boolean;
-  openai_api_key_set: boolean;
-  google_api_key_set: boolean;
-  cohere_api_key_set: boolean;
   auto_match_threshold: number;
   review_threshold: number;
   retrieval_top_n: number;
@@ -26,17 +31,21 @@ export interface SettingsResponse {
   onec: OneCConnectionSettings;
 }
 
+export interface ProviderConfigInput {
+  id: string;
+  api_key?: string;
+  base_url?: string;
+}
+
 export interface SettingsUpdateInput {
   llm_provider?: string;
   embedding_provider?: string;
+  rerank_provider?: string;
+  providers_registry?: ProviderConfigInput[];
   llm_model?: string;
   llm_rerank_model?: string;
   embedding_model?: string;
   embedding_dimensions?: number;
-  openrouter_api_key?: string;
-  openai_api_key?: string;
-  google_api_key?: string;
-  cohere_api_key?: string;
   auto_match_threshold?: number;
   review_threshold?: number;
   retrieval_top_n?: number;
