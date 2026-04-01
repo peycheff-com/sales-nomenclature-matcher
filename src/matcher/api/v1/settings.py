@@ -410,10 +410,16 @@ async def list_models(
     # Cohere v2 uses /models endpoint but with Bearer token
     url = f"{base_url.rstrip('/')}/models"
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+    params: dict = {}
+
+    # Google uses ?key= query parameter instead of Bearer token
+    if target_provider == "google":
+        headers = {}
+        params = {"key": api_key} if api_key else {}
 
     try:
         async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.get(url, headers=headers)
+            resp = await client.get(url, headers=headers, params=params)
             resp.raise_for_status()
             data = resp.json()
     except Exception as e:
@@ -532,6 +538,18 @@ def _get_known_models(provider: str) -> list[OpenRouterModel]:
               context_length=8192, type="embedding"),
             M(id="gte-rerank", name="GTE Rerank",
               context_length=4096, type="rerank"),
+        ],
+        "google": [
+            M(id="gemini-2.5-flash", name="Gemini 2.5 Flash",
+              context_length=1000000, type="chat"),
+            M(id="gemini-2.5-pro", name="Gemini 2.5 Pro",
+              context_length=1000000, type="chat"),
+            M(id="gemini-2.0-flash", name="Gemini 2.0 Flash",
+              context_length=1000000, type="chat"),
+            M(id="gemini-embedding-001", name="Gemini Embedding 001",
+              context_length=8192, type="embedding"),
+            M(id="text-embedding-004", name="Text Embedding 004",
+              context_length=2048, type="embedding"),
         ],
     }
     return known.get(provider, [])
