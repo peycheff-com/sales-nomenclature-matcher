@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from matcher.api.deps import get_db
 from matcher.auth.deps import get_current_user, require_role
-from matcher.config import settings
+from matcher.config import PROVIDER_CAPABILITIES, settings
 from matcher.db.models import User
 from matcher.db.repos.settings import SettingsRepo
 from matcher.security.url_validator import SSRFError, validate_url_safe
@@ -38,6 +38,12 @@ class ProviderConfigResponse(BaseModel):
     name: str
     api_key_set: bool
     base_url: str
+    supports_chat: bool = True
+    supports_embeddings: bool = True
+    supports_rerank: bool = False
+    rerank_mode: str | None = None
+    is_beta: bool = False
+    notes: str | None = None
 
 
 class SettingsResponse(BaseModel):
@@ -232,6 +238,7 @@ async def get_settings(
     await load_persisted_settings(db)
     prov_resp = []
     for pid, pdata in settings.providers_registry.items():
+        caps = PROVIDER_CAPABILITIES.get(pid)
         prov_resp.append(
             ProviderConfigResponse(
                 id=pid,
@@ -242,6 +249,12 @@ async def get_settings(
                     not in ("none", "", "your-key-here", "sk-your-key-here")
                 ),
                 base_url=pdata.get("base_url", ""),
+                supports_chat=caps.supports_chat if caps else True,
+                supports_embeddings=caps.supports_embeddings if caps else True,
+                supports_rerank=caps.supports_rerank if caps else False,
+                rerank_mode=caps.rerank_mode if caps else None,
+                is_beta=caps.is_beta if caps else False,
+                notes=caps.notes if caps else None,
             )
         )
 
@@ -277,6 +290,31 @@ async def update_settings(
 ) -> SettingsResponse:
     """Update runtime settings. Only provided fields are updated."""
     global _onec_settings
+
+    # Validate provider capabilities for assigned roles
+    if body.llm_provider is not None and not settings.provider_supports(body.llm_provider, "chat"):
+        raise HTTPException(
+            status_code=422,
+            detail=f"Провайдер '{body.llm_provider}' не поддерживает LLM/chat.",
+        )
+    if (
+        body.embedding_provider is not None
+        and body.embedding_provider != "none"
+        and not settings.provider_supports(body.embedding_provider, "embeddings")
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail=f"Провайдер '{body.embedding_provider}' не поддерживает embeddings.",
+        )
+    if (
+        body.rerank_provider is not None
+        and body.rerank_provider != "llm-fallback"
+        and not settings.provider_supports(body.rerank_provider, "rerank")
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail=f"Провайдер '{body.rerank_provider}' не поддерживает reranking.",
+        )
 
     if body.llm_provider is not None:
         settings.llm_provider = body.llm_provider

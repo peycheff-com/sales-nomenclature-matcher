@@ -99,7 +99,10 @@ export function SuppliersTab() {
       setIdTouched(false);
       toast.success("Поставщик успешно добавлен");
     },
-    onError: () => toast.error("Ошибка при добавлении поставщика"),
+    onError: (err) => {
+      const msg = err instanceof Error ? err.message : "Неизвестная ошибка";
+      toast.error(`Ошибка при добавлении поставщика: ${msg}`);
+    },
   });
 
   const updateMutation = useMutation({
@@ -111,7 +114,10 @@ export function SuppliersTab() {
       toast.success("Изменения сохранены");
       setEditingId(null);
     },
-    onError: () => toast.error("Ошибка при сохранении"),
+    onError: (err) => {
+      const msg = err instanceof Error ? err.message : "Неизвестная ошибка";
+      toast.error(`Ошибка при сохранении: ${msg}`);
+    },
   });
 
   const deleteMutation = useMutation({
@@ -121,9 +127,10 @@ export function SuppliersTab() {
       setDeleteTarget(null);
       toast.success("Поставщик удален");
     },
-    onError: () => {
+    onError: (err) => {
       setDeleteTarget(null);
-      toast.error("Не удалось удалить поставщика");
+      const msg = err instanceof Error ? err.message : "Неизвестная ошибка";
+      toast.error(`Не удалось удалить поставщика: ${msg}`);
     },
   });
 

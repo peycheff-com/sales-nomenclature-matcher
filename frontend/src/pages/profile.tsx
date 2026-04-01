@@ -37,7 +37,10 @@ export default function ProfilePage() {
       setFullName(null);
       toast.success("Имя обновлено");
     },
-    onError: () => toast.error("Ошибка при обновлении имени"),
+    onError: (err) => {
+      const msg = err instanceof Error ? err.message : "Неизвестная ошибка";
+      toast.error(`Ошибка при обновлении имени: ${msg}`);
+    },
   });
 
   // Password change
@@ -63,7 +66,8 @@ export default function ProfilePage() {
           return;
         }
       }
-      setPwError("Ошибка при смене пароля");
+      const msg = err instanceof Error ? err.message : "Неизвестная ошибка";
+      setPwError(`Ошибка при смене пароля: ${msg}`);
     },
   });
 

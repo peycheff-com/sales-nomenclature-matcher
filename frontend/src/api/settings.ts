@@ -13,6 +13,12 @@ export interface ProviderConfigResponse {
   name: string;
   api_key_set: boolean;
   base_url: string;
+  supports_chat: boolean;
+  supports_embeddings: boolean;
+  supports_rerank: boolean;
+  rerank_mode: string | null;
+  is_beta: boolean;
+  notes: string | null;
 }
 
 export interface SettingsResponse {

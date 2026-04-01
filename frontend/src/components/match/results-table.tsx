@@ -98,7 +98,10 @@ export default function ResultsTable({ requestId }: ResultsTableProps) {
         }
       );
     },
-    onError: () => toast.error("Ошибка при массовой обработке"),
+    onError: (err) => {
+      const msg = err instanceof Error ? err.message : "Неизвестная ошибка";
+      toast.error(`Ошибка при массовой обработке: ${msg}`);
+    },
   });
 
   const fastReviewMutation = useMutation({
@@ -117,7 +120,10 @@ export default function ResultsTable({ requestId }: ResultsTableProps) {
       setExpandedRow(null);
       handleReviewed(result.itemId, result.decision);
     },
-    onError: () => toast.error("Ошибка при сохранении"),
+    onError: (err) => {
+      const msg = err instanceof Error ? err.message : "Неизвестная ошибка";
+      toast.error(`Ошибка при сохранении: ${msg}`);
+    },
   });
 
   const columns: ColumnDef<MatchResult>[] = [

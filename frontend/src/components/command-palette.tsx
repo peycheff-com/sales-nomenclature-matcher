@@ -2,11 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import {
   LayoutDashboard,
-  FileSearch,
   Database,
-  Users,
-  Shield,
-  UserCog,
   Settings,
   User,
 } from "lucide-react";
@@ -21,13 +17,9 @@ import {
 } from "@/components/ui/command";
 
 const pages = [
-  { label: "Загрузка данных", to: "/", icon: LayoutDashboard, keywords: "upload dashboard главная загрузка" },
-  { label: "Запросы", to: "/requests", icon: FileSearch, keywords: "requests запросы список" },
-  { label: "Каталог", to: "/catalog", icon: Database, keywords: "catalog каталог товары продукты" },
-  { label: "Поставщики", to: "/suppliers", icon: Users, keywords: "suppliers поставщики" },
-  { label: "Админ / Метрики", to: "/admin", icon: Shield, keywords: "admin метрики качество" },
-  { label: "Пользователи", to: "/users", icon: UserCog, keywords: "users пользователи" },
-  { label: "Настройки", to: "/settings", icon: Settings, keywords: "settings настройки" },
+  { label: "Рабочий стол", to: "/", icon: LayoutDashboard, keywords: "upload dashboard главная загрузка запросы requests" },
+  { label: "База данных", to: "/catalog", icon: Database, keywords: "catalog каталог товары продукты поставщики suppliers" },
+  { label: "Система", to: "/settings", icon: Settings, keywords: "settings настройки admin метрики users пользователи" },
   { label: "Мой профиль", to: "/profile", icon: User, keywords: "profile профиль аккаунт" },
 ];
 

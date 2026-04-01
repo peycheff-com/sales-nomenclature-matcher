@@ -1,25 +1,115 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class ProviderConfig(BaseModel):
-    api_key: str = ""
-    base_url: str = ""
+class ProviderCapabilities(BaseModel):
+    """Declarative capability metadata for a provider. Code-only, never persisted."""
+
+    supports_embeddings: bool = False
+    supports_chat: bool = False
+    supports_rerank: bool = False
+    rerank_mode: Literal["direct", "llm-fallback", "local"] | None = None
+    supports_tool_calling: bool = False
+    supports_structured_outputs: bool = False
+    supports_web_search: bool = False
+    api_style: Literal[
+        "openai-compatible", "google-native", "cohere-v2", "dashscope"
+    ] = "openai-compatible"
+    region: str | None = None
+    is_beta: bool = False
+    notes: str | None = None
 
 
-def _default_providers() -> dict[str, ProviderConfig]:
-    return {
-        "openai": ProviderConfig(base_url="https://api.openai.com/v1"),
-        "openrouter": ProviderConfig(base_url="https://openrouter.ai/api/v1"),
-        "together": ProviderConfig(base_url="https://api.together.xyz/v1"),
-        "dashscope": ProviderConfig(base_url="https://dashscope.aliyuncs.com/compatible-mode/v1"),
-        "jina": ProviderConfig(base_url="https://api.jina.ai/v1"),
-        "cohere": ProviderConfig(base_url="https://api.cohere.ai/v1"),
-        "google": ProviderConfig(),
-        "local": ProviderConfig(api_key="none", base_url="http://localhost:11434/v1"),
-    }
+# Authoritative capability registry — maps provider IDs to their capabilities.
+# This is code-only metadata: never serialized to DB, never user-modifiable.
+PROVIDER_CAPABILITIES: dict[str, ProviderCapabilities] = {
+    "openai": ProviderCapabilities(
+        supports_chat=True,
+        supports_embeddings=True,
+        supports_tool_calling=True,
+        supports_structured_outputs=True,
+    ),
+    "openrouter": ProviderCapabilities(
+        supports_chat=True,
+        supports_embeddings=True,
+        supports_tool_calling=True,
+        supports_structured_outputs=True,
+        supports_web_search=True,
+    ),
+    "together": ProviderCapabilities(
+        supports_chat=True,
+        supports_embeddings=True,
+        supports_rerank=True,
+        rerank_mode="direct",
+        supports_tool_calling=True,
+        notes="Rerank requires dedicated endpoint on Together",
+    ),
+    "dashscope": ProviderCapabilities(
+        supports_chat=True,
+        supports_embeddings=True,
+        supports_rerank=True,
+        rerank_mode="direct",
+        supports_tool_calling=True,
+        supports_structured_outputs=True,
+        supports_web_search=True,
+        api_style="dashscope",
+        region="cn",
+    ),
+    "jina": ProviderCapabilities(
+        supports_embeddings=True,
+        supports_rerank=True,
+        rerank_mode="direct",
+    ),
+    "cohere": ProviderCapabilities(
+        supports_chat=True,
+        supports_embeddings=True,
+        supports_rerank=True,
+        rerank_mode="direct",
+        api_style="cohere-v2",
+    ),
+    "google": ProviderCapabilities(
+        supports_chat=True,
+        supports_embeddings=True,
+        supports_tool_calling=True,
+        supports_structured_outputs=True,
+        api_style="google-native",
+    ),
+    "local": ProviderCapabilities(
+        supports_chat=True,
+        supports_embeddings=True,
+        supports_rerank=True,
+        rerank_mode="local",
+    ),
+    # Regional providers (beta stubs — OpenAI-compatible, no custom API code yet)
+    "yandex": ProviderCapabilities(
+        supports_chat=True,
+        supports_embeddings=True,
+        supports_tool_calling=True,
+        supports_web_search=True,
+        region="ru",
+        is_beta=True,
+        notes="Yandex AI Studio — Russian/CIS regional lane",
+    ),
+    "gigachat": ProviderCapabilities(
+        supports_chat=True,
+        supports_embeddings=True,
+        region="ru",
+        is_beta=True,
+        notes="GigaChat (Sber) — Russian enterprise lane",
+    ),
+    "moonshot": ProviderCapabilities(
+        supports_chat=True,
+        supports_tool_calling=True,
+        supports_web_search=True,
+        region="cn",
+        is_beta=True,
+        notes="Moonshot / Kimi — Chinese regional lane",
+    ),
+}
 
 
 class Settings(BaseSettings):
@@ -116,6 +206,24 @@ class Settings(BaseSettings):
             "api_key": "",
             "base_url": "https://api.cohere.com/v1",
         },
+        "yandex": {
+            "id": "yandex",
+            "name": "Yandex AI Studio",
+            "api_key": "",
+            "base_url": "https://llm.api.cloud.yandex.net/foundationModels/v1",
+        },
+        "gigachat": {
+            "id": "gigachat",
+            "name": "GigaChat (Sber)",
+            "api_key": "",
+            "base_url": "https://gigachat.devices.sberbank.ru/api/v1",
+        },
+        "moonshot": {
+            "id": "moonshot",
+            "name": "Moonshot / Kimi",
+            "api_key": "",
+            "base_url": "https://api.moonshot.cn/v1",
+        },
     }
 
     # JWT auth
@@ -152,6 +260,19 @@ class Settings(BaseSettings):
     # LLM config (for reranking fallback / explanation generation)
     llm_model: str = "gpt-4o-mini"
     llm_rerank_model: str = ""  # if empty, uses llm_model
+
+    def provider_supports(self, provider_id: str, role: str) -> bool:
+        """Check if a provider supports a given role ('chat', 'embeddings', 'rerank')."""
+        caps = PROVIDER_CAPABILITIES.get(provider_id)
+        if not caps:
+            return False
+        if role == "chat":
+            return caps.supports_chat
+        if role == "embeddings":
+            return caps.supports_embeddings
+        if role == "rerank":
+            return caps.supports_rerank
+        return False
 
     @property
     def active_embedding_api_key(self) -> str:

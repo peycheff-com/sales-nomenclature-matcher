@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from openai import AsyncOpenAI
 
-from matcher.config import settings
+from matcher.config import PROVIDER_CAPABILITIES, settings
 from matcher.indexing.search import SearchCandidate
 from matcher.pipeline.token_tracker import TokenTracker
 
@@ -57,6 +57,15 @@ async def rerank_candidates(
             f"Rerank provider '{provider_id}' not found in registry. Falling back to lexical."
         )
         return _fallback_rerank(candidates, top_n)
+
+    # Verify provider actually supports reranking (skip virtual providers)
+    if provider_id not in ("llm-fallback",):
+        caps = PROVIDER_CAPABILITIES.get(provider_id)
+        if caps and not caps.supports_rerank:
+            logger.warning(
+                f"Provider '{provider_id}' does not support reranking. Falling back to lexical."
+            )
+            return _fallback_rerank(candidates, top_n)
 
     try:
         if provider_id == "llm-fallback":

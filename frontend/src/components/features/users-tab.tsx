@@ -111,12 +111,9 @@ export function UsersTab() {
       resetCreateForm();
       toast.success("Пользователь создан");
     },
-    onError: (err: unknown) => {
-      const msg =
-        err && typeof err === "object" && "response" in err
-          ? "Имя пользователя уже занято"
-          : "Ошибка при создании пользователя";
-      toast.error(msg);
+    onError: (err) => {
+      const msg = err instanceof Error ? err.message : "Неизвестная ошибка";
+      toast.error(`Ошибка при создании пользователя: ${msg}`);
     },
   });
 
@@ -128,7 +125,10 @@ export function UsersTab() {
       setEditTarget(null);
       toast.success("Изменения сохранены");
     },
-    onError: () => toast.error("Ошибка при сохранении"),
+    onError: (err) => {
+      const msg = err instanceof Error ? err.message : "Неизвестная ошибка";
+      toast.error(`Ошибка при сохранении: ${msg}`);
+    },
   });
 
   const resetPasswordMutation = useMutation({
@@ -140,7 +140,10 @@ export function UsersTab() {
       setResetPassword("");
       toast.success("Пароль сброшен. Пользователю потребуется сменить пароль при следующем входе.");
     },
-    onError: () => toast.error("Ошибка при сбросе пароля"),
+    onError: (err) => {
+      const msg = err instanceof Error ? err.message : "Неизвестная ошибка";
+      toast.error(`Ошибка при сбросе пароля: ${msg}`);
+    },
   });
 
   function resetCreateForm() {

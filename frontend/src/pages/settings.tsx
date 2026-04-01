@@ -233,9 +233,9 @@ export default function SettingsPage() {
     >
       <Tabs defaultValue="settings" className="w-full">
         <TabsList className="mb-4">
-          <TabsTrigger value="settings">Параметры</TabsTrigger>
-          <TabsTrigger value="metrics">Метрики</TabsTrigger>
-          <TabsTrigger value="users">Доступ и Роли</TabsTrigger>
+          <TabsTrigger value="settings">API и Интеграции</TabsTrigger>
+          <TabsTrigger value="metrics">Системные Метрики</TabsTrigger>
+          <TabsTrigger value="users">Доступ и Пользователи</TabsTrigger>
         </TabsList>
 
         <TabsContent value="settings" className="mt-0">
@@ -266,8 +266,8 @@ export default function SettingsPage() {
                     <SelectValue placeholder="Выберите провайдера" />
                   </SelectTrigger>
                   <SelectContent>
-                    {registry.map(p => (
-                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    {registry.filter(p => p.supports_chat).map(p => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}{p.is_beta ? " (beta)" : ""}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -311,8 +311,8 @@ export default function SettingsPage() {
                     <SelectValue placeholder="Выберите провайдера" />
                   </SelectTrigger>
                   <SelectContent>
-                    {registry.map(p => (
-                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    {registry.filter(p => p.supports_embeddings).map(p => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}{p.is_beta ? " (beta)" : ""}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -348,8 +348,8 @@ export default function SettingsPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="llm-fallback">LLM Fallback</SelectItem>
-                    {registry.map(p => (
-                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    {registry.filter(p => p.supports_rerank).map(p => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}{p.is_beta ? " (beta)" : ""}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

@@ -287,8 +287,8 @@ export default function CatalogPage() {
     >
       <Tabs defaultValue="catalog" className="w-full">
         <TabsList className="mb-4">
-          <TabsTrigger value="catalog">Эталонный каталог</TabsTrigger>
-          <TabsTrigger value="suppliers">Поставщики и алиасы</TabsTrigger>
+          <TabsTrigger value="catalog">Базовый каталог</TabsTrigger>
+          <TabsTrigger value="suppliers">Поставщики / Номенклатура</TabsTrigger>
         </TabsList>
         <TabsContent value="catalog" className="mt-0">
           <div className="grid gap-6 md:grid-cols-4">

@@ -52,7 +52,10 @@ export function MetricsTab() {
   const reindexMutation = useMutation({
     mutationFn: reindexCatalog,
     onSuccess: () => toast.success("Переиндексация запущена"),
-    onError: () => toast.error("Ошибка при запуске переиндексации"),
+    onError: (err) => {
+      const msg = err instanceof Error ? err.message : "Неизвестная ошибка";
+      toast.error(`Ошибка при запуске переиндексации: ${msg}`);
+    },
   });
 
   const healthQuery = useQuery({

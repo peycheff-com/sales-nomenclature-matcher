@@ -44,8 +44,9 @@ export default function ReviewActions({ item, onReviewed }: ReviewActionsProps) 
       toast.success("Решение сохранено");
       onReviewed(variables.final_decision);
     },
-    onError: () => {
-      toast.error("Ошибка сохранения решения");
+    onError: (err) => {
+      const msg = err instanceof Error ? err.message : "Неизвестная ошибка";
+      toast.error(`Ошибка сохранения решения: ${msg}`);
     }
   });
 

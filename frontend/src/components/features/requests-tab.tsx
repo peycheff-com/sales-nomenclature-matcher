@@ -96,9 +96,10 @@ export function RequestsTab() {
       setDeleteTarget(null);
       toast.success("Запрос успешно удален");
     },
-    onError: () => {
+    onError: (err) => {
       setDeleteTarget(null);
-      toast.error("Не удалось удалить запрос");
+      const msg = err instanceof Error ? err.message : "Неизвестная ошибка";
+      toast.error(`Не удалось удалить запрос: ${msg}`);
     },
   });
 
@@ -115,11 +116,12 @@ export function RequestsTab() {
       setBulkDeleteConfirm(false);
       toast.success(`Удалено запросов: ${selectedIds.size}`);
     },
-    onError: () => {
+    onError: (err) => {
       queryClient.invalidateQueries({ queryKey: ["match-requests"] });
       setSelectedIds(new Set());
       setBulkDeleteConfirm(false);
-      toast.error("Не удалось удалить некоторые запросы");
+      const msg = err instanceof Error ? err.message : "Неизвестная ошибка";
+      toast.error(`Не удалось удалить некоторые запросы: ${msg}`);
     },
   });
 
