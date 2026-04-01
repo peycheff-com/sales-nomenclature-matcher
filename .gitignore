@@ -23,6 +23,17 @@ frontend/dist/
 *.p12
 *.pfx
 
+# Claude Code
+.claude/
+CLAUDE.md
+
+# Data files
+*.xlsx
+*.xls
+
+# Skill files
+*.skill
+
 # IDE and editor configs
 .idea/
 .vscode/
