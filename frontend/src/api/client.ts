@@ -4,6 +4,11 @@ import { getCsrfToken, setAuthenticated } from "@/lib/auth-store";
 const api = ky.create({
   prefixUrl: "/api/v1",
   credentials: "include", // Send httpOnly cookies on every request
+  retry: {
+    limit: 2,
+    methods: ["get"],
+    statusCodes: [408, 502, 503, 504],
+  },
   hooks: {
     beforeRequest: [
       (request) => {
@@ -21,7 +26,9 @@ const api = ky.create({
       async (_request, _options, response) => {
         if (response.status === 401) {
           setAuthenticated(false);
-          window.location.href = "/login";
+          // Don't hard-redirect here — the router's beforeLoad guards
+          // handle redirection. A hard reload would reset in-memory
+          // auth state and cause an infinite redirect loop.
         }
       },
     ],

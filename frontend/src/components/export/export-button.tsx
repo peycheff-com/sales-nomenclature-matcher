@@ -36,18 +36,43 @@ export default function ExportButton({ requestId, totalItems }: ExportButtonProp
   }, [requestId, totalItems]);
 
   function toRows(items: MatchResult[]) {
-    return items.map((item) => ({
-      "Строка": item.line_id ?? "",
-      "Исходный текст": item.raw_text,
-      "Нормализованный": item.normalized_text ?? "",
-      "Статус": STATUS_LABELS[item.status] ?? item.status,
-      "Уверенность": formatConfidence(item.confidence),
-      "Найденный товар": item.best_candidate?.name ?? "",
-      "Артикул": item.best_candidate?.article ?? "",
-      "Бренд": item.best_candidate?.brand ?? "",
-      "ID товара": item.best_candidate?.product_id ?? "",
-      "Причины": item.reasons.join("; "),
-    }));
+    return items.map((item) => {
+      const best = item.best_candidate;
+
+      if (item.original_row && Object.keys(item.original_row).length > 0) {
+        const row = { ...item.original_row };
+        // Try to populate the specific template columns if they exist
+        if ("Номенклатура.1" in row || "Товар 1С" in row) {
+          const colName = "Номенклатура.1" in row ? "Номенклатура.1" : "Товар 1С";
+          row[colName] = best?.name ?? "";
+        } else {
+          row["Найдено в 1С (Товар)"] = best?.name ?? "";
+        }
+
+        row["Найдено в 1С (ID)"] = best?.product_id ?? "";
+        row["Найдено в 1С (Артикул)"] = best?.article ?? "";
+        row["Найдено в 1С (Бренд)"] = best?.brand ?? "";
+        row["Уверенность"] = formatConfidence(item.confidence);
+        row["Статус"] = STATUS_LABELS[item.status] ?? item.status;
+        row["Причины"] = item.reasons.join("; ");
+
+        return row;
+      }
+
+      // Fallback
+      return {
+        "Строка": item.line_id ?? "",
+        "Исходный текст": item.raw_text,
+        "Нормализованный": item.normalized_text ?? "",
+        "Статус": STATUS_LABELS[item.status] ?? item.status,
+        "Уверенность": formatConfidence(item.confidence),
+        "Найденный товар": best?.name ?? "",
+        "Артикул": best?.article ?? "",
+        "Бренд": best?.brand ?? "",
+        "ID товара": best?.product_id ?? "",
+        "Причины": item.reasons.join("; "),
+      };
+    });
   }
 
   async function handleExportCSV() {

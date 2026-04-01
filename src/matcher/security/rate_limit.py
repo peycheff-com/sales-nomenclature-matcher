@@ -69,3 +69,6 @@ class RateLimiter:
 
 # Singleton for login rate limiting: 5 attempts per minute, 5-minute block
 login_rate_limiter = RateLimiter(max_attempts=5, window_seconds=60, block_seconds=300)
+
+# General API rate limiter: 60 requests per minute per IP, 1-minute block
+api_rate_limiter = RateLimiter(max_attempts=60, window_seconds=60, block_seconds=60)

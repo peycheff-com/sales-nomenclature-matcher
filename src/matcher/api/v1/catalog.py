@@ -4,7 +4,7 @@ import tempfile
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Query, UploadFile, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -113,6 +113,11 @@ async def upload_catalog_file(
     if len(content) > MAX_UPLOAD_SIZE:
         raise HTTPException(status_code=413, detail=f"File too large. Max size is {MAX_UPLOAD_SIZE // (1024*1024)} MB")
 
+    # Validate file content matches expected type
+    if source_type == "xlsx" and len(content) >= 4:
+        if content[:4] != b"\x50\x4b\x03\x04":
+            raise HTTPException(status_code=400, detail="File content does not match .xlsx format.")
+
     # Save uploaded file to temp directory
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False, dir="/tmp") as tmp:
         tmp.write(content)
@@ -141,3 +146,18 @@ async def reindex_catalog(
         **body.model_dump(exclude_none=True),
     )
     return JobAccepted(job_id=job_id, status="queued")
+
+
+@router.delete("/catalog/products/{product_id}", status_code=204)
+async def delete_catalog_product(
+    product_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role("admin", "operator")),
+):
+    """Delete a single catalog product by ID."""
+    repo = CatalogRepo(db)
+    deleted = await repo.delete_product(product_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Product not found")
+    await db.commit()
+    return None

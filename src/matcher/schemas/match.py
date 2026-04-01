@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 class MatchItemInput(BaseModel):
     line_id: str | None = None
     raw_text: str = Field(..., min_length=1, max_length=2000)
+    original_row: dict[str, Any] | None = None
     hints: dict[str, Any] | None = None
 
 
@@ -51,6 +52,7 @@ class MatchResult(BaseModel):
     request_item_id: str
     line_id: str | None = None
     raw_text: str
+    original_row: dict[str, Any] | None = None
     normalized_text: str | None = None
     extracted_attributes: dict[str, Any] = {}
     status: Literal["auto_match", "review_needed", "no_match"]

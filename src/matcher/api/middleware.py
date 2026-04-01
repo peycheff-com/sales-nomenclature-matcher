@@ -1,16 +1,23 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 import uuid
 
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
+from matcher.config import settings
 from matcher.logging_config import request_id_var
+from matcher.security.rate_limit import api_rate_limiter
 
 logger = logging.getLogger(__name__)
+
+_TIMEOUT_EXEMPT = frozenset({"/api/v1/health"})
+_RATE_LIMIT_EXEMPT = frozenset({"/api/v1/health", "/metrics"})
 
 
 class RequestIdMiddleware(BaseHTTPMiddleware):
@@ -33,6 +40,50 @@ class RequestIdMiddleware(BaseHTTPMiddleware):
         )
 
         return response
+
+
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    """Per-IP rate limiting for all API endpoints."""
+
+    async def dispatch(self, request: Request, call_next) -> Response:
+        if request.url.path in _RATE_LIMIT_EXEMPT:
+            return await call_next(request)
+
+        client_ip = request.headers.get(
+            "X-Forwarded-For", request.client.host if request.client else "unknown"
+        ).split(",")[0].strip()
+
+        if api_rate_limiter.is_blocked(client_ip):
+            return JSONResponse(
+                status_code=429,
+                content={"error": "Too Many Requests", "detail": "Rate limit exceeded. Try again later."},
+            )
+        api_rate_limiter.record_attempt(client_ip)
+        return await call_next(request)
+
+
+class RequestTimeoutMiddleware(BaseHTTPMiddleware):
+    """Abort requests that exceed the configured timeout."""
+
+    async def dispatch(self, request: Request, call_next) -> Response:
+        if request.url.path in _TIMEOUT_EXEMPT:
+            return await call_next(request)
+        try:
+            return await asyncio.wait_for(
+                call_next(request),
+                timeout=settings.request_timeout_seconds,
+            )
+        except asyncio.TimeoutError:
+            logger.warning(
+                "Request timeout (%ds): %s %s",
+                settings.request_timeout_seconds,
+                request.method,
+                request.url.path,
+            )
+            return JSONResponse(
+                status_code=504,
+                content={"error": "Gateway Timeout", "detail": "Request processing timed out."},
+            )
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):

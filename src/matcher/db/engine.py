@@ -15,6 +15,12 @@ engine = create_async_engine(
     echo=False,
     pool_size=10,
     max_overflow=20,
+    pool_pre_ping=True,
+    pool_recycle=300,
+    connect_args={
+        "server_settings": {"statement_timeout": "120000"},
+        "timeout": 10,
+    },
 )
 
 async_session_factory = async_sessionmaker(
@@ -26,4 +32,8 @@ async_session_factory = async_sessionmaker(
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
     async with async_session_factory() as session:
-        yield session
+        try:
+            yield session
+        except Exception:
+            await session.rollback()
+            raise

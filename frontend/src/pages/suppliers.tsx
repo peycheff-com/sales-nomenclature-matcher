@@ -1,303 +1,418 @@
-import { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { listSuppliers, createSupplier, updateSupplier, createSupplierMapping } from "@/api/suppliers";
-import type { SupplierCreate, SupplierUpdate, SupplierMappingCreate } from "@/api/suppliers";
-import { searchCatalog } from "@/api/catalog";
-import type { CatalogProduct } from "@/api/catalog";
+import { Plus, Check, X, Store, Trash2, Edit2, Loader2, ChevronDown, ChevronRight } from "lucide-react";
+import { toast } from "sonner";
+import {
+  createSupplier,
+  updateSupplier,
+  listSuppliers,
+  deleteSupplier,
+  listSupplierMappings
+} from "@/api/suppliers";
+import type { SupplierProfile } from "@/api/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { PageLayout } from "@/components/layout/page-layout";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export default function SuppliersPage() {
   const queryClient = useQueryClient();
-  const [isAddOpen, setIsAddOpen] = useState(false);
-  const [newSupplier, setNewSupplier] = useState<SupplierCreate>({
-    supplier_id: "",
-    supplier_name: "",
-    strict_mode: false,
-  });
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [newSupplierId, setNewSupplierId] = useState("");
+  const [newSupplierName, setNewSupplierName] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<SupplierProfile | null>(null);
+  const [toggleWarning, setToggleWarning] = useState<SupplierProfile | null>(null);
+  
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editNameValue, setEditNameValue] = useState("");
+  
+  const [expandedSupplier, setExpandedSupplier] = useState<string | null>(null);
 
   const suppliersQuery = useQuery({
-    queryKey: ["suppliers", "all"],
+    queryKey: ["suppliers"],
     queryFn: listSuppliers,
   });
 
   const createMutation = useMutation({
-    mutationFn: createSupplier,
+    mutationFn: async () => {
+      return createSupplier({
+        supplier_id: newSupplierId,
+        supplier_name: newSupplierName,
+        strict_mode: false,
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });
-      setIsAddOpen(false);
-      setNewSupplier({ supplier_id: "", supplier_name: "", strict_mode: false });
+      setIsCreateOpen(false);
+      setNewSupplierId("");
+      setNewSupplierName("");
+      toast.success("Поставщик успешно добавлен");
     },
+    onError: () => toast.error("Ошибка при добавлении поставщика"),
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string, data: SupplierUpdate }) => updateSupplier(id, data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["suppliers"] }),
-  });
-
-  // --- Mapping dialog state ---
-  const [mappingOpen, setMappingOpen] = useState(false);
-  const [mappingSupplierId, setMappingSupplierId] = useState("");
-  const [mappingForm, setMappingForm] = useState<SupplierMappingCreate>({
-    supplier_raw_text: "",
-    product_id: "",
-    mapping_type: "exact",
-  });
-
-  // Catalog product search for product_id field
-  const [catalogQuery, setCatalogQuery] = useState("");
-  const [catalogResults, setCatalogResults] = useState<CatalogProduct[]>([]);
-  const [catalogLoading, setCatalogLoading] = useState(false);
-  const [showCatalogDropdown, setShowCatalogDropdown] = useState(false);
-  const [selectedProductLabel, setSelectedProductLabel] = useState("");
-
-  useEffect(() => {
-    if (catalogQuery.length < 2) {
-      setCatalogResults([]);
-      return;
-    }
-    const timer = setTimeout(async () => {
-      setCatalogLoading(true);
-      try {
-        const results = await searchCatalog(catalogQuery, 10);
-        setCatalogResults(results);
-        setShowCatalogDropdown(true);
-      } catch {
-        setCatalogResults([]);
-      } finally {
-        setCatalogLoading(false);
-      }
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [catalogQuery]);
-
-  const mappingMutation = useMutation({
-    mutationFn: (params: { supplierId: string; data: SupplierMappingCreate }) =>
-      createSupplierMapping(params.supplierId, params.data),
+    mutationFn: ({ id, ...data }: { id: string; supplier_name?: string; strict_mode?: boolean; is_active?: boolean }) => {
+      return updateSupplier(id, data);
+    },
     onSuccess: () => {
-      setMappingOpen(false);
-      setMappingForm({ supplier_raw_text: "", product_id: "", mapping_type: "exact" });
-      setCatalogQuery("");
-      setSelectedProductLabel("");
+      queryClient.invalidateQueries({ queryKey: ["suppliers"] });
+      toast.success("Изменения сохранены");
+      setEditingId(null);
+    },
+    onError: () => toast.error("Ошибка при сохранении"),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteSupplier,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["suppliers"] });
+      setDeleteTarget(null);
+      toast.success("Поставщик удален");
+    },
+    onError: () => {
+      setDeleteTarget(null);
+      toast.error("Не удалось удалить поставщика");
     },
   });
 
-  function openMappingDialog(supplierId: string) {
-    setMappingSupplierId(supplierId);
-    setMappingForm({ supplier_raw_text: "", product_id: "", mapping_type: "exact" });
-    setCatalogQuery("");
-    setSelectedProductLabel("");
-    setCatalogResults([]);
-    setShowCatalogDropdown(false);
-    setMappingOpen(true);
-  }
+  const handleCreateSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newSupplierId || !newSupplierName) {
+      toast.error("Заполните обязательные поля");
+      return;
+    }
+    createMutation.mutate();
+  };
 
-  const items = suppliersQuery.data?.items || [];
+  const startEditing = (s: SupplierProfile) => {
+    setEditingId(s.supplier_id);
+    setEditNameValue(s.supplier_name);
+  };
+
+  const handleToggleActive = (s: SupplierProfile, val: boolean) => {
+    if (!val) {
+      setToggleWarning(s);
+    } else {
+      updateMutation.mutate({ id: s.supplier_id, is_active: val });
+    }
+  };
+
+  const suppliers = suppliersQuery.data?.items ?? [];
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Поставщики</h1>
-          <p className="text-muted-foreground">Управление поставщиками и профилями маппинга.</p>
-        </div>
-        
-        <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-          <DialogTrigger>
-            <Button>Добавить поставщика</Button>
+    <PageLayout
+      title="Управление поставщиками"
+      description="Настройка профилей контрагентов."
+      actions={
+        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+          <DialogTrigger className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground shadow hover:bg-primary/90 h-9 px-4 py-2">
+            <Plus className="mr-2 h-4 w-4" />
+            Добавить поставщика
           </DialogTrigger>
           <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Новый поставщик</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label>ID поставщика (уникальный)</Label>
-                <Input
-                  value={newSupplier.supplier_id}
-                  onChange={(e) => setNewSupplier(s => ({ ...s, supplier_id: e.target.value }))}
-                />
+            <form onSubmit={handleCreateSubmit}>
+              <DialogHeader>
+                <DialogTitle>Новый поставщик</DialogTitle>
+                <DialogDescription>
+                  Создайте профиль для загрузки прайс-листов и настройки правил.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="id">ID (Системный код)</Label>
+                  <Input
+                    id="id"
+                    placeholder="partner_xyz"
+                    value={newSupplierId}
+                    onChange={(e) => setNewSupplierId(e.target.value)}
+                  />
+                  <p className="text-[10px] text-muted-foreground">Только латиница и подчеркивания. Нельзя изменить позже.</p>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="name">Наименование</Label>
+                  <Input
+                    id="name"
+                    placeholder="ООО Ромашка"
+                    value={newSupplierName}
+                    onChange={(e) => setNewSupplierName(e.target.value)}
+                  />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label>Наименование</Label>
-                <Input
-                  value={newSupplier.supplier_name}
-                  onChange={(e) => setNewSupplier(s => ({ ...s, supplier_name: e.target.value }))}
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <Switch
-                  checked={newSupplier.strict_mode}
-                  onCheckedChange={(v: boolean) => setNewSupplier(s => ({ ...s, strict_mode: v }))}
-                />
-                <Label>Строгий режим (только точные совпадения)</Label>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button onClick={() => createMutation.mutate(newSupplier)} disabled={createMutation.isPending || !newSupplier.supplier_id || !newSupplier.supplier_name}>
-                Сохранить
-              </Button>
-            </DialogFooter>
+              <DialogFooter>
+                <Button variant="outline" type="button" onClick={() => setIsCreateOpen(false)}>Отмена</Button>
+                <Button type="submit" disabled={createMutation.isPending}>
+                  {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                  Создать
+                </Button>
+              </DialogFooter>
+            </form>
           </DialogContent>
         </Dialog>
-      </div>
+      }
+    >
 
-      <div className="rounded-md border bg-card">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>ID</TableHead>
-              <TableHead>Наименование</TableHead>
-              <TableHead>Строгий режим</TableHead>
-              <TableHead>Активен</TableHead>
-              <TableHead></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {suppliersQuery.isLoading ? (
+      <Card>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8">Загрузка...</TableCell>
+                <TableHead className="w-10"></TableHead>
+                <TableHead>Поставщик</TableHead>
+                <TableHead>Системный ID</TableHead>
+                <TableHead>Строгий режим</TableHead>
+                <TableHead>Статус</TableHead>
+                <TableHead className="text-right w-24">Действия</TableHead>
               </TableRow>
-            ) : items.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Нет поставщиков</TableCell>
-              </TableRow>
-            ) : (
-              items.map(s => (
-                <TableRow key={s.supplier_id}>
-                  <TableCell className="font-mono">{s.supplier_id}</TableCell>
-                  <TableCell>{s.supplier_name}</TableCell>
-                  <TableCell>
-                    <Switch
-                      checked={s.strict_mode}
-                      onCheckedChange={(v: boolean) => updateMutation.mutate({ id: s.supplier_id, data: { strict_mode: v } })}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Switch
-                      checked={s.is_active}
-                      onCheckedChange={(v: boolean) => updateMutation.mutate({ id: s.supplier_id, data: { is_active: v } })}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Button variant="outline" size="sm" onClick={() => openMappingDialog(s.supplier_id)}>
-                      Маппинг
-                    </Button>
+            </TableHeader>
+            <TableBody>
+              {suppliersQuery.isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="h-24 text-center">
+                    <Loader2 className="mx-auto h-6 w-6 animate-spin text-muted-foreground" />
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
-
-      {/* Mapping creation dialog */}
-      <Dialog open={mappingOpen} onOpenChange={setMappingOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Новый маппинг — {mappingSupplierId}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Исходный текст поставщика</Label>
-              <Input
-                placeholder="Текст из прайса поставщика"
-                value={mappingForm.supplier_raw_text ?? ""}
-                onChange={(e) => setMappingForm(f => ({ ...f, supplier_raw_text: e.target.value }))}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Товар из каталога</Label>
-              <div className="relative">
-                <Input
-                  placeholder="Поиск по каталогу..."
-                  value={selectedProductLabel || catalogQuery}
-                  onChange={(e) => {
-                    setCatalogQuery(e.target.value);
-                    setSelectedProductLabel("");
-                    setMappingForm(f => ({ ...f, product_id: "" }));
-                    setShowCatalogDropdown(true);
-                  }}
-                  onFocus={() => {
-                    if (catalogResults.length > 0) setShowCatalogDropdown(true);
-                  }}
-                />
-                {catalogLoading && (
-                  <div className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                    Поиск...
-                  </div>
-                )}
-                {showCatalogDropdown && catalogResults.length > 0 && (
-                  <div className="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-md border bg-popover shadow-md">
-                    {catalogResults.map(p => (
-                      <button
-                        key={p.product_id}
-                        type="button"
-                        className="flex w-full flex-col items-start px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground"
-                        onClick={() => {
-                          setMappingForm(f => ({ ...f, product_id: p.product_id }));
-                          const label = `${p.name}${p.article ? ` (${p.article})` : ""}`;
-                          setSelectedProductLabel(label);
-                          setShowCatalogDropdown(false);
-                          setCatalogQuery("");
-                        }}
-                      >
-                        <span className="font-medium">{p.name}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {p.article && `Арт: ${p.article}`}{p.brand && ` | ${p.brand}`}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-              {mappingForm.product_id && (
-                <p className="text-xs text-muted-foreground">ID: {mappingForm.product_id}</p>
+              ) : suppliers.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                    Нет активных поставщиков
+                  </TableCell>
+                </TableRow>
+              ) : (
+                suppliers.map((s) => (
+                  <React.Fragment key={s.supplier_id}>
+                    <TableRow className={expandedSupplier === s.supplier_id ? "bg-muted/30" : ""}>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0"
+                          onClick={() => setExpandedSupplier(expandedSupplier === s.supplier_id ? null : s.supplier_id)}
+                        >
+                          {expandedSupplier === s.supplier_id ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        </Button>
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        {editingId === s.supplier_id ? (
+                          <div className="flex flex-col gap-1 w-[200px]">
+                            <Input
+                              value={editNameValue}
+                              onChange={(e) => setEditNameValue(e.target.value)}
+                              className="h-7 text-xs"
+                              autoFocus
+                            />
+                            <div className="flex gap-1">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-6 flex-1 text-[10px]"
+                                onClick={() => updateMutation.mutate({ id: s.supplier_id, supplier_name: editNameValue })}
+                              >
+                                Сохранить
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 px-2 text-muted-foreground"
+                                onClick={() => setEditingId(null)}
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <Store className="h-4 w-4 text-muted-foreground" />
+                            <span className="truncate max-w-[200px]" title={s.supplier_name}>{s.supplier_name}</span>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-5 w-5 opacity-50 hover:opacity-100"
+                              onClick={() => startEditing(s)}
+                            >
+                              <Edit2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs text-muted-foreground">
+                        {s.supplier_id}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={s.strict_mode}
+                            onCheckedChange={(val) => updateMutation.mutate({ id: s.supplier_id, strict_mode: val })}
+                          />
+                          <span className="text-xs text-muted-foreground">
+                            {s.strict_mode ? "Вкл" : "Откл"}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            checked={s.is_active}
+                            onCheckedChange={(val) => handleToggleActive(s, val)}
+                          />
+                          <Badge variant="outline" className={s.is_active ? "bg-green-50 text-green-700" : "bg-gray-50 text-gray-700"}>
+                            {s.is_active ? "Активен" : "Отключен"}
+                          </Badge>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-red-500 hover:bg-red-50 hover:text-red-700"
+                          onClick={() => setDeleteTarget(s)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                    {expandedSupplier === s.supplier_id && (
+                      <TableRow className="bg-muted/10">
+                        <TableCell colSpan={7} className="border-t-0 p-4">
+                          <MappingsPanel supplier={s} />
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </React.Fragment>
+                ))
               )}
-            </div>
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
-            <div className="space-y-2">
-              <Label>Тип маппинга</Label>
-              <Select
-                value={mappingForm.mapping_type}
-                onValueChange={(val) => setMappingForm(f => ({ ...f, mapping_type: val || "exact" }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Тип маппинга" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="exact">exact — точное совпадение</SelectItem>
-                  <SelectItem value="approved">approved — подтверждённый</SelectItem>
-                  <SelectItem value="manual">manual — ручной</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              onClick={() =>
-                mappingMutation.mutate({
-                  supplierId: mappingSupplierId,
-                  data: mappingForm,
-                })
-              }
-              disabled={
-                mappingMutation.isPending ||
-                !mappingForm.supplier_raw_text ||
-                !mappingForm.product_id
-              }
+      <AlertDialog open={!!toggleWarning} onOpenChange={(open) => !open && setToggleWarning(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Отключить поставщика?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Поставщик <span className="font-medium text-foreground">{toggleWarning?.supplier_name}</span> больше не сможет загружать данные в систему,
+              а его маппинги не будут применяться.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-orange-600 hover:bg-orange-700 text-white"
+              onClick={() => {
+                if (toggleWarning) {
+                  updateMutation.mutate({ id: toggleWarning.supplier_id, is_active: false });
+                  setToggleWarning(null);
+                }
+              }}
             >
-              {mappingMutation.isPending ? "Сохранение..." : "Сохранить маппинг"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+              Отключить
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Удалить поставщика?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Вы собираетесь навсегда удалить <span className="font-medium text-foreground">{deleteTarget?.supplier_name}</span> и 
+              все сопутствующие маппинги и настройки. Это действие необратимо.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700 text-white"
+              onClick={() => {
+                if (deleteTarget) {
+                  deleteMutation.mutate(deleteTarget.supplier_id);
+                }
+              }}
+            >
+              Удалить безвозвратно
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </PageLayout>
+  );
+}
+
+function MappingsPanel({ supplier }: { supplier: SupplierProfile }) {
+  const mappingsQuery = useQuery({
+    queryKey: ["supplier-mappings", supplier.supplier_id],
+    queryFn: () => listSupplierMappings(supplier.supplier_id, 100),
+  });
+
+  return (
+    <div className="bg-background rounded-md border p-4 shadow-sm">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="font-medium text-sm flex items-center gap-2">
+          Маппинги ({mappingsQuery.data?.length ?? 0})
+        </h3>
+      </div>
+      
+      {mappingsQuery.isLoading ? (
+        <div className="text-center py-4 text-xs text-muted-foreground animate-pulse">Загрузка маппингов...</div>
+      ) : !mappingsQuery.data || mappingsQuery.data.length === 0 ? (
+        <div className="text-center py-6 text-sm text-muted-foreground border border-dashed rounded">
+          У этого поставщика пока нет сохранённых маппингов (алиасов).
+        </div>
+      ) : (
+        <div className="max-h-[300px] overflow-auto rounded border">
+          <Table>
+            <TableHeader className="bg-muted/50 sticky top-0 z-10">
+              <TableRow>
+                <TableHead className="py-2.5">Исходный текст поставщика</TableHead>
+                <TableHead className="py-2.5">Артикул поставщика</TableHead>
+                <TableHead className="py-2.5">ID Целевого товара (База)</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {mappingsQuery.data.map((m, idx) => (
+                <TableRow key={idx} className="text-xs">
+                  <TableCell className="py-2 font-medium">{m.supplier_raw_text ?? "\u2014"}</TableCell>
+                  <TableCell className="py-2 text-muted-foreground">{m.supplier_article ?? "\u2014"}</TableCell>
+                  <TableCell className="py-2 font-mono text-muted-foreground">{m.product_id}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
     </div>
   );
 }

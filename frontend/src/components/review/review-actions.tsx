@@ -4,6 +4,8 @@ import { Check, Pencil, X, Search, Loader2 } from "lucide-react";
 import { reviewItem } from "@/api/review";
 import { searchCatalog } from "@/api/catalog";
 import type { MatchResult, ReviewInput } from "@/api/types";
+import { DECISION_LABELS, DECISION_COLORS } from "@/lib/constants";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -17,7 +19,7 @@ import { Label } from "@/components/ui/label";
 
 interface ReviewActionsProps {
   item: MatchResult;
-  onReviewed: () => void;
+  onReviewed: (decision: string) => void;
 }
 
 export default function ReviewActions({ item, onReviewed }: ReviewActionsProps) {
@@ -35,10 +37,14 @@ export default function ReviewActions({ item, onReviewed }: ReviewActionsProps) 
   const mutation = useMutation({
     mutationFn: (input: ReviewInput) =>
       reviewItem(item.request_item_id, input),
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       setCorrecting(false);
-      onReviewed();
+      toast.success("Решение сохранено");
+      onReviewed(variables.final_decision);
     },
+    onError: () => {
+      toast.error("Ошибка сохранения решения");
+    }
   });
 
   function handleAccept() {
@@ -66,7 +72,20 @@ export default function ReviewActions({ item, onReviewed }: ReviewActionsProps) 
 
   if (item.status === "auto_match") {
     return (
-      <span className="text-xs text-green-600">Автоматически сопоставлено</span>
+      <span className="text-xs text-green-600 font-medium">Автоматически сопоставлено</span>
+    );
+  }
+
+  if (item.final_decision) {
+    return (
+      <div className="flex flex-col gap-0.5">
+        <span className={`text-xs font-medium px-2 py-0.5 rounded border ${DECISION_COLORS[item.final_decision]}`}>
+          {DECISION_LABELS[item.final_decision] ?? item.final_decision}
+        </span>
+        {item.reviewed_by && (
+          <span className="text-[10px] text-muted-foreground">{item.reviewed_by}</span>
+        )}
+      </div>
     );
   }
 

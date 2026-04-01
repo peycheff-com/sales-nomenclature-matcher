@@ -1,12 +1,9 @@
 import { type ChangeEvent, type DragEvent, useCallback, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import Papa from "papaparse";
-import * as xlsx from "xlsx";
-import { FileUp, Upload, ClipboardList, Loader2 } from "lucide-react";
+import { FileUp, Upload, ClipboardList, Loader2, Trash2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
-import { matchBatch } from "@/api/match";
-import { listMatchRequests } from "@/api/match";
+import { matchBatch, parseFilePreview, listMatchRequests, previewGoogleSheet } from "@/api/match";
 import { listSuppliers } from "@/api/suppliers";
 import type { MatchItemInput } from "@/api/types";
 import { REQUEST_STATUS_LABELS } from "@/lib/constants";
@@ -22,6 +19,9 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -31,6 +31,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { PageLayout } from "@/components/layout/page-layout";
+import { EmptyState } from "@/components/ui/empty-state";
 
 const SUPPLIER_KEY = "matcher_supplier_id";
 
@@ -38,35 +40,42 @@ export default function DashboardPage() {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Supplier selection persisted to localStorage
   const [supplierId, setSupplierId] = useState<string | undefined>(() => {
     return localStorage.getItem(SUPPLIER_KEY) || undefined;
   });
 
-  // Tab state
   const [activeTab, setActiveTab] = useState<string>("file");
+  const [useAi, setUseAi] = useState(false);
 
-  // File upload state
   const [parsedItems, setParsedItems] = useState<MatchItemInput[]>([]);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
 
-  // Text paste state
   const [textInput, setTextInput] = useState("");
+  const [gsheetUrl, setGsheetUrl] = useState("");
 
-  // Suppliers query
   const suppliersQuery = useQuery({
     queryKey: ["suppliers"],
     queryFn: listSuppliers,
   });
 
-  // Recent requests
   const recentQuery = useQuery({
     queryKey: ["match-requests"],
-    queryFn: listMatchRequests,
+    queryFn: () => listMatchRequests(),
   });
 
-  // Match mutation
+  const gsheetMutation = useMutation({
+    mutationFn: previewGoogleSheet,
+    onSuccess: (data) => {
+      setParsedItems(extractItemsFromData(data.rows));
+      setFileName("Google Sheet (" + gsheetUrl.slice(0, 30) + "...)");
+    },
+    onError: (err: any) => {
+      toast.error("Ошибка при чтении Google Таблицы. Проверьте права доступа по ссылке.");
+    }
+  });
+
   const matchMutation = useMutation({
     mutationFn: matchBatch,
     onSuccess: (data) => {
@@ -75,6 +84,17 @@ export default function DashboardPage() {
     },
     onError: () => {
       toast.error("Ошибка при создании запроса");
+    },
+  });
+
+  const parseMutation = useMutation({
+    mutationFn: ({ file, supplierId, useAiColumnPicker }: { file: File; supplierId?: string, useAiColumnPicker: boolean }) => parseFilePreview(file, useAiColumnPicker),
+    onSuccess: (data) => {
+      setParsedItems(data.items);
+      toast.success(`Извлечено ${data.items.length} позиций для предпросмотра`);
+    },
+    onError: (err: any) => {
+      toast.error("Ошибка при разборе файла. Проверьте формат.");
     },
   });
 
@@ -91,50 +111,35 @@ export default function DashboardPage() {
   function extractItemsFromData(data: Record<string, any>[]): MatchItemInput[] {
     return data.map((row, idx) => {
       const rawText =
+        row["Номенклатура клиента"] ||
+        row["Номенклатура"] ||
         row["raw_text"] ||
         row["text"] ||
         row["name"] ||
         row["наименование"] ||
         row["Наименование"] ||
+        Object.values(row).find(v => typeof v === 'string' && isNaN(Number(v))) || // Skip purely numeric columns like "№"
         Object.values(row)[0] ||
         "";
-      const lineId = row["line_id"] || row["id"] || String(idx + 1);
-      return { raw_text: String(rawText).trim(), line_id: String(lineId) };
+      const lineId = row["line_id"] || row["id"] || row["№"] || String(idx + 1);
+      return { raw_text: String(rawText).trim(), line_id: String(lineId), original_row: row };
     }).filter((i) => i.raw_text.length > 0);
   }
 
-  // File parsing (CSV & XLSX)
-  async function processFile(file: File) {
-    setFileName(file.name);
-    
-    if (file.name.endsWith(".xls") || file.name.endsWith(".xlsx")) {
-      try {
-        const buffer = await file.arrayBuffer();
-        const workbook = xlsx.read(buffer, { type: "array" });
-        const sheetName = workbook.SheetNames[0];
-        const sheet = workbook.Sheets[sheetName];
-        const data = xlsx.utils.sheet_to_json<Record<string, any>>(sheet);
-        setParsedItems(extractItemsFromData(data));
-      } catch (e) {
-        toast.error("Ошибка при чтении Excel файла");
-      }
+  function processFile(file: File) {
+    if (file.name.endsWith(".xls") || file.name.endsWith(".xlsx") || file.name.endsWith(".csv") || file.name.endsWith(".tsv") || file.name.endsWith(".txt")) {
+      setSelectedFile(file);
+      setFileName(file.name);
+      parseMutation.mutate({ file, supplierId, useAiColumnPicker: useAi });
     } else {
-      Papa.parse<Record<string, string>>(file, {
-        header: true,
-        skipEmptyLines: true,
-        complete: (result) => {
-          setParsedItems(extractItemsFromData(result.data));
-        },
-        error: () => {
-          toast.error("Ошибка при чтении CSV файла");
-        },
-      });
+      toast.error("Поддерживаются только форматы .xlsx, .xls, .csv, .txt");
     }
   }
 
   function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (file) processFile(file);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
   function handleDrop(e: DragEvent) {
@@ -154,7 +159,6 @@ export default function DashboardPage() {
     setDragging(false);
   }, []);
 
-  // Build items from text
   function getTextItems(): MatchItemInput[] {
     return textInput
       .split("\n")
@@ -165,27 +169,79 @@ export default function DashboardPage() {
       .filter((i) => i.raw_text.length > 0);
   }
 
+  const handleItemEdit = (idx: number, newText: string) => {
+    const newItems = [...parsedItems];
+    newItems[idx].raw_text = newText;
+    setParsedItems(newItems);
+  };
+
+  const handleItemRemove = (idx: number) => {
+    const newItems = [...parsedItems];
+    newItems.splice(idx, 1);
+    setParsedItems(newItems);
+  };
+
+  const checkDuplicates = (items: MatchItemInput[]) => {
+    // Check internal duplicates
+    const seen = new Set();
+    let internalDups = 0;
+    for (const item of items) {
+      const lower = item.raw_text.toLowerCase();
+      if (seen.has(lower)) internalDups++;
+      seen.add(lower);
+    }
+
+    // Check recent requests for identical count (cheap heuristic for re-submission)
+    const recentRequests = recentQuery.data?.items ?? [];
+    const isResubmission = recentRequests.some(r => r.total_items === items.length && r.status !== 'failed');
+
+    return { internalDups, isResubmission };
+  };
+
   function handleSubmit() {
-    const items = activeTab === "file" ? parsedItems : getTextItems();
+    const items = activeTab === "text" ? getTextItems() : parsedItems;
     if (items.length === 0) {
       toast.error("Нет данных для сопоставления");
       return;
     }
+
+    const { internalDups, isResubmission } = checkDuplicates(items);
+    if (isResubmission || internalDups > 0) {
+      let msg = "";
+      if (isResubmission) msg += `Кажется, вы уже отправляли запрос с таким же количеством позиций (${items.length}).\n`;
+      if (internalDups > 0) msg += `Внутри списка найдено ${internalDups} дублирующихся строк.\n`;
+      msg += "Хотите продолжить отправку?";
+
+      if (!window.confirm(msg)) {
+        return;
+      }
+    }
+
+    let ext = "text";
+    if (activeTab === "gsheet") {
+      ext = "google_sheet";
+    } else if (activeTab === "file" && fileName) {
+      const split = fileName.split('.');
+      ext = split[split.length - 1].toLowerCase();
+    }
+
     matchMutation.mutate({
       supplier_id: supplierId,
-      source_type: activeTab === "file" ? "csv" : "text",
+      source_type: ext,
       items,
     });
   }
 
-  const currentItems = activeTab === "file" ? parsedItems : getTextItems();
+  const currentItems = activeTab === "text" ? getTextItems() : parsedItems;
   const recentRequests = (recentQuery.data?.items ?? []).slice(0, 5);
 
+  const activeSuppliers = suppliersQuery.data?.items.filter(s => s.is_active) ?? [];
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Загрузка данных</h1>
-      </div>
+    <PageLayout
+      title="Загрузка данных"
+      description="Загрузите прайс-листы для сопоставления"
+    >
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Main upload area */}
@@ -202,7 +258,7 @@ export default function DashboardPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__all__">Все поставщики</SelectItem>
-                {suppliersQuery.data?.items.map((s) => (
+                {activeSuppliers.map((s) => (
                   <SelectItem key={s.supplier_id} value={s.supplier_id}>
                     {s.supplier_name}
                   </SelectItem>
@@ -216,6 +272,7 @@ export default function DashboardPage() {
               <Tabs value={activeTab} onValueChange={setActiveTab}>
                 <TabsList>
                   <TabsTrigger value="file">Загрузить файл</TabsTrigger>
+                  <TabsTrigger value="gsheet">Google Таблицы</TabsTrigger>
                   <TabsTrigger value="text">Вставить текст</TabsTrigger>
                 </TabsList>
 
@@ -239,7 +296,7 @@ export default function DashboardPage() {
                       </p>
                       {fileName && (
                         <p className="mt-2 text-sm font-medium text-foreground">
-                          {fileName} ({parsedItems.length} строк)
+                          {fileName}
                         </p>
                       )}
                       <input
@@ -250,40 +307,149 @@ export default function DashboardPage() {
                         onChange={handleFileChange}
                       />
                     </div>
-
-                    {/* Preview table */}
-                    {parsedItems.length > 0 && (
-                      <div className="max-h-60 overflow-auto rounded-md border border-border">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead className="w-16">#</TableHead>
-                              <TableHead>Текст</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {parsedItems.slice(0, 20).map((item, idx) => (
-                              <TableRow key={idx}>
-                                <TableCell className="text-xs text-muted-foreground">
-                                  {item.line_id}
-                                </TableCell>
-                                <TableCell className="text-sm">
-                                  {item.raw_text}
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                            {parsedItems.length > 20 && (
+                    {fileName && (
+                      <div className="flex items-center space-x-2 pt-2 px-1 mb-2">
+                        <Switch id="ai-mode" checked={useAi} onCheckedChange={(val) => {
+                          setUseAi(val);
+                          if (selectedFile) parseMutation.mutate({ file: selectedFile, useAiColumnPicker: val });
+                        }} />
+                        <Label htmlFor="ai-mode" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                          Использовать ИИ для поиска колонки (умный поиск)
+                        </Label>
+                        {parseMutation.isPending && <Loader2 className="ml-2 h-4 w-4 text-muted-foreground animate-spin" />}
+                      </div>
+                    )}
+                    
+                    {/* Preview table (Editable) */}
+                    {parsedItems.length > 0 && activeTab === "file" && (
+                      <div className="space-y-2 mt-4">
+                        <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
+                          <span>Убедитесь, что ИИ или система выбрала правильную колонку (отображается до 50 строк)</span>
+                          <span>Извлечено: {parsedItems.length} позиций</span>
+                        </div>
+                        <div className="max-h-80 overflow-auto rounded-md border border-border">
+                          <Table>
+                            <TableHeader>
                               <TableRow>
-                                <TableCell
-                                  colSpan={2}
-                                  className="text-center text-xs text-muted-foreground"
-                                >
-                                  ... и ещё {parsedItems.length - 20} строк
-                                </TableCell>
+                                <TableHead className="w-16">#</TableHead>
+                                <TableHead>Извлеченный текст для сопоставления</TableHead>
+                                <TableHead className="w-12"></TableHead>
                               </TableRow>
-                            )}
-                          </TableBody>
-                        </Table>
+                            </TableHeader>
+                            <TableBody>
+                              {parsedItems.slice(0, 50).map((item, idx) => (
+                                <TableRow key={idx}>
+                                  <TableCell className="text-xs text-muted-foreground py-1">
+                                    {item.line_id || ""}
+                                  </TableCell>
+                                  <TableCell className="py-1">
+                                    <Input 
+                                      value={item.raw_text}
+                                      onChange={(e) => handleItemEdit(idx, e.target.value)}
+                                      className="h-7 px-2 text-sm"
+                                    />
+                                  </TableCell>
+                                  <TableCell className="py-1 pr-4">
+                                    <Button 
+                                      variant="ghost" 
+                                      size="sm" 
+                                      className="h-7 w-7 p-0 text-muted-foreground hover:text-red-500"
+                                      onClick={() => handleItemRemove(idx)}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="gsheet">
+                  <div className="mt-4 space-y-4">
+                    <p className="text-sm text-muted-foreground">Вставьте ссылку на публичную Google Таблицу (обязательно включите доступ "Все у кого есть ссылка")</p>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="https://docs.google.com/spreadsheets/d/..."
+                        value={gsheetUrl}
+                        onChange={(e) => setGsheetUrl(e.target.value)}
+                        className="flex-1"
+                      />
+                      <Button 
+                        onClick={() => gsheetMutation.mutate(gsheetUrl)}
+                        disabled={!gsheetUrl.trim() || gsheetMutation.isPending}
+                      >
+                        {gsheetMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Загрузить
+                      </Button>
+                    </div>
+
+                    {/* Preview table (Editable) */}
+                    {parsedItems.length > 0 && activeTab === "gsheet" && (
+                      <div className="space-y-2 mt-4">
+                        <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
+                          <span>Предпросмотр данных (первые 50 строк)</span>
+                          <span>Всего: {parsedItems.length}</span>
+                        </div>
+                        <div className="max-h-80 overflow-auto rounded-md border border-border">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className="w-16">#</TableHead>
+                                <TableHead>Текст для сопоставления</TableHead>
+                                <TableHead className="w-12"></TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {parsedItems.slice(0, 50).map((item, idx) => (
+                                <TableRow key={idx}>
+                                  <TableCell className="text-xs text-muted-foreground py-1">
+                                    <Input 
+                                      value={item.line_id || ""}
+                                      onChange={(e) => {
+                                        const newItems = [...parsedItems];
+                                        newItems[idx].line_id = e.target.value;
+                                        setParsedItems(newItems);
+                                      }}
+                                      className="h-7 px-2 w-16 text-xs bg-muted/30"
+                                    />
+                                  </TableCell>
+                                  <TableCell className="py-1">
+                                    <Input 
+                                      value={item.raw_text}
+                                      onChange={(e) => handleItemEdit(idx, e.target.value)}
+                                      className="h-7 px-2 text-sm"
+                                    />
+                                  </TableCell>
+                                  <TableCell className="py-1 pr-4">
+                                    <Button 
+                                      variant="ghost" 
+                                      size="sm" 
+                                      className="h-7 w-7 p-0 text-muted-foreground hover:text-red-500"
+                                      onClick={() => handleItemRemove(idx)}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                              {parsedItems.length > 50 && (
+                                <TableRow>
+                                  <TableCell
+                                    colSpan={3}
+                                    className="text-center text-xs text-muted-foreground p-3"
+                                  >
+                                    ... и ещё {parsedItems.length - 50} строк
+                                  </TableCell>
+                                </TableRow>
+                              )}
+                            </TableBody>
+                          </Table>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -299,9 +465,9 @@ export default function DashboardPage() {
                       className="min-h-[200px] font-mono text-sm"
                     />
                     {textInput.trim() && (
-                      <p className="text-xs text-muted-foreground">
-                        {getTextItems().length} позиций
-                      </p>
+                      <div className="flex justify-between items-center text-xs text-muted-foreground px-1">
+                        <span>{getTextItems().length} позиций</span>
+                      </div>
                     )}
                   </div>
                 </TabsContent>
@@ -312,7 +478,7 @@ export default function DashboardPage() {
           <Button
             size="lg"
             onClick={handleSubmit}
-            disabled={matchMutation.isPending || currentItems.length === 0}
+            disabled={currentItems.length === 0 || matchMutation.isPending || parseMutation.isPending}
             className="w-full"
           >
             {matchMutation.isPending ? (
@@ -340,7 +506,11 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               {recentRequests.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Нет запросов</p>
+                <EmptyState
+                  icon={ClipboardList}
+                  title="Нет запросов"
+                  description="Загрузите ваш первый прайс-лист для сопоставления."
+                />
               ) : (
                 <div className="space-y-2">
                   {recentRequests.map((req) => {
@@ -386,6 +556,6 @@ export default function DashboardPage() {
           </Card>
         </div>
       </div>
-    </div>
+    </PageLayout>
   );
 }

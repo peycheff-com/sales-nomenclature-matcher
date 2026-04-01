@@ -17,6 +17,7 @@ export interface SettingsResponse {
   embedding_dimensions: number;
   openrouter_api_key_set: boolean;
   openai_api_key_set: boolean;
+  google_api_key_set: boolean;
   cohere_api_key_set: boolean;
   auto_match_threshold: number;
   review_threshold: number;
@@ -34,6 +35,7 @@ export interface SettingsUpdateInput {
   embedding_dimensions?: number;
   openrouter_api_key?: string;
   openai_api_key?: string;
+  google_api_key?: string;
   cohere_api_key?: string;
   auto_match_threshold?: number;
   review_threshold?: number;

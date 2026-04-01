@@ -37,6 +37,14 @@ export async function createSupplierMapping(
   return api.post(`suppliers/${supplierId}/mappings`, { json: data }).json();
 }
 
+export async function deleteSupplier(supplierId: string): Promise<{ ok: boolean }> {
+  return api.delete(`suppliers/${supplierId}`).json<{ ok: boolean }>();
+}
+
+export async function listSupplierMappings(supplierId: string, limit: number = 50): Promise<any[]> {
+  return api.get(`suppliers/${supplierId}/mappings`, { searchParams: { limit } }).json<any[]>();
+}
+
 // Ensure legacy list endpoint is wrapped:
 export async function listSuppliers(): Promise<{ items: SupplierProfile[] }> {
     return api.get("suppliers").json<{ items: SupplierProfile[] }>();

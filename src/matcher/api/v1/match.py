@@ -1,6 +1,12 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
+
+import re
+import csv
+import io
+import httpx
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -96,6 +102,7 @@ async def match_sync(
             supplier_id=body.supplier_id,
         )
         result = _to_match_result(item_result)
+        result.original_row = item.original_row
         results.append(result)
 
         # Count
@@ -144,7 +151,7 @@ async def match_batch(
     )
 
     # Store items
-    items_data = [{"line_id": item.line_id, "raw_text": item.raw_text} for item in body.items]
+    items_data = [{"line_id": item.line_id, "raw_text": item.raw_text, "original_row": item.original_row} for item in body.items]
     await repo.create_items(request_id, items_data)
     await db.commit()
 
@@ -154,15 +161,70 @@ async def match_batch(
     return BatchRequestAccepted(request_id=request_id, status="queued")
 
 
+@router.get("/match/google-sheet/preview")
+async def preview_google_sheet(
+    url: str = Query(..., description="Google Sheets URL"),
+    current_user: User = Depends(get_current_user),
+):
+    """Fetch a public Google Sheet as CSV and return its raw data."""
+    match = re.search(r"/d/([a-zA-Z0-9-_]+)", url)
+    if not match:
+        raise HTTPException(status_code=400, detail="Invalid Google Sheets URL")
+    
+    doc_id = match.group(1)
+    
+    gid = "0"
+    gid_match = re.search(r"gid=([0-9]+)", url)
+    if gid_match:
+        gid = gid_match.group(1)
+        
+    csv_url = f"https://docs.google.com/spreadsheets/d/{doc_id}/export?format=csv&gid={gid}"
+    
+    try:
+        async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
+            resp = await client.get(csv_url)
+            if resp.status_code == 404:
+                raise HTTPException(status_code=404, detail="Google Sheet not found.")
+            
+            # If redirected to login, it means sheet is private
+            if "ServiceLogin" in str(resp.url):
+                raise HTTPException(
+                    status_code=403, 
+                    detail="Google Sheet is private. Change sharing settings to 'Anyone with the link can view'."
+                )
+                
+            resp.raise_for_status()
+            
+            content = resp.text
+            reader = csv.DictReader(io.StringIO(content))
+            rows = list(reader)
+            if not rows:
+                raise HTTPException(status_code=400, detail="Document is empty or not formatted correctly as CSV.")
+            
+            return {"rows": rows}
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch Google Sheet: {str(e)}")
+
+
 @router.get("/match/requests")
 async def list_match_requests(
+    page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=200),
+    status: str | None = Query(None),
+    supplier_id: str | None = Query(None),
+    created_after: datetime | None = Query(None),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """List recent match requests."""
     repo = MatchRepo(db)
-    requests = await repo.list_requests(limit=limit)
+    requests, total = await repo.list_requests(
+        limit=limit,
+        page=page,
+        status_filter=status,
+        supplier_id=supplier_id,
+        created_after=created_after,
+    )
     items = [
         MatchRequestDetails(
             request_id=r.request_id,
@@ -179,7 +241,7 @@ async def list_match_requests(
         )
         for r in requests
     ]
-    return {"items": items}
+    return {"items": items, "total": total}
 
 
 @router.get("/match/requests/{request_id}", response_model=MatchRequestDetails)
@@ -226,6 +288,7 @@ async def get_match_request_items(
             request_item_id=item.request_item_id,
             line_id=item.line_id,
             raw_text=item.raw_text,
+            original_row=item.original_row_json,
             normalized_text=item.normalized_text,
             extracted_attributes=item.extracted_attributes or {},
             status=item.status,

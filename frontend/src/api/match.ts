@@ -16,12 +16,50 @@ export async function matchBatch(input: MatchRequestInput): Promise<BatchRequest
   return api.post("match/batch", { json: input }).json<BatchRequestAccepted>();
 }
 
+export async function uploadFile(file: File, supplierId?: string, useAiColumnPicker: boolean = false): Promise<BatchRequestAccepted> {
+  const formData = new FormData();
+  formData.append("file", file);
+  if (supplierId && supplierId !== "__all__") {
+    formData.append("supplier_id", supplierId);
+  }
+  if (useAiColumnPicker) {
+    formData.append("use_ai_column_picker", "true");
+  }
+  return api.post("match/upload", { body: formData }).json<BatchRequestAccepted>();
+}
+
+export async function parseFilePreview(file: File, useAiColumnPicker: boolean = false): Promise<{ items: any[] }> {
+  const formData = new FormData();
+  formData.append("file", file);
+  if (useAiColumnPicker) {
+    formData.append("use_ai_column_picker", "true");
+  }
+  return api.post("match/parse", { body: formData }).json<{ items: any[] }>();
+}
+
+export async function previewGoogleSheet(url: string): Promise<{ rows: Record<string, any>[] }> {
+  return api.get("match/google-sheet/preview", { searchParams: { url } }).json<{ rows: Record<string, any>[] }>();
+}
+
 export async function getMatchRequest(requestId: string): Promise<MatchRequestDetails> {
   return api.get(`match/requests/${requestId}`).json<MatchRequestDetails>();
 }
 
-export async function listMatchRequests(): Promise<{ items: MatchRequestDetails[] }> {
-  return api.get("match/requests").json<{ items: MatchRequestDetails[] }>();
+export async function listMatchRequests(params?: {
+  page?: number;
+  limit?: number;
+  supplier_id?: string;
+  status?: string;
+  created_after?: string;
+}): Promise<{ items: MatchRequestDetails[], total?: number }> {
+  const searchParams: Record<string, string | number> = {};
+  if (params?.page != null) searchParams.page = params.page;
+  if (params?.limit != null) searchParams.limit = params.limit;
+  if (params?.supplier_id && params.supplier_id !== "__all__") searchParams.supplier_id = params.supplier_id;
+  if (params?.status && params.status !== "all") searchParams.status = params.status;
+  if (params?.created_after) searchParams.created_after = params.created_after;
+
+  return api.get("match/requests", { searchParams }).json<{ items: MatchRequestDetails[], total?: number }>();
 }
 
 export async function deleteMatchRequest(requestId: string): Promise<{ ok: boolean }> {

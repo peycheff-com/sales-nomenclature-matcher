@@ -29,6 +29,8 @@ dependencies = [
     "passlib[bcrypt]>=1.7",
     "bcrypt>=4.0,<5",
     "defusedxml>=0.7",
+    "pandas>=3.0.2",
+    "prometheus-fastapi-instrumentator>=7.0",
 ]
 
 [project.optional-dependencies]

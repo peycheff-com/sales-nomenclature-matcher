@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { getSettings, updateSettings, getFreeModels, testOneCConnection, type SettingsResponse } from "@/api/settings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +9,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { RefreshCw, CheckCircle2, XCircle } from "lucide-react";
+import { RefreshCw, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { PageLayout } from "@/components/layout/page-layout";
 
 export default function SettingsPage() {
   const queryClient = useQueryClient();
@@ -24,13 +27,6 @@ export default function SettingsPage() {
     queryFn: getFreeModels,
   });
 
-  const mutation = useMutation({
-    mutationFn: updateSettings,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["settings"] });
-    },
-  });
-
   const form = useForm<SettingsResponse>({
     defaultValues: {
       llm_provider: "openrouter",
@@ -41,6 +37,7 @@ export default function SettingsPage() {
       embedding_dimensions: 3072,
       openrouter_api_key_set: false,
       openai_api_key_set: false,
+      google_api_key_set: false,
       cohere_api_key_set: false,
       auto_match_threshold: 0.9,
       review_threshold: 0.6,
@@ -56,12 +53,36 @@ export default function SettingsPage() {
     }
   });
 
-  // Keep form in sync when settings are loaded
+  const mutation = useMutation({
+    mutationFn: updateSettings,
+    onSuccess: (updatedData) => {
+      queryClient.setQueryData(["settings"], updatedData);
+      form.reset(updatedData);
+      toast.success("Настройки успешно сохранены");
+    },
+    onError: () => {
+      toast.error("Ошибка при сохранении настроек");
+    }
+  });
+
   useEffect(() => {
     if (settingsQuery.data) {
       form.reset(settingsQuery.data);
     }
   }, [settingsQuery.data, form]);
+
+  // Unsaved changes warning
+  const isDirty = form.formState.isDirty;
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = "У вас есть несохраненные изменения. Вы уверены, что хотите уйти?";
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [isDirty]);
 
   const testConnectionMutation = useMutation({
     mutationFn: testOneCConnection,
@@ -74,92 +95,161 @@ export default function SettingsPage() {
   });
 
   function onSubmit(data: SettingsResponse) {
-    // Collect the updated values safely, excluding the readonly api_key_set bools and mapping password if empty
     const {
-      openrouter_api_key_set, openai_api_key_set, cohere_api_key_set, ...updateData
+      openrouter_api_key_set, openai_api_key_set, google_api_key_set, cohere_api_key_set, ...updateData
     } = data;
     mutation.mutate(updateData);
-    setTestResult(null); // Clear previous test result
+    setTestResult(null); 
   }
 
   function handleTestConnection() {
-    // Before testing, making sure current drafted settings are saved
     form.handleSubmit(async (data) => {
-        const { openrouter_api_key_set, openai_api_key_set, cohere_api_key_set, ...updateData } = data;
+        const { openrouter_api_key_set, openai_api_key_set, google_api_key_set, cohere_api_key_set, ...updateData } = data;
         await mutation.mutateAsync(updateData);
         testConnectionMutation.mutate();
     })();
   }
 
   if (settingsQuery.isLoading) {
-    return <div className="text-sm text-muted-foreground p-6">Загрузка настроек...</div>;
+    return <div className="text-sm text-muted-foreground p-6 animate-pulse">Загрузка настроек...</div>;
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Настройки системы</h1>
-        <p className="text-muted-foreground">Управление моделями, порогами и подключениями.</p>
-      </div>
+    <PageLayout
+      title="Настройки системы"
+      description="Управление моделями, порогами и подключениями."
+      actions={
+        isDirty && (
+          <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200 gap-1 h-7">
+            <AlertCircle className="w-3 h-3"/> Отличается от сохраненного
+          </Badge>
+        )
+      }
+    >
 
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 max-w-4xl">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 max-w-4xl pb-24">
         <Card>
           <CardHeader>
             <CardTitle>Нейросетевые модели (LLM & Embeddings)</CardTitle>
             <CardDescription>
-              Настройка провайдеров, ключей доступа и выбора моделей для ранкирования.
+              Настройка провайдеров, ключей доступа и параметров моделей.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Ранжирующая модель (OpenRouter/OpenAI)</Label>
-                <Select
-                  value={form.watch("llm_model")}
-                  onValueChange={(val) => form.setValue("llm_model", val || "")}
-                >
-                  <SelectTrigger disabled={modelsQuery.isLoading}>
-                    <SelectValue placeholder="Выберите LLM модель" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {modelsQuery.data?.models.map(m => (
-                      <SelectItem key={m.id} value={m.id}>
-                        {m.name} ({Math.round(m.context_length/1000)}k ctx)
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {modelsQuery.isLoading && <div className="text-xs text-muted-foreground">Загрузка свободных моделей OpenRouter...</div>}
+                <Label>Ранжирующая модель (Оценка качества совпадений)</Label>
+                <div className="flex gap-2">
+                  <Select
+                    value={form.watch("llm_model")}
+                    onValueChange={(val) => form.setValue("llm_model", val || "", { shouldDirty: true })}
+                  >
+                    <SelectTrigger disabled={modelsQuery.isLoading} className="flex-1">
+                      <SelectValue placeholder="Выберите LLM модель" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {modelsQuery.data?.models.map(m => (
+                        <SelectItem key={m.id} value={m.id}>
+                          {m.name} ({Math.round(m.context_length/1000)}k ctx)
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {modelsQuery.isLoading && <div className="text-xs text-muted-foreground">Загрузка моделей OpenRouter...</div>}
               </div>
               <div className="space-y-2">
-                <Label>API Ключ OpenRouter (задайте для изменения)</Label>
+                <Label>API Ключ OpenRouter</Label>
                 <Input
                   type="password"
-                  placeholder={settingsQuery.data?.openrouter_api_key_set ? "••••••••••••••••" : "Введите ключ"}
+                  placeholder={settingsQuery.data?.openrouter_api_key_set ? "••••••••••••••••" : "Введите новый ключ"}
                   {...form.register("openrouter_api_key" as any)}
                 />
               </div>
             </div>
 
+            <div className="grid grid-cols-2 gap-4 pt-4 border-t border-border">
+              <div className="space-y-2">
+                <Label>Провайдер Embeddings</Label>
+                <Select
+                  value={form.watch("embedding_provider")}
+                  onValueChange={(val) => form.setValue("embedding_provider", val || "", { shouldDirty: true })}
+                >
+                  <SelectTrigger disabled={mutation.isPending}>
+                    <SelectValue placeholder="Выберите провайдера" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="openai">OpenAI</SelectItem>
+                    <SelectItem value="openrouter">OpenRouter</SelectItem>
+                    <SelectItem value="google">Google (Gemini)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Модель для Embeddings</Label>
+                <Input {...form.register("embedding_model")} placeholder="Например: text-embedding-3-large" />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              {form.watch("embedding_provider") === "openai" && (
+                <div className="space-y-2 col-span-2">
+                  <Label>API Ключ OpenAI</Label>
+                  <Input
+                    type="password"
+                    placeholder={settingsQuery.data?.openai_api_key_set ? "••••••••••••••••" : "Введите новый ключ"}
+                    {...form.register("openai_api_key" as any)}
+                  />
+                </div>
+              )}
+              {form.watch("embedding_provider") === "openrouter" && (
+                <div className="space-y-2 col-span-2">
+                  <Label>API Ключ OpenRouter (Embeddings)</Label>
+                  <Input
+                    type="password"
+                    placeholder={settingsQuery.data?.openrouter_api_key_set ? "••••••••••••••••" : "Введите новый ключ (общий с LLM)"}
+                    {...form.register("openrouter_api_key" as any)}
+                  />
+                </div>
+              )}
+              {form.watch("embedding_provider") === "google" && (
+                <div className="space-y-2 col-span-2">
+                  <Label>API Ключ Google Gemini</Label>
+                  <Input
+                    type="password"
+                    placeholder={settingsQuery.data?.google_api_key_set ? "••••••••••••••••" : "Введите новый ключ"}
+                    {...form.register("google_api_key" as any)}
+                  />
+                </div>
+              )}
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Модель для Embeddings (OpenAI)</Label>
-                <Input {...form.register("embedding_model")} />
+                <Label>Размерности Embeddings</Label>
+                <Input 
+                  type="number" 
+                  {...form.register("embedding_dimensions", { valueAsNumber: true })} 
+                  placeholder="3072"
+                />
+                <p className="text-[10px] text-muted-foreground">Должно совпадать с параметрами выбранной модели.</p>
               </div>
               <div className="space-y-2">
-                <Label>API Ключ OpenAI (задайте для изменения)</Label>
+                <Label>API Ключ Cohere (Для Rerank_v3 V2)</Label>
                 <Input
                   type="password"
-                  placeholder={settingsQuery.data?.openai_api_key_set ? "••••••••••••••••" : "Введите ключ"}
-                  {...form.register("openai_api_key" as any)}
+                  placeholder={settingsQuery.data?.cohere_api_key_set ? "••••••••••••••••" : "Укажите для активации Cohere Rerank"}
+                  {...form.register("cohere_api_key" as any)}
                 />
               </div>
             </div>
             
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 pt-4 border-t border-border">
               <div className="space-y-2">
                 <Label>Количество кандидатов для Rerank (top_n)</Label>
                 <Input type="number" {...form.register("retrieval_top_n", { valueAsNumber: true })} />
+                <p className="text-[10px] text-muted-foreground">Кол-во лучших по вектору, передаваемых в LLM-rerank.</p>
               </div>
             </div>
           </CardContent>
@@ -169,20 +259,21 @@ export default function SettingsPage() {
           <CardHeader>
             <CardTitle>Подключение к 1С (ERP / УТ)</CardTitle>
             <CardDescription>
-              Интеграция с HTTP-сервисом 1С для импорта каталога из OData или кастомного API.
+              Интеграция с HTTP-сервисом 1С для загрузки эталонного каталога базы.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between rounded-lg border p-3">
               <div className="space-y-0.5">
-                <Label className="text-base">Включить интеграцию с 1С</Label>
+                <Label className="text-base cursor-pointer" htmlFor="onec-enable">Включить интеграцию с 1С</Label>
                 <div className="text-sm text-muted-foreground">
                   Позволит запрашивать номенклатуру напрямую через HTTP-сервис.
                 </div>
               </div>
               <Switch
+                id="onec-enable"
                 checked={form.watch("onec.enabled")}
-                onCheckedChange={(checked: boolean) => form.setValue("onec.enabled", checked)}
+                onCheckedChange={(checked: boolean) => form.setValue("onec.enabled", checked, { shouldDirty: true })}
               />
             </div>
 
@@ -198,78 +289,72 @@ export default function SettingsPage() {
                     <Input {...form.register("onec.catalog_endpoint")} />
                   </div>
                 </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Пользователь</Label>
+                    <Label>Имя пользователя (Логин)</Label>
                     <Input {...form.register("onec.username")} />
                   </div>
                   <div className="space-y-2">
-                    <Label>Пароль</Label>
+                    <Label>Пароль (Оставьте пустым для сохранения старого)</Label>
                     <Input type="password" {...form.register("onec.password")} placeholder="••••••••" />
                   </div>
+                </div>
+
+                <div className="flex items-center gap-4 pt-2">
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={handleTestConnection}
+                    disabled={testConnectionMutation.isPending || mutation.isPending}
+                  >
+                    {testConnectionMutation.isPending ? "Тестируем..." : "Проверить соединение"}
+                  </Button>
+                  
+                  {testResult && (
+                    <div className="flex items-center text-sm flex-1">
+                      {testResult.status === "ok" ? (
+                        <div className="text-green-600 flex items-center gap-1 bg-green-50 px-3 py-1.5 rounded-md border border-green-200">
+                          <CheckCircle2 className="h-4 w-4" /> Успешное подключение к 1С ({testResult.httpStatus})
+                        </div>
+                      ) : (
+                        <div className="text-red-600 flex items-center gap-1 bg-red-50 px-3 py-1.5 rounded-md border border-red-200 w-full overflow-hidden">
+                          <XCircle className="h-4 w-4 shrink-0" />
+                          <span className="truncate" title={testResult.detail}>
+                            Ошибка: {testResult.detail} {testResult.httpStatus ? `(${testResult.httpStatus})` : ''}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
           </CardContent>
-          {form.watch("onec.enabled") && (
-            <CardFooter className="flex flex-col items-start gap-4">
-              <div className="flex items-center gap-2">
-                 <Button type="button" variant="outline" onClick={handleTestConnection} disabled={testConnectionMutation.isPending || mutation.isPending}>
-                  {testConnectionMutation.isPending ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  Сохранить и проверить соединение
-                </Button>
-              </div>
-              {testResult && (
-                <div className={`flex items-center gap-2 text-sm ${testResult.status === 'ok' ? 'text-green-600' : 'text-red-600'}`}>
-                  {testResult.status === 'ok' ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
-                  {testResult.status === 'ok' ? 'Соединение успешно установлено!' : `Ошибка: ${testResult.detail || 'Не удалось подключиться'}`}
-                </div>
-              )}
-            </CardFooter>
+        </Card>
+
+        <div className="fixed bottom-0 left-64 right-0 p-4 bg-background/80 backdrop-blur-md border-t flex justify-end gap-2 shadow-sm z-10 transition-all">
+          {isDirty && (
+             <Button
+               type="button"
+               variant="ghost"
+               onClick={() => form.reset()}
+               disabled={mutation.isPending}
+             >
+               Отменить изменения
+             </Button>
           )}
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Пороги достоверности (Confidence)</CardTitle>
-            <CardDescription>
-              Определяют, когда результат считается автоматическим (без ручной проверки).
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Порог автоматического подтверждения</Label>
-                <div className="flex items-center gap-2">
-                  <Input type="number" step="0.05" min="0" max="1" {...form.register("auto_match_threshold", { valueAsNumber: true })} />
-                  <span className="text-sm text-muted-foreground w-full">(&gt; {form.watch("auto_match_threshold")})</span>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Порог отправки на ручную проверку</Label>
-                <div className="flex items-center gap-2">
-                  <Input type="number" step="0.05" min="0" max="1" {...form.register("review_threshold", { valueAsNumber: true })} />
-                  <span className="text-sm text-muted-foreground w-full">(&gt; {form.watch("review_threshold")})</span>
-                </div>
-              </div>
-            </div>
-            <div className="text-xs text-muted-foreground space-y-1">
-              <p>• Уверенность &gt; {form.watch("auto_match_threshold")} → <b>Автосопоставление</b></p>
-              <p>• Уверенность от {form.watch("review_threshold")} до {form.watch("auto_match_threshold")} → <b>Нужна проверка</b></p>
-              <p>• Уверенность &lt; {form.watch("review_threshold")} → <b>Не найдено</b></p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <div className="flex justify-end gap-4 pb-12">
-          <Button type="button" variant="outline" onClick={() => form.reset(settingsQuery.data)} disabled={mutation.isPending}>
-            Отменить изменения
-          </Button>
-          <Button type="submit" disabled={mutation.isPending}>
+          <Button 
+            type="submit" 
+            disabled={!isDirty || mutation.isPending}
+            className="min-w-[120px]"
+          >
             {mutation.isPending ? "Сохранение..." : "Сохранить настройки"}
           </Button>
         </div>
       </form>
-    </div>
+    </PageLayout>
   );
 }
+
+

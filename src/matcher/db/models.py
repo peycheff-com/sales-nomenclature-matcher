@@ -201,6 +201,7 @@ class MatchRequestItem(Base):
     line_id: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     raw_text: Mapped[str] = mapped_column(Text, nullable=False)
     normalized_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    original_row_json: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
     extracted_attributes: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
     status: Mapped[str] = mapped_column(Text, nullable=False)
     best_product_id: Mapped[Optional[str]] = mapped_column(

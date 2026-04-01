@@ -18,3 +18,15 @@ export const REQUEST_STATUS_LABELS: Record<string, string> = {
 };
 
 export const POLLING_INTERVAL = 3000;
+
+export const DECISION_LABELS: Record<string, string> = {
+  accepted: "Принято",
+  corrected: "Исправлено",
+  rejected: "Отклонено",
+};
+
+export const DECISION_COLORS: Record<string, string> = {
+  accepted: "bg-green-50 text-green-700 border-green-200",
+  corrected: "bg-blue-50 text-blue-700 border-blue-200",
+  rejected: "bg-red-50 text-red-700 border-red-200",
+};

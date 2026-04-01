@@ -1,29 +1,41 @@
 import { Link, useMatchRoute } from "@tanstack/react-router";
-import { BarChart3, FileSearch, LayoutDashboard, Settings as SettingsIcon, Database, Users } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { BarChart3, FileSearch, LayoutDashboard, Settings as SettingsIcon, Database, Users, Shield } from "lucide-react";
+import { getMe } from "@/api/auth";
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { to: "/", label: "Загрузка", icon: LayoutDashboard },
-  { to: "/requests", label: "Запросы", icon: FileSearch },
-  { to: "/catalog", label: "Каталог", icon: Database },
-  { to: "/suppliers", label: "Поставщики", icon: Users },
-  { to: "/admin", label: "Импорт Данных", icon: SettingsIcon },
-  { to: "/settings", label: "Настройки", icon: SettingsIcon },
+  { to: "/", label: "Загрузка", icon: LayoutDashboard, adminOnly: false },
+  { to: "/requests", label: "Запросы", icon: FileSearch, adminOnly: false },
+  { to: "/catalog", label: "Каталог", icon: Database, adminOnly: false },
+  { to: "/suppliers", label: "Поставщики", icon: Users, adminOnly: false },
+  { to: "/admin", label: "Админ / Метрики", icon: Shield, adminOnly: true },
+  { to: "/settings", label: "Настройки", icon: SettingsIcon, adminOnly: true },
 ] as const;
 
-export default function Sidebar() {
+interface SidebarProps {
+  onNavigate?: () => void;
+}
+
+export default function Sidebar({ onNavigate }: SidebarProps) {
   const matchRoute = useMatchRoute();
+  const userQuery = useQuery({ queryKey: ["me"], queryFn: getMe, retry: false });
+  const role = userQuery.data?.role;
+
+  const visibleItems = navItems.filter((item) => !item.adminOnly || role === "admin");
 
   return (
     <aside className="flex h-full w-56 flex-col border-r border-border bg-sidebar-background">
       <div className="flex h-14 items-center border-b border-border px-4">
-        <BarChart3 className="mr-2 h-5 w-5 text-primary" />
-        <span className="text-sm font-semibold text-foreground">
-          Matcher
-        </span>
+        <Link to="/" className="flex items-center w-full">
+          <BarChart3 className="mr-2 h-5 w-5 text-primary" />
+          <span className="text-sm font-semibold text-foreground">
+            Matcher
+          </span>
+        </Link>
       </div>
       <nav className="flex-1 space-y-1 p-2">
-        {navItems.map((item) => {
+        {visibleItems.map((item) => {
           const isActive =
             item.to === "/"
               ? matchRoute({ to: "/", fuzzy: false })
@@ -32,6 +44,7 @@ export default function Sidebar() {
             <Link
               key={item.to}
               to={item.to}
+              onClick={onNavigate}
               className={cn(
                 "flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors",
                 isActive
@@ -45,6 +58,9 @@ export default function Sidebar() {
           );
         })}
       </nav>
+      <div className="border-t border-border px-4 py-2">
+        <span className="text-[10px] text-muted-foreground/60">v0.1.0</span>
+      </div>
     </aside>
   );
 }

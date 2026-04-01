@@ -11,6 +11,19 @@ _ARTICLE_DIGIT_RE = re.compile(r"^\d{6,}$")
 _ARTICLE_PREFIX_RE = re.compile(r"^(?:арт\.?|art\.?)(\d{6,})$", re.IGNORECASE)
 
 
+def extract_numbers_from_text(text: str) -> list[float]:
+    """Extract numbers from text for scoring and comparison."""
+    if not text:
+        return []
+    nums = []
+    for m in re.finditer(r'\d+(?:\.\d+)?', text):
+        try:
+            nums.append(float(m.group()))
+        except ValueError:
+            pass
+    return nums
+
+
 @dataclass
 class ExtractedFeatures:
     brand: str | None = None

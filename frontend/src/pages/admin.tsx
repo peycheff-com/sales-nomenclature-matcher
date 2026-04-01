@@ -1,345 +1,219 @@
-import { useCallback, useRef, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  Database,
-  RefreshCw,
   BarChart3,
+  Settings2,
+  Activity,
+  Users,
+  Database,
   Loader2,
-  Upload,
+  RefreshCw,
   Server,
-  FileSpreadsheet,
-  CheckCircle2,
-  AlertCircle,
-  Link,
+  Search,
 } from "lucide-react";
 import { toast } from "sonner";
-import {
-  getCatalogStats,
-  importFromOnec,
-  reindexCatalog,
-  uploadCatalogFile,
-} from "@/api/catalog";
 import { getQualityMetrics } from "@/api/metrics";
+import { listSuppliers } from "@/api/suppliers";
+import { reindexCatalog } from "@/api/catalog";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { PageLayout } from "@/components/layout/page-layout";
 
 export default function AdminPage() {
-  return (
-    <div className="space-y-6">
-      <h1 className="text-xl font-semibold">Администрирование</h1>
-
-      <div className="space-y-6 max-w-4xl">
-        <CatalogSection />
-        <MetricsSection />
-      </div>
-    </div>
-  );
-}
-
-function CatalogSection() {
   const queryClient = useQueryClient();
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [reindexStatus, setReindexStatus] = useState<string | null>(null);
+  const [supplierFilter, setSupplierFilter] = useState<string>("__all__");
+  const [categoryFilter, setCategoryFilter] = useState<string>("");
 
-  const statsQuery = useQuery({
-    queryKey: ["catalog-stats"],
-    queryFn: getCatalogStats,
+  const suppliersQuery = useQuery({
+    queryKey: ["suppliers"],
+    queryFn: listSuppliers,
   });
 
-  const uploadMutation = useMutation({
-    mutationFn: uploadCatalogFile,
-    onSuccess: (data) => {
-      toast.success(`Импорт запущен (${data.job_id})`);
-      queryClient.invalidateQueries({ queryKey: ["catalog-stats"] });
-    },
-    onError: () => toast.error("Не удалось загрузить файл"),
-  });
-
-  const onecMutation = useMutation({
-    mutationFn: importFromOnec,
-    onSuccess: (data) => {
-      toast.success(`Импорт из 1С запущен (${data.job_id})`);
-      queryClient.invalidateQueries({ queryKey: ["catalog-stats"] });
-    },
-    onError: () => toast.error("Не удалось подключиться к 1С. Проверьте настройки."),
+  const metricsQuery = useQuery({
+    queryKey: ["quality-metrics", supplierFilter, categoryFilter],
+    queryFn: () => getQualityMetrics({
+      ...(supplierFilter !== "__all__" && { supplier_id: supplierFilter }),
+      ...(categoryFilter && { category_id: categoryFilter }),
+    }),
   });
 
   const reindexMutation = useMutation({
-    mutationFn: () => reindexCatalog(),
-    onSuccess: (data) => {
-      setReindexStatus(`Задача: ${data.job_id}`);
-      toast.success("Переиндексация запущена");
-    },
-    onError: () => toast.error("Не удалось запустить переиндексацию"),
-  });
-
-  const handleFileSelect = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (file) {
-        uploadMutation.mutate(file);
-        e.target.value = "";
-      }
-    },
-    [uploadMutation],
-  );
-
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      const file = e.dataTransfer.files[0];
-      if (file && (file.name.endsWith(".csv") || file.name.endsWith(".xlsx"))) {
-        uploadMutation.mutate(file);
-      } else {
-        toast.error("Поддерживаются только файлы CSV и XLSX");
-      }
-    },
-    [uploadMutation],
-  );
-
-  const stats = statsQuery.data;
-  const anyLoading = uploadMutation.isPending || onecMutation.isPending;
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Database className="h-5 w-5" />
-          Каталог номенклатуры
-        </CardTitle>
-        <CardDescription>
-          {stats ? (
-            <span className="flex items-center gap-4">
-              <span className="flex items-center gap-1">
-                <FileSpreadsheet className="h-3.5 w-3.5" />
-                {stats.total_products.toLocaleString("ru-RU")} товаров в базе
-              </span>
-              <span className="flex items-center gap-1">
-                {stats.onec_connected ? (
-                  <>
-                    <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
-                    <span className="text-green-700">1С подключена</span>
-                  </>
-                ) : (
-                  <>
-                    <AlertCircle className="h-3.5 w-3.5 text-muted-foreground" />
-                    <span>1С не настроена</span>
-                  </>
-                )}
-              </span>
-            </span>
-          ) : (
-            "Загрузка..."
-          )}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-5">
-        {/* Method 1: File Upload — primary */}
-        <div className="space-y-2">
-          <div className="text-sm font-medium flex items-center gap-2">
-            <Upload className="h-4 w-4" />
-            Загрузить файл из 1С
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Откройте справочник «Номенклатура» в 1С → Ещё → Вывести список → Сохранить как Excel (.xlsx) или CSV.
-            Затем перетащите файл сюда.
-          </p>
-          <div
-            onDrop={handleDrop}
-            onDragOver={(e) => e.preventDefault()}
-            className="flex items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 p-6 transition-colors hover:border-muted-foreground/50 cursor-pointer"
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".csv,.xlsx"
-              className="hidden"
-              onChange={handleFileSelect}
-            />
-            {uploadMutation.isPending ? (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Загрузка и обработка файла...
-              </div>
-            ) : (
-              <div className="text-center">
-                <FileSpreadsheet className="mx-auto h-8 w-8 text-muted-foreground/50" />
-                <div className="mt-2 text-sm text-muted-foreground">
-                  Перетащите CSV или XLSX файл сюда
-                </div>
-                <div className="text-xs text-muted-foreground/70">
-                  или нажмите для выбора
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Method 2: 1C OData — secondary */}
-        <div className="flex items-center justify-between rounded-md border border-border p-3">
-          <div>
-            <div className="text-sm font-medium flex items-center gap-2">
-              <Server className="h-4 w-4" />
-              Импорт из 1С по OData
-            </div>
-            <div className="text-xs text-muted-foreground">
-              {stats?.onec_connected
-                ? "Автоматически загрузить номенклатуру через REST API 1С"
-                : "Сначала настройте подключение к 1С в разделе Настройки"}
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {!stats?.onec_connected && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => (window.location.href = "/settings")}
-              >
-                <Link className="mr-1 h-3.5 w-3.5" />
-                Настроить
-              </Button>
-            )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onecMutation.mutate()}
-              disabled={anyLoading || !stats?.onec_connected}
-            >
-              {onecMutation.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <>
-                  <Database className="mr-1 h-4 w-4" />
-                  Импорт
-                </>
-              )}
-            </Button>
-          </div>
-        </div>
-
-        {/* Reindex */}
-        <div className="flex items-center justify-between rounded-md border border-border p-3">
-          <div>
-            <div className="text-sm font-medium flex items-center gap-2">
-              <RefreshCw className="h-4 w-4" />
-              Переиндексация
-            </div>
-            <div className="text-xs text-muted-foreground">
-              Обновить поисковый индекс и эмбеддинги после импорта
-            </div>
-            {reindexStatus && (
-              <div className="mt-1 text-xs text-muted-foreground">
-                {reindexStatus}
-              </div>
-            )}
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => reindexMutation.mutate()}
-            disabled={reindexMutation.isPending}
-          >
-            {reindexMutation.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              "Переиндексировать"
-            )}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function MetricsSection() {
-  const metricsQuery = useQuery({
-    queryKey: ["quality-metrics"],
-    queryFn: () => getQualityMetrics(),
+    mutationFn: reindexCatalog,
+    onSuccess: () => toast.success("Переиндексация запущена"),
+    onError: () => toast.error("Ошибка при запуске переиндексации"),
   });
 
   const metrics = metricsQuery.data;
-
-  function formatPct(val: number | null | undefined): string {
-    if (val == null) return "—";
-    return `${(val * 100).toFixed(1)}%`;
-  }
-
-  function formatMs(val: number | null | undefined): string {
-    if (val == null) return "—";
-    return `${Math.round(val)} мс`;
-  }
-
-  const cards = [
-    {
-      label: "Всего кейсов",
-      value: metrics?.total_cases ?? "—",
-    },
-    {
-      label: "Top-1 точность",
-      value: formatPct(metrics?.top1_accuracy),
-    },
-    {
-      label: "Top-3 recall",
-      value: formatPct(metrics?.top3_recall),
-    },
-    {
-      label: "Precision@1",
-      value: formatPct(metrics?.precision_at_1),
-    },
-    {
-      label: "Ложные автосопоставления",
-      value: formatPct(metrics?.auto_match_false_positive_rate),
-    },
-    {
-      label: "Принятие ревью",
-      value: formatPct(metrics?.review_acceptance_rate),
-    },
-    {
-      label: "Средняя задержка",
-      value: formatMs(metrics?.avg_latency_ms),
-    },
-  ];
+  const suppliers = suppliersQuery.data?.items ?? [];
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <BarChart3 className="h-4 w-4" />
-          Метрики качества
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        {metricsQuery.isLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-          </div>
-        ) : metricsQuery.isError ? (
-          <div className="py-4 text-center text-sm text-muted-foreground">
-            Не удалось загрузить метрики
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-3">
-            {cards.map((card) => (
-              <div
-                key={card.label}
-                className="rounded-md border border-border p-3"
-              >
-                <div className="text-xs text-muted-foreground">
-                  {card.label}
-                </div>
-                <div className="mt-1 text-lg font-semibold">{card.value}</div>
+    <PageLayout
+      title="Администрирование"
+      description="Управление системой, метрики качества и интеграции."
+    >
+
+      <Tabs defaultValue="metrics" className="w-full">
+        <TabsList className="mb-4">
+          <TabsTrigger value="metrics">
+            <BarChart3 className="mr-2 h-4 w-4" />
+            Метрики качества
+          </TabsTrigger>
+          <TabsTrigger value="system">
+            <Server className="mr-2 h-4 w-4" />
+            Система и Задачи
+          </TabsTrigger>
+          <TabsTrigger value="access">
+            <Users className="mr-2 h-4 w-4" />
+            Доступ
+          </TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="metrics" className="space-y-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-4">
+            <h2 className="text-lg font-medium">Статистика сопоставления</h2>
+            <div className="flex items-center gap-2">
+              <Select value={supplierFilter} onValueChange={(val: string | null) => val && setSupplierFilter(val)}>
+                <SelectTrigger className="w-[220px] bg-background">
+                  <SelectValue placeholder="Все поставщики" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">Все поставщики (Сводно)</SelectItem>
+                  {suppliers.map(s => (
+                    <SelectItem key={s.supplier_id} value={s.supplier_id}>{s.supplier_name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Категория..."
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                  className="w-[180px] pl-8 bg-background"
+                />
               </div>
-            ))}
+            </div>
           </div>
-        )}
-      </CardContent>
-    </Card>
+
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Всего позиций</CardTitle>
+                <Database className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {metricsQuery.isLoading ? <Loader2 className="h-5 w-5 animate-spin"/> : metrics?.total_cases?.toLocaleString() ?? "—"}
+                </div>
+                <p className="text-xs text-muted-foreground">обработано за всё время</p>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Точность Top-1</CardTitle>
+                <Activity className="h-4 w-4 text-green-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-green-600">
+                  {metricsQuery.isLoading ? <Loader2 className="h-5 w-5 animate-spin"/> : metrics ? `${(metrics.top1_accuracy ? metrics.top1_accuracy * 100 : 0).toFixed(1)}%` : "—"}
+                </div>
+                <p className="text-xs text-muted-foreground">лучший кандидат совпал с выбором</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Полнота Top-3</CardTitle>
+                <Settings2 className="h-4 w-4 text-yellow-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-yellow-600">
+                  {metricsQuery.isLoading ? <Loader2 className="h-5 w-5 animate-spin"/> : metrics ? `${(metrics.top3_recall ? metrics.top3_recall * 100 : 0).toFixed(1)}%` : "—"}
+                </div>
+                <p className="text-xs text-muted-foreground">верный ответ в топ 3 кандидатах</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Принято операторами</CardTitle>
+                <Activity className="h-4 w-4 text-primary" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-primary">
+                  {metricsQuery.isLoading ? <Loader2 className="h-5 w-5 animate-spin"/> : metrics ? `${(metrics.review_acceptance_rate ? metrics.review_acceptance_rate * 100 : 0).toFixed(1)}%` : "—"}
+                </div>
+                <p className="text-xs text-muted-foreground">успешные ручные проверки</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle>История качества (Заглушка)</CardTitle>
+              <CardDescription>Изменение % авто-сопоставлений (в разработке)</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[200px] w-full bg-muted/20 border border-dashed rounded-md flex items-center justify-center text-muted-foreground text-sm">
+                График трендов будет доступен в следующих обновлениях
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="system" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Фоновые задачи</CardTitle>
+              <CardDescription>Статус долгих системных операций</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between py-3 border-b border-border text-sm">
+                  <div className="flex flex-col gap-1">
+                    <span className="font-medium">Импорт номенклатуры (1С)</span>
+                    <span className="text-xs text-muted-foreground">Последний запуск: сегодня 10:45</span>
+                  </div>
+                  <Badge variant="outline" className="bg-green-50 text-green-700">Завершено</Badge>
+                </div>
+                
+                <div className="flex items-center justify-between py-3 border-b border-border text-sm">
+                  <div className="flex flex-col gap-1">
+                    <span className="font-medium">Полная переиндексация векторов (Cohere)</span>
+                    <span className="text-xs text-muted-foreground">Автозапуск отключен</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Badge variant="outline" className="bg-gray-50 text-gray-700">Ожидает</Badge>
+                    <Button size="sm" variant="outline" onClick={() => reindexMutation.mutate()} disabled={reindexMutation.isPending}>
+                      <RefreshCw className="mr-2 h-3 w-3" />
+                      Запустить
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="access">
+          <Card>
+            <CardHeader>
+              <CardTitle>Управление пользователями</CardTitle>
+              <CardDescription>Разграничение прав доступа (RBAC)</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[200px] w-full bg-muted/20 border border-dashed rounded-md flex items-center justify-center text-muted-foreground text-sm">
+                Интерфейс управления ролями находится в разработке
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </PageLayout>
   );
 }

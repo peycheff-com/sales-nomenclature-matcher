@@ -43,13 +43,36 @@ class MatchRepo:
         await self.session.flush()
         return req
 
-    async def list_requests(self, limit: int = 50) -> list[MatchRequest]:
-        result = await self.session.execute(
-            select(MatchRequest)
-            .order_by(MatchRequest.created_at.desc())
-            .limit(limit)
-        )
-        return list(result.scalars().all())
+    async def list_requests(
+        self,
+        limit: int = 50,
+        page: int = 1,
+        status_filter: str | None = None,
+        supplier_id: str | None = None,
+        created_after: datetime | None = None,
+    ) -> tuple[list[MatchRequest], int]:
+        conditions = []
+        if status_filter and status_filter != "all":
+            conditions.append(MatchRequest.status == status_filter)
+        if supplier_id and supplier_id != "all":
+            conditions.append(MatchRequest.supplier_id == supplier_id)
+        if created_after is not None:
+            conditions.append(MatchRequest.created_at >= created_after)
+
+        count_stmt = select(func.count()).select_from(MatchRequest)
+        if conditions:
+            count_stmt = count_stmt.where(and_(*conditions))
+            
+        total = (await self.session.execute(count_stmt)).scalar() or 0
+
+        offset = (page - 1) * limit
+        stmt = select(MatchRequest).order_by(MatchRequest.created_at.desc())
+        if conditions:
+            stmt = stmt.where(and_(*conditions))
+        stmt = stmt.limit(limit).offset(offset)
+
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all()), total
 
     async def get_request(self, request_id: str) -> MatchRequest | None:
         result = await self.session.execute(
@@ -111,6 +134,7 @@ class MatchRepo:
                 request_id=request_id,
                 line_id=item.get("line_id"),
                 raw_text=item["raw_text"],
+                original_row_json=item.get("original_row"),
                 status="no_match",
             )
             self.session.add(obj)

@@ -131,3 +131,14 @@ class CatalogRepo:
         self.session.add(alias)
         await self.session.flush()
         return alias
+
+    async def delete_product(self, product_id: str) -> bool:
+        """Deletes a product by ID. Cascades via foreign keys."""
+        stmt = select(CatalogProduct).where(CatalogProduct.product_id == product_id)
+        result = await self.session.execute(stmt)
+        product = result.scalar_one_or_none()
+        if product:
+            await self.session.delete(product)
+            await self.session.flush()
+            return True
+        return False

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import and_, select
+from sqlalchemy import and_, select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from matcher.db.models import SupplierMapping, SupplierProfile
@@ -82,3 +82,22 @@ class SupplierRepo:
             return None
         result = await self.session.execute(stmt.limit(1))
         return result.scalar_one_or_none()
+
+    async def delete_supplier(self, supplier_id: str) -> bool:
+        result = await self.session.execute(
+            delete(SupplierProfile).where(SupplierProfile.supplier_id == supplier_id)
+        )
+        return result.rowcount > 0
+
+    async def get_supplier_mappings(
+        self, supplier_id: str, limit: int = 50, offset: int = 0
+    ) -> list[SupplierMapping]:
+        stmt = (
+            select(SupplierMapping)
+            .where(SupplierMapping.supplier_id == supplier_id)
+            .order_by(SupplierMapping.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())

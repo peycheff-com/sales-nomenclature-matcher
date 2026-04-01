@@ -35,3 +35,7 @@ export async function uploadCatalogFile(file: File): Promise<{ job_id: string }>
 export async function reindexCatalog(): Promise<{ job_id: string }> {
   return api.post("catalog/reindex", { json: {} }).json<{ job_id: string }>();
 }
+
+export async function deleteCatalogProduct(productId: string): Promise<void> {
+  return api.delete(`catalog/products/${productId}`).json();
+}

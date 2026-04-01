@@ -87,11 +87,22 @@ const resultsRoute = createRoute({
   component: ResultsPage,
 });
 
-// Admin
+// Admin (requires admin role)
 const adminRoute = createRoute({
   getParentRoute: () => authLayoutRoute,
   path: "/admin",
   component: AdminPage,
+  beforeLoad: async () => {
+    try {
+      const user = await getMe();
+      if (user.role !== "admin") {
+        throw redirect({ to: "/" });
+      }
+    } catch (e) {
+      if (e instanceof Error) throw redirect({ to: "/" });
+      throw e; // re-throw redirect
+    }
+  },
 });
 
 // Catalog
@@ -108,11 +119,22 @@ const suppliersRoute = createRoute({
   component: SuppliersPage,
 });
 
-// Settings
+// Settings (requires admin role)
 const settingsRoute = createRoute({
   getParentRoute: () => authLayoutRoute,
   path: "/settings",
   component: SettingsPage,
+  beforeLoad: async () => {
+    try {
+      const user = await getMe();
+      if (user.role !== "admin") {
+        throw redirect({ to: "/" });
+      }
+    } catch (e) {
+      if (e instanceof Error) throw redirect({ to: "/" });
+      throw e; // re-throw redirect
+    }
+  },
 });
 
 // Build the route tree

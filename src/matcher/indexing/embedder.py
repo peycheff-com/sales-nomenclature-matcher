@@ -4,6 +4,7 @@ import asyncio
 import logging
 from typing import Sequence
 
+import httpx
 from openai import AsyncOpenAI
 
 from matcher.config import settings
@@ -29,7 +30,7 @@ def _get_client() -> AsyncOpenAI:
         if not api_key or api_key in ("sk-your-key-here", "your-key-here"):
             raise RuntimeError(
                 f"No API key configured for embedding provider '{settings.embedding_provider}'. "
-                f"Set {'OPENROUTER_API_KEY' if settings.embedding_provider == 'openrouter' else 'OPENAI_API_KEY'} in .env"
+                f"Set {'OPENROUTER_API_KEY' if settings.embedding_provider == 'openrouter' else 'OPENAI_API_KEY' if settings.embedding_provider == 'openai' else 'GOOGLE_API_KEY'} in .env"
             )
 
         extra_headers = {}
@@ -41,6 +42,7 @@ def _get_client() -> AsyncOpenAI:
             api_key=api_key,
             base_url=base_url,
             default_headers=extra_headers or None,
+            timeout=httpx.Timeout(60.0, connect=10.0),
         )
         logger.info(
             f"Embedding client initialized: provider={settings.embedding_provider}, "
@@ -65,10 +67,15 @@ async def embed_texts(
     """Embed a list of texts using the configured provider (OpenAI or OpenRouter).
 
     Both providers use the OpenAI-compatible /embeddings endpoint.
+    Google uses its own native REST API via batchEmbedContents.
     Returns list of embedding vectors in same order as input texts.
     """
     model = model or settings.embedding_model
     dimensions = dimensions or settings.embedding_dimensions
+
+    if settings.embedding_provider == "google":
+        return await _embed_texts_google(texts, model, dimensions, batch_size, max_retries)
+
     client = _get_client()
 
     all_embeddings: list[list[float]] = [[] for _ in texts]
@@ -110,3 +117,67 @@ async def embed_single(text: str) -> list[float]:
     """Embed a single text string."""
     results = await embed_texts([text])
     return results[0]
+
+
+async def _embed_texts_google(
+    texts: Sequence[str],
+    model: str,
+    dimensions: int | None,
+    batch_size: int,
+    max_retries: int,
+) -> list[list[float]]:
+    import httpx
+
+    api_key = settings.google_api_key
+    if not api_key or api_key in ("your-key-here", ""):
+        raise RuntimeError("No API key configured for embedding provider 'google'. Set GOOGLE_API_KEY in .env")
+
+    # Google's model names often don't have the 'models/' prefix when supplied in configs
+    model_name = model if model.startswith("models/") else f"models/{model}"
+
+    batch_url = f"https://generativelanguage.googleapis.com/v1beta/{model_name}:batchEmbedContents?key={api_key}"
+
+    all_embeddings: list[list[float]] = [[] for _ in texts]
+
+    async with httpx.AsyncClient() as client:
+        # Avoid creating batches larger than API limits (often 100 for gemini embeddings)
+        batch_size = min(batch_size, 100)
+        
+        for i in range(0, len(texts), batch_size):
+            batch = texts[i : i + batch_size]
+
+            requests = []
+            for text in batch:
+                req = {
+                    "model": model_name,
+                    "content": {"parts": [{"text": text}]}
+                }
+                if dimensions:
+                    req["outputDimensionality"] = dimensions
+                requests.append(req)
+
+            payload = {"requests": requests}
+
+            for attempt in range(max_retries):
+                try:
+                    resp = await client.post(batch_url, json=payload, timeout=30.0)
+                    resp.raise_for_status()
+                    data = resp.json()
+
+                    for j, item in enumerate(data.get("embeddings", [])):
+                        all_embeddings[i + j] = item["values"]
+                    break
+                except Exception as e:
+                    if attempt == max_retries - 1:
+                        raise
+                    wait = 2 ** attempt
+                    logger.warning(
+                        f"Google Embedding batch {i // batch_size} failed (attempt {attempt + 1}): {e}. "
+                        f"Retrying in {wait}s"
+                    )
+                    await asyncio.sleep(wait)
+
+            if i + batch_size < len(texts):
+                await asyncio.sleep(0.5)
+
+    return all_embeddings

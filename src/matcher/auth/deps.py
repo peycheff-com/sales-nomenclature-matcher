@@ -50,10 +50,12 @@ def _extract_token(request: Request, header_token: str | None) -> str | None:
 def _validate_csrf(request: Request) -> None:
     """Validate CSRF token for cookie-authenticated mutating requests.
 
-    Uses double-submit cookie pattern:
-    - csrf_token cookie (set on login, readable by JS)
-    - X-CSRF-Token header (set by JS on each request)
-    - Both must match.
+    Two-layer defense:
+    1. Double-submit cookie (csrf_token cookie == X-CSRF-Token header)
+    2. Origin/Referer validation (same-origin check)
+
+    Either passing is sufficient — layer 2 is the fallback for dev proxies
+    where JS may not see the cookie.
     """
     if request.method not in CSRF_PROTECTED_METHODS:
         return
@@ -67,20 +69,36 @@ def _validate_csrf(request: Request) -> None:
     if not cookie_token:
         return
 
+    # Layer 1: double-submit cookie
     csrf_cookie = request.cookies.get(CSRF_TOKEN_COOKIE)
     csrf_header = request.headers.get(CSRF_HEADER)
+    if csrf_cookie and csrf_header and csrf_cookie == csrf_header:
+        return  # Valid double-submit
 
-    if not csrf_cookie or not csrf_header:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="CSRF token missing",
-        )
+    # Layer 2: Origin / Referer same-origin check (OWASP recommended)
+    origin = request.headers.get("origin")
+    referer = request.headers.get("referer")
+    host = request.headers.get("host", "")
 
-    if csrf_cookie != csrf_header:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="CSRF token mismatch",
-        )
+    if origin:
+        # Origin header present — verify it matches our host
+        from urllib.parse import urlparse
+        parsed = urlparse(origin)
+        origin_host = parsed.netloc
+        if origin_host == host or origin_host.split(":")[0] == host.split(":")[0]:
+            return  # Same-origin request
+
+    if referer:
+        from urllib.parse import urlparse
+        parsed = urlparse(referer)
+        referer_host = parsed.netloc
+        if referer_host == host or referer_host.split(":")[0] == host.split(":")[0]:
+            return  # Same-origin referer
+
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="CSRF validation failed",
+    )
 
 
 async def get_current_user(

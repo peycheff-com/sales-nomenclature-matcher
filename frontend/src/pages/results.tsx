@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, Loader2, Trash2 } from "lucide-react";
@@ -8,9 +9,21 @@ import StatsBar from "@/components/match/stats-bar";
 import ResultsTable from "@/components/match/results-table";
 import ExportButton from "@/components/export/export-button";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { PageLayout } from "@/components/layout/page-layout";
 
 export default function ResultsPage() {
   const { requestId } = useParams({ from: "/auth/requests/$requestId" as never });
+  const [showDelete, setShowDelete] = useState(false);
 
   const requestQuery = useQuery({
     queryKey: ["match-request", requestId],
@@ -64,38 +77,23 @@ export default function ResultsPage() {
   }
 
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+    <PageLayout
+      title={`Запрос ${request.request_id}`}
+      description={`Создан: ${formatDate(request.created_at)}${request.supplier_id ? ` | Поставщик: ${request.supplier_id}` : ""}`}
+      actions={
+        <div className="flex gap-2 items-center">
           <Link to="/requests">
             <Button variant="ghost" size="sm">
               <ArrowLeft className="mr-1 h-4 w-4" />
               Назад
             </Button>
           </Link>
-          <div>
-            <h1 className="text-lg font-semibold">
-              Запрос {request.request_id}
-            </h1>
-            <p className="text-xs text-muted-foreground">
-              Создан: {formatDate(request.created_at)}
-              {request.supplier_id && ` | Поставщик: ${request.supplier_id}`}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex gap-2">
           <Button
             variant="outline"
             size="sm"
             className="text-red-600 hover:text-red-700 hover:bg-red-50"
             disabled={deleteMutation.isPending}
-            onClick={() => {
-              if (window.confirm("Вы действительно хотите безвозвратно удалить этот запрос?")) {
-                deleteMutation.mutate(request.request_id);
-              }
-            }}
+            onClick={() => setShowDelete(true)}
           >
             <Trash2 className="h-4 w-4 mr-2" />
             Удалить
@@ -107,7 +105,8 @@ export default function ResultsPage() {
             />
           )}
         </div>
-      </div>
+      }
+    >
 
       {/* Stats bar */}
       <StatsBar request={request} />
@@ -135,6 +134,30 @@ export default function ResultsPage() {
           Обработка завершилась с ошибкой. Обратитесь к администратору.
         </div>
       )}
-    </div>
+
+      <AlertDialog open={showDelete} onOpenChange={setShowDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Удалить запрос?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Запрос <span className="font-mono">{request.request_id}</span> и все
+              его результаты будут безвозвратно удалены.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>
+              Отмена
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              disabled={deleteMutation.isPending}
+              onClick={() => deleteMutation.mutate(request.request_id)}
+            >
+              {deleteMutation.isPending ? "Удаление..." : "Удалить"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </PageLayout>
   );
 }

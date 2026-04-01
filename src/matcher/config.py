@@ -49,7 +49,7 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://matcher:matcher@localhost:5432/matcher"
     redis_url: str = "redis://localhost:6379"
 
-    # Provider: "openai" | "openrouter"
+    # Provider: "openai" | "openrouter" | "google"
     embedding_provider: str = "openai"
     llm_provider: str = "openai"
 
@@ -63,6 +63,9 @@ class Settings(BaseSettings):
 
     # Cohere (for reranker)
     cohere_api_key: str = ""
+
+    # Google
+    google_api_key: str = ""
 
     # JWT auth
     jwt_secret_key: str = "change-me-in-production"
@@ -79,6 +82,9 @@ class Settings(BaseSettings):
 
     # Logging
     log_level: str = "INFO"
+
+    # Request timeout (seconds)
+    request_timeout_seconds: int = 120
 
     # Matching thresholds
     auto_match_threshold: float = 0.93
@@ -99,6 +105,8 @@ class Settings(BaseSettings):
     def active_embedding_api_key(self) -> str:
         if self.embedding_provider == "openrouter":
             return self.openrouter_api_key
+        if self.embedding_provider == "google":
+            return self.google_api_key
         return self.openai_api_key
 
     @property

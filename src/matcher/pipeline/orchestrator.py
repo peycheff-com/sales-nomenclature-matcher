@@ -12,7 +12,7 @@ from matcher.indexing.search import SearchCandidate, hybrid_search
 from matcher.normalization.pipeline import run_pipeline
 from matcher.pipeline.decision import decide
 from matcher.pipeline.explanations import build_reasons
-from matcher.pipeline.features import extract_features
+from matcher.pipeline.features import extract_features, extract_numbers_from_text
 from matcher.pipeline.overrides import check_supplier_override
 from matcher.pipeline.reranker import rerank_candidates
 from matcher.pipeline.scoring import compute_attribute_overlap, compute_pair_features, score_candidate
@@ -33,17 +33,6 @@ class MatchItemResult:
     best_candidate: dict | None = None
     alternatives: list[dict] = field(default_factory=list)
     reasons: list[str] = field(default_factory=list)
-
-
-def _extract_numbers_from_text(text: str) -> list[float]:
-    """Extract numbers from candidate text for scoring."""
-    nums = []
-    for m in re.finditer(r'\d+(?:\.\d+)?', text):
-        try:
-            nums.append(float(m.group()))
-        except ValueError:
-            pass
-    return nums
 
 
 async def match_single(
@@ -125,7 +114,7 @@ async def match_single(
     scored_candidates = []
     for rr in reranked:
         c = rr.candidate
-        candidate_numbers = _extract_numbers_from_text(c.normalized_name or c.name)
+        candidate_numbers = extract_numbers_from_text(c.normalized_name or c.name)
         pair_features = compute_pair_features(
             query_brand=features.brand,
             query_numbers=features.numbers,
