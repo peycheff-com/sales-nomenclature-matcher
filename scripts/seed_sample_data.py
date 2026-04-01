@@ -196,11 +196,18 @@ def _generate_pipes(rng: random.Random) -> list[dict]:
                             f"Труба {pipe_full} {brand} d{d}x{wall} мм"
                             f" L={length} м{sdr_part}{pn_part}"
                         )
-                        code = (
-                            f"TR-{code_pref}-{d}-PN{pn}-{str(length).replace('.', '')}-{brand[:3].upper()}"
-                            if pn
-                            else f"TR-{code_pref}-{d}-{str(length).replace('.', '')}-{brand[:3].upper()}"
-                        )
+                        len_s = str(length).replace('.', '')
+                        brd = brand[:3].upper()
+                        if pn:
+                            code = (
+                                f"TR-{code_pref}-{d}"
+                                f"-PN{pn}-{len_s}-{brd}"
+                            )
+                        else:
+                            code = (
+                                f"TR-{code_pref}-{d}"
+                                f"-{len_s}-{brd}"
+                            )
                         article = (
                             f"{code_pref}{d}PN{pn}{brand[:2].upper()}"
                             if pn
@@ -327,8 +334,24 @@ def _generate_cables(rng: random.Random) -> list[dict]:
                                 f"Кабель силовой {ctype} {cores}x{sec_str} мм²{color_part} "
                                 f"{gost} {brand} бухта {length} м"
                             )
-                            code = f"CB-{ctype.split('(')[0].split('-')[0]}-{cores}x{sec_str}-{brand[:3].upper()}-{length}-{color[:2].upper() if color else 'DF'}"
-                            article = f"{ctype.replace('(', '').replace(')', '').replace('-', '')}{cores}x{sec_str}{brand[:2].upper()}{color[:1].upper() if color else ''}"
+                            ctype_short = ctype.split('(')[0].split('-')[0]
+                            brd3 = brand[:3].upper()
+                            clr2 = color[:2].upper() if color else 'DF'
+                            code = (
+                                f"CB-{ctype_short}-{cores}x{sec_str}"
+                                f"-{brd3}-{length}-{clr2}"
+                            )
+                            ctype_clean = ctype.replace(
+                                '(', ''
+                            ).replace(')', '').replace('-', '')
+                            brd2 = brand[:2].upper()
+                            clr1 = (
+                                color[:1].upper() if color else ''
+                            )
+                            article = (
+                                f"{ctype_clean}{cores}x{sec_str}"
+                                f"{brd2}{clr1}"
+                            )
                             mfr_code = (
                                 f"{brand[:3].upper()}-{cores}x{sec_str}-{rng.randint(100, 999)}"
                             )
@@ -1172,8 +1195,8 @@ def _generate_fasteners(rng: random.Random) -> list[dict]:
     for name_tpl, code_pref, sizes, unit, brands in FASTENER_TEMPLATES:
         for size_tuple in sizes:
             s = size_tuple[0]
-            l = size_tuple[1] if len(size_tuple) > 1 else None
-            name = name_tpl.format(s=s, l=l) if l else name_tpl.format(s=s, l="")
+            length = size_tuple[1] if len(size_tuple) > 1 else None
+            name = name_tpl.format(s=s, l=length) if length else name_tpl.format(s=s, l="")
             name = name.strip()
 
             # Generate per-brand, per-packaging variants
@@ -1185,7 +1208,7 @@ def _generate_fasteners(rng: random.Random) -> list[dict]:
                     if pack > 1:
                         fname += f" (упаковка {pack} шт)"
 
-                    size_str = f"{s}x{l}" if l else str(s)
+                    size_str = f"{s}x{length}" if length else str(s)
                     code = (
                         f"KR-{code_pref}-{size_str}-{brand[:2].upper()}-{pack}"
                         if pack > 1
@@ -1212,7 +1235,7 @@ def _generate_fasteners(rng: random.Random) -> list[dict]:
                             size_value=Decimal(str(s)),
                             size_unit="мм",
                             weight_value=Decimal(str(round(s * 0.3 * pack * 0.001, 3)))
-                            if l
+                            if length
                             else None,
                             weight_unit="кг",
                             packaging=pack_str if pack > 1 else None,
@@ -1661,7 +1684,10 @@ def _generate_paints(rng: random.Random) -> list[dict]:
                 color_part = f" {color}" if color else ""
                 name = f"{ptype.capitalize()} {brand} {prod_name}{color_part} {vol} л"
                 full_name = f"{ptype.capitalize()} {brand} {prod_name}{color_part} {vol} л"
-                code = f"SP-{brand[:3].upper()}-{prod_name[:5].replace(' ', '').upper()}-{color[:3].upper() if color else 'STD'}-{vol}"
+                brd3 = brand[:3].upper()
+                pn5 = prod_name[:5].replace(' ', '').upper()
+                clr3 = color[:3].upper() if color else 'STD'
+                code = f"SP-{brd3}-{pn5}-{clr3}-{vol}"
                 article = f"SP{brand[:3].upper()}{ptype[:3].upper()}{vol}L"
                 mfr_code = f"{brand[:4].upper()}-SP-{rng.randint(1000, 9999)}"
 
@@ -4725,8 +4751,18 @@ def _generate_electrical(rng: random.Random) -> list[dict]:
             for color in colors:
                 name = f"{type_name} {brand} {line} {color}"
                 full_name = f"{type_name} {brand} серия {line} {color} скрытой установки"
-                article = f"{line.replace(' ', '')}-{type_name[:3].upper()}-{color[:2].upper()}-{rng.randint(100, 999)}"
-                code = f"EL-{brand[:3].upper()}-{line.replace(' ', '')}-{type_name[:3].upper()}-{color[:3].upper()}"
+                line_ns = line.replace(' ', '')
+                tn3 = type_name[:3].upper()
+                brd3 = brand[:3].upper()
+                article = (
+                    f"{line_ns}-{tn3}"
+                    f"-{color[:2].upper()}"
+                    f"-{rng.randint(100, 999)}"
+                )
+                code = (
+                    f"EL-{brd3}-{line_ns}"
+                    f"-{tn3}-{color[:3].upper()}"
+                )
                 mfr_code = f"{brand[:3].upper()}{rng.randint(100000, 999999)}"
 
                 products.append(

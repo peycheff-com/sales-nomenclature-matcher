@@ -50,7 +50,8 @@ class TestCatalogImport:
 
     @pytest.mark.asyncio
     async def test_csv_import_supported(self):
-        """Verify that csv source_type passes the type check (fails on download, which is expected)."""
+        """Verify that csv source_type passes the type check
+        (fails on download, which is expected)."""
         result = await catalog_import(
             {"db_factory": MagicMock()},
             "job_3",

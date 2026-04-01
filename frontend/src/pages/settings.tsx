@@ -8,6 +8,7 @@ import {
   getModels,
   testOneCConnection,
   type SettingsResponse,
+  type SettingsUpdateInput,
 } from "@/api/settings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,9 +27,8 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-  CardFooter,
 } from "@/components/ui/card";
-import { RefreshCw, CheckCircle2, XCircle, AlertCircle, HelpCircle } from "lucide-react";
+import { CheckCircle2, XCircle, AlertCircle, HelpCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { PageLayout } from "@/components/layout/page-layout";
 import { ModelCombobox } from "@/components/ui/model-combobox";
@@ -120,7 +120,7 @@ export default function SettingsPage() {
         httpStatus: data.http_status,
       });
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       setTestResult({
         status: "error",
         detail: err?.message || "Неизвестная ошибка",
@@ -128,11 +128,11 @@ export default function SettingsPage() {
     },
   });
 
-  function prepareUpdateData(data: SettingsResponse & { new_api_keys?: Record<string, string> }) {
-    const { new_api_keys, ...rest } = data;
-    const updateData: any = { ...rest };
-    if (rest.providers_registry) {
-      updateData.providers_registry = rest.providers_registry.map(p => {
+  function prepareUpdateData(data: SettingsResponse & { new_api_keys?: Record<string, string> }): SettingsUpdateInput {
+    const { new_api_keys, providers_registry, ...rest } = data;
+    const updateData: SettingsUpdateInput = { ...rest };
+    if (providers_registry) {
+      updateData.providers_registry = providers_registry.map(p => {
         const updatedKey = new_api_keys?.[p.id];
         if (updatedKey) {
           return { id: p.id, api_key: updatedKey, base_url: p.base_url };
@@ -155,23 +155,7 @@ export default function SettingsPage() {
     })();
   }
 
-  if (settingsQuery.isLoading) {
-    return (
-      <div className="space-y-6 max-w-4xl p-6">
-        <SkeletonCard />
-        <SkeletonCard />
-      </div>
-    );
-  }
-
-  if (settingsQuery.isError) {
-    return (
-      <div className="p-6 max-w-4xl">
-        <QueryErrorBanner error={settingsQuery.error} onRetry={() => settingsQuery.refetch()} />
-      </div>
-    );
-  }
-
+  // eslint-disable-next-line react-hooks/incompatible-library
   const llmProvider = form.watch("llm_provider");
   const embeddingProvider = form.watch("embedding_provider");
   const rerankProvider = form.watch("rerank_provider");
@@ -194,6 +178,23 @@ export default function SettingsPage() {
     enabled: !!rerankProvider && rerankProvider !== "llm-fallback",
   });
 
+  if (settingsQuery.isLoading) {
+    return (
+      <div className="space-y-6 max-w-4xl p-6">
+        <SkeletonCard />
+        <SkeletonCard />
+      </div>
+    );
+  }
+
+  if (settingsQuery.isError) {
+    return (
+      <div className="p-6 max-w-4xl">
+        <QueryErrorBanner error={settingsQuery.error} onRetry={() => settingsQuery.refetch()} />
+      </div>
+    );
+  }
+
   const llmModelsRaw = llmModelsQuery.data?.models || [];
   const llmModels = llmModelsRaw.filter(m => m.type !== "embedding" && m.type !== "rerank");
 
@@ -202,7 +203,7 @@ export default function SettingsPage() {
 
   const rerankModelsRaw = rerankModelsQuery.data?.models || [];
   const rerankModels = rerankModelsRaw.filter(m => m.type === "rerank");
-  
+
   const activeProviderIds = Array.from(new Set([llmProvider, embeddingProvider, rerankProvider])).filter(Boolean);
   const registry = form.watch("providers_registry") || [];
 
@@ -361,7 +362,7 @@ export default function SettingsPage() {
                   <Label>{p.name} Base URL</Label>
                   <Input
                     placeholder="Base URL..."
-                    {...form.register(`providers_registry.${registry.findIndex(x => x.id === p.id)}.base_url` as any)}
+                    {...form.register(`providers_registry.${registry.findIndex(x => x.id === p.id)}.base_url` as `providers_registry.${number}.base_url`)}
                   />
                 </div>
                 <div className="space-y-2 col-span-2 sm:col-span-1">
@@ -369,7 +370,7 @@ export default function SettingsPage() {
                   <Input
                     type="password"
                     placeholder={p.api_key_set ? "••••••••••••••••" : "Введите API ключ"}
-                    {...form.register(`new_api_keys.${p.id}` as any)}
+                    {...form.register(`new_api_keys.${p.id}` as `new_api_keys.${string}`)}
                   />
                   {!p.api_key_set && (
                     <p className="text-[10px] text-yellow-600">API ключ не настроен. Сопоставление не будет работать без ключа.</p>

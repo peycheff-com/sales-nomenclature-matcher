@@ -5,7 +5,6 @@ import { getMatchItems } from "@/api/match";
 import type { MatchResult } from "@/api/types";
 import { STATUS_LABELS } from "@/lib/constants";
 import { formatConfidence } from "@/lib/format";
-import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,

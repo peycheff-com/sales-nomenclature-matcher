@@ -191,7 +191,8 @@ async def _embed_texts_google(
                         raise
                     wait = 2**attempt
                     logger.warning(
-                        f"Google Embedding batch {i // batch_size} failed (attempt {attempt + 1}): {e}. "
+                        f"Google Embedding batch {i // batch_size} "
+                        f"failed (attempt {attempt + 1}): {e}. "
                         f"Retrying in {wait}s"
                     )
                     await asyncio.sleep(wait)

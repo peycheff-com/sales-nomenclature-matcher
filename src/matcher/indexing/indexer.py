@@ -112,7 +112,9 @@ async def reindex_catalog(
                 for pid, emb in zip(product_ids, embeddings):
                     await conn.execute(
                         text("""
-                        INSERT INTO catalog_embeddings (product_id, embedding_model, embedding_version, embedding_vector)
+                        INSERT INTO catalog_embeddings
+                            (product_id, embedding_model,
+                             embedding_version, embedding_vector)
                         VALUES (:pid, :model, :version, :vector)
                         ON CONFLICT (product_id) DO UPDATE SET
                             embedding_model = EXCLUDED.embedding_model,

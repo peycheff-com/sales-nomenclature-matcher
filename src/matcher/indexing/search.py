@@ -82,7 +82,9 @@ async def hybrid_search(
                    ROW_NUMBER() OVER (ORDER BY product_id) as rank
             FROM catalog_products
             WHERE is_active = true
-              AND (article = :article_hint OR code = :article_hint OR manufacturer_code = :article_hint)
+              AND (article = :article_hint
+                   OR code = :article_hint
+                   OR manufacturer_code = :article_hint)
         )"""
         params["article_hint"] = article_hint
     else:

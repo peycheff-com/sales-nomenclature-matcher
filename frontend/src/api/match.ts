@@ -2,6 +2,7 @@ import api from "./client";
 import type {
   BatchRequestAccepted,
   Candidate,
+  MatchItemInput,
   MatchItemsPage,
   MatchRequestDetails,
   MatchRequestInput,
@@ -28,19 +29,19 @@ export async function uploadFile(file: File, supplierId?: string, useAiColumnPic
   return api.post("match/upload", { body: formData }).json<BatchRequestAccepted>();
 }
 
-export async function parseFilePreview(file: File, useAiColumnPicker: boolean = false): Promise<{ items: any[] }> {
+export async function parseFilePreview(file: File, useAiColumnPicker: boolean = false): Promise<{ items: MatchItemInput[] }> {
   const formData = new FormData();
   formData.append("file", file);
   if (useAiColumnPicker) {
     formData.append("use_ai_column_picker", "true");
   }
-  return api.post("match/parse", { body: formData }).json<{ items: any[] }>();
+  return api.post("match/parse", { body: formData }).json<{ items: MatchItemInput[] }>();
 }
 
 export interface FileAnalysisResult {
   mode: "structured";
-  supplier_items: any[];
-  catalog_items: any[];
+  supplier_items: Record<string, unknown>[];
+  catalog_items: Record<string, unknown>[];
   supplier_name: string | null;
   tables_detected: number;
 }
@@ -63,8 +64,8 @@ export async function smartUpload(
   return api.post("match/smart-upload", { body: formData }).json<BatchRequestAccepted>();
 }
 
-export async function previewGoogleSheet(url: string): Promise<{ rows: Record<string, any>[] }> {
-  return api.get("match/google-sheet/preview", { searchParams: { url } }).json<{ rows: Record<string, any>[] }>();
+export async function previewGoogleSheet(url: string): Promise<{ rows: Record<string, unknown>[] }> {
+  return api.get("match/google-sheet/preview", { searchParams: { url } }).json<{ rows: Record<string, unknown>[] }>();
 }
 
 

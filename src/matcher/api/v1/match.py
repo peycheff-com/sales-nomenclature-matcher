@@ -199,7 +199,10 @@ async def preview_google_sheet(
             if "ServiceLogin" in str(resp.url):
                 raise HTTPException(
                     status_code=403,
-                    detail="Google Sheet is private. Change sharing settings to 'Anyone with the link can view'.",
+                    detail=(
+                        "Google Sheet is private. Change sharing"
+                        " settings to 'Anyone with the link can view'."
+                    ),
                 )
 
             resp.raise_for_status()

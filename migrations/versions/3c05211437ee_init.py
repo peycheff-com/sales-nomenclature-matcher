@@ -81,13 +81,20 @@ create index if not exists idx_catalog_products_code on catalog_products(code);
 create index if not exists idx_catalog_products_brand on catalog_products(normalized_brand);
 create index if not exists idx_catalog_products_category on catalog_products(category_id);
 create index if not exists idx_catalog_products_active on catalog_products(is_active);
-create index if not exists idx_catalog_products_search_tsv on catalog_products using gin(search_tsv);
-create index if not exists idx_catalog_products_name_trgm on catalog_products using gin(normalized_name gin_trgm_ops);
-create index if not exists idx_catalog_products_full_name_trgm on catalog_products using gin(normalized_full_name gin_trgm_ops);
-create index if not exists idx_catalog_products_search_doc_trgm on catalog_products using gin(search_document gin_trgm_ops);
+create index if not exists idx_catalog_products_search_tsv
+  on catalog_products using gin(search_tsv);
+create index if not exists idx_catalog_products_name_trgm
+  on catalog_products using gin(normalized_name gin_trgm_ops);
+create index if not exists idx_catalog_products_full_name_trgm
+  on catalog_products
+  using gin(normalized_full_name gin_trgm_ops);
+create index if not exists idx_catalog_products_search_doc_trgm
+  on catalog_products
+  using gin(search_document gin_trgm_ops);
 
 create table if not exists catalog_embeddings (
-  product_id               text primary key references catalog_products(product_id) on delete cascade,
+  product_id               text primary key
+    references catalog_products(product_id) on delete cascade,
   embedding_model          text not null,
   embedding_version        text not null,
   embedding_vector         vector(1024) not null,
@@ -101,23 +108,33 @@ create table if not exists catalog_aliases (
   product_id               text not null references catalog_products(product_id) on delete cascade,
   alias_text               text not null,
   normalized_alias_text    text not null,
-  alias_type               text not null check (alias_type in ('internal','historical','user_added','supplier_derived')),
+  alias_type               text not null
+    check (alias_type in ('internal','historical',
+                          'user_added','supplier_derived')),
   weight                   numeric not null default 1.0,
   created_by               text,
   created_at               timestamptz not null default now()
 );
 create index if not exists idx_catalog_aliases_product on catalog_aliases(product_id);
-create index if not exists idx_catalog_aliases_norm_trgm on catalog_aliases using gin(normalized_alias_text gin_trgm_ops);
+create index if not exists idx_catalog_aliases_norm_trgm
+  on catalog_aliases
+  using gin(normalized_alias_text gin_trgm_ops);
 
 create table if not exists supplier_mappings (
   mapping_id               text primary key,
-  supplier_id              text not null references supplier_profiles(supplier_id) on delete cascade,
+  supplier_id              text not null
+    references supplier_profiles(supplier_id)
+    on delete cascade,
   supplier_sku             text,
   supplier_article         text,
   supplier_raw_text        text,
   normalized_supplier_text text,
-  product_id               text not null references catalog_products(product_id) on delete cascade,
-  mapping_type             text not null check (mapping_type in ('exact','approved','manual','learned')),
+  product_id               text not null
+    references catalog_products(product_id)
+    on delete cascade,
+  mapping_type             text not null
+    check (mapping_type in
+      ('exact','approved','manual','learned')),
   confidence               numeric,
   approved_by              text,
   approved_at              timestamptz,
@@ -130,9 +147,13 @@ before update on supplier_mappings
 for each row execute function set_updated_at();
 create index if not exists idx_supplier_mappings_supplier on supplier_mappings(supplier_id);
 create index if not exists idx_supplier_mappings_product on supplier_mappings(product_id);
-create index if not exists idx_supplier_mappings_supplier_sku on supplier_mappings(supplier_id, supplier_sku);
-create index if not exists idx_supplier_mappings_supplier_article on supplier_mappings(supplier_id, supplier_article);
-create index if not exists idx_supplier_mappings_norm_text_trgm on supplier_mappings using gin(normalized_supplier_text gin_trgm_ops);
+create index if not exists idx_supplier_mappings_supplier_sku
+  on supplier_mappings(supplier_id, supplier_sku);
+create index if not exists idx_supplier_mappings_supplier_article
+  on supplier_mappings(supplier_id, supplier_article);
+create index if not exists idx_supplier_mappings_norm_text_trgm
+  on supplier_mappings
+  using gin(normalized_supplier_text gin_trgm_ops);
 
 create table if not exists match_requests (
   request_id               text primary key,
@@ -162,7 +183,9 @@ create table if not exists match_request_items (
   raw_text                 text not null,
   normalized_text          text,
   extracted_attributes     jsonb not null default '{}'::jsonb,
-  status                   text not null check (status in ('auto_match','review_needed','no_match')),
+  status                   text not null
+    check (status in
+      ('auto_match','review_needed','no_match')),
   best_product_id          text references catalog_products(product_id),
   confidence               numeric,
   reasons_json             jsonb not null default '[]'::jsonb,
@@ -179,12 +202,16 @@ before update on match_request_items
 for each row execute function set_updated_at();
 create index if not exists idx_match_request_items_request on match_request_items(request_id);
 create index if not exists idx_match_request_items_status on match_request_items(status);
-create index if not exists idx_match_request_items_best_product on match_request_items(best_product_id);
-create index if not exists idx_match_request_items_final_product on match_request_items(final_product_id);
+create index if not exists idx_match_request_items_best_product
+  on match_request_items(best_product_id);
+create index if not exists idx_match_request_items_final_product
+  on match_request_items(final_product_id);
 
 create table if not exists match_candidates (
   candidate_id             text primary key,
-  request_item_id          text not null references match_request_items(request_item_id) on delete cascade,
+  request_item_id          text not null
+    references match_request_items(request_item_id)
+    on delete cascade,
   product_id               text not null references catalog_products(product_id) on delete cascade,
   retrieval_rank           integer not null,
   lexical_score            numeric,
@@ -197,8 +224,10 @@ create table if not exists match_candidates (
 );
 create index if not exists idx_match_candidates_item on match_candidates(request_item_id);
 create index if not exists idx_match_candidates_product on match_candidates(product_id);
-create index if not exists idx_match_candidates_item_rank on match_candidates(request_item_id, retrieval_rank);
-create index if not exists idx_match_candidates_item_score on match_candidates(request_item_id, final_score desc);
+create index if not exists idx_match_candidates_item_rank
+  on match_candidates(request_item_id, retrieval_rank);
+create index if not exists idx_match_candidates_item_score
+  on match_candidates(request_item_id, final_score desc);
 
 create table if not exists golden_labels (
   label_id                 text primary key,
@@ -231,7 +260,9 @@ create table if not exists normalization_synonyms (
 );
 create index if not exists idx_norm_synonyms_domain on normalization_synonyms(domain);
 create index if not exists idx_norm_synonyms_supplier on normalization_synonyms(supplier_id);
-create index if not exists idx_norm_synonyms_source_trgm on normalization_synonyms using gin(normalized_source_text gin_trgm_ops);
+create index if not exists idx_norm_synonyms_source_trgm
+  on normalization_synonyms
+  using gin(normalized_source_text gin_trgm_ops);
 
 create table if not exists index_versions (
   index_version_id         text primary key,

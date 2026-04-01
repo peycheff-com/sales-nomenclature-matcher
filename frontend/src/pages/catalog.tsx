@@ -13,7 +13,6 @@ import {
   uploadCatalogFile,
   deleteCatalogProduct,
 } from "@/api/catalog";
-import type { CatalogProduct } from "@/api/catalog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -152,6 +151,7 @@ export default function CatalogPage() {
   // GAP-5.3: Bulk delete mutation
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const handleBulkDelete = useCallback(async () => {
+    if (bulkDeleting) return;
     setBulkDeleting(true);
     const ids = Array.from(selectedIds);
     let successCount = 0;
@@ -214,7 +214,6 @@ export default function CatalogPage() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    setDebouncedQuery(searchInput.trim());
     setPage(1);
     setExpandedProduct(null);
     setSelectedIds(new Set());

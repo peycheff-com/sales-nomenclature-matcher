@@ -84,7 +84,12 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "search_catalog",
-            "description": "Searches the internal 1C product catalog for specific brands, articles, or keywords. Use this when the initial candidates didn't contain the exact product.",
+            "description": (
+                "Searches the internal 1C product catalog for"
+                " specific brands, articles, or keywords."
+                " Use this when the initial candidates"
+                " didn't contain the exact product."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -101,7 +106,12 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "web_search",
-            "description": "Searches the public internet for obscure product nomenclature, verifying manufacturer specifications, or checking what an SKU refers to.",
+            "description": (
+                "Searches the public internet for obscure"
+                " product nomenclature, verifying manufacturer"
+                " specifications, or checking what an"
+                " SKU refers to."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -122,15 +132,26 @@ TOOLS = [
                     "decision_type": {
                         "type": "string",
                         "enum": ["exact_match", "no_match"],
-                        "description": "If you are highly confident, emit exact_match. Otherwise no_match.",
+                        "description": (
+                            "If you are highly confident,"
+                            " emit exact_match."
+                            " Otherwise no_match."
+                        ),
                     },
                     "product_id": {
                         "type": "string",
-                        "description": "The ID of the candidate from the catalog if exact_match. Leave empty otherwise.",
+                        "description": (
+                            "The ID of the candidate from"
+                            " the catalog if exact_match."
+                            " Leave empty otherwise."
+                        ),
                     },
                     "reasoning": {
                         "type": "string",
-                        "description": "A short, one sentence explanation of why this product matches.",
+                        "description": (
+                            "A short, one sentence explanation"
+                            " of why this product matches."
+                        ),
                     },
                 },
                 "required": ["decision_type", "reasoning"],
@@ -162,20 +183,28 @@ async def resolve_agentically(
                 f"ID: {c.product_id} | Name: {c.name} | Article: {c.article} | Brand: {c.brand}"
             )
 
-    initial_prompt = f"""You are the Advanced Resolution Agent for a B2B Nomenclature Matching System.
-The standard pipeline failed to find a highly confident match for the following client request.
-
-CLIENT REQUEST: "{raw_text}"
-
-Current Top Catalog Candidates:
-{chr(10).join(candidate_str) if candidate_str else "None"}
-
-Your job is to determine if the CLIENT REQUEST perfectly matches any of our catalog candidates, or if you can find the correct one by searching the internal catalog using `search_catalog`.
-If the CLIENT REQUEST is obscure (e.g., just an SKU or a weird abbreviation), use the `web_search` tool to figure out what the product is.
-
-Once you have gathered enough context and are highly confident, call the `final_decision` tool.
-Only return 'exact_match' if you are absolutely certain the product is identical (variants like 256GB vs 128GB or different colors must NOT be matched unless specified).
-"""
+    initial_prompt = (
+        "You are the Advanced Resolution Agent for a B2B"
+        " Nomenclature Matching System.\n"
+        "The standard pipeline failed to find a highly"
+        " confident match for the following client request.\n"
+        f'\nCLIENT REQUEST: "{raw_text}"\n'
+        "\nCurrent Top Catalog Candidates:\n"
+        f"{chr(10).join(candidate_str) if candidate_str else 'None'}"
+        "\n\nYour job is to determine if the CLIENT REQUEST"
+        " perfectly matches any of our catalog candidates,"
+        " or if you can find the correct one by searching"
+        " the internal catalog using `search_catalog`.\n"
+        "If the CLIENT REQUEST is obscure (e.g., just an SKU"
+        " or a weird abbreviation), use the `web_search`"
+        " tool to figure out what the product is.\n"
+        "\nOnce you have gathered enough context and are"
+        " highly confident, call the `final_decision` tool.\n"
+        "Only return 'exact_match' if you are absolutely"
+        " certain the product is identical (variants like"
+        " 256GB vs 128GB or different colors must NOT be"
+        " matched unless specified).\n"
+    )
 
     messages = [{"role": "system", "content": initial_prompt}]
 

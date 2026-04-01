@@ -27,7 +27,10 @@ def _validate_excel_content(content: bytes) -> None:
     if header not in (_XLSX_MAGIC, _XLS_MAGIC):
         raise HTTPException(
             status_code=400,
-            detail="File does not appear to be a valid Excel file. Only .xlsx and .xls files are accepted.",
+            detail=(
+                "File does not appear to be a valid Excel file."
+                " Only .xlsx and .xls files are accepted."
+            ),
         )
 
 

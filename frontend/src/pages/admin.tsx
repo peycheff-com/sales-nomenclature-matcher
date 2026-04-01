@@ -1,13 +1,12 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   BarChart3,
   Settings2,
   Activity,
   Users,
   Database,
-  Loader2,
   RefreshCw,
   Server,
   Search,
@@ -36,7 +35,6 @@ import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip
 import { PageLayout } from "@/components/layout/page-layout";
 
 export default function AdminPage() {
-  const queryClient = useQueryClient();
   const [supplierFilter, setSupplierFilter] = useState<string>("__all__");
   const [categoryFilter, setCategoryFilter] = useState<string>("");
   const [tokenDays, setTokenDays] = useState<number>(30);
@@ -499,12 +497,14 @@ export default function AdminPage() {
                         const heightPct = Math.max((d.total_tokens / maxTokens) * 100, 2);
                         return (
                           <Tooltip key={d.date}>
-                            <TooltipTrigger asChild>
-                              <div
-                                className="flex-1 bg-primary/80 hover:bg-primary rounded-t transition-all cursor-default min-w-[4px]"
-                                style={{ height: `${heightPct}%` }}
-                              />
-                            </TooltipTrigger>
+                            <TooltipTrigger
+                              render={
+                                <div
+                                  className="flex-1 bg-primary/80 hover:bg-primary rounded-t transition-all cursor-default min-w-[4px]"
+                                  style={{ height: `${heightPct}%` }}
+                                />
+                              }
+                            />
                             <TooltipContent>
                               <div className="text-xs">
                                 <div className="font-medium">{d.date}</div>

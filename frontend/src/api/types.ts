@@ -1,7 +1,7 @@
 export interface MatchItemInput {
   line_id?: string;
   raw_text: string;
-  original_row?: Record<string, any>;
+  original_row?: Record<string, unknown>;
 }
 
 export interface MatchRequestInput {
@@ -36,7 +36,7 @@ export interface MatchResult {
   request_item_id: string;
   line_id?: string;
   raw_text: string;
-  original_row?: Record<string, any>;
+  original_row?: Record<string, unknown>;
   normalized_text?: string;
   extracted_attributes: Record<string, unknown>;
   status: "auto_match" | "review_needed" | "no_match";

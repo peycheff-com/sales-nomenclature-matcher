@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Plus, X, Store, Trash2, Edit2, Loader2, ChevronDown, ChevronRight,
@@ -496,33 +496,29 @@ function MappingsPanel({ supplier }: { supplier: SupplierProfile }) {
   const [mappingSearch, setMappingSearch] = useState("");
   const debouncedMappingSearch = useDebouncedValue(mappingSearch.trim().toLowerCase(), 300);
 
-  const allMappings = mappingsQuery.data ?? [];
+  const allMappings = useMemo(() => mappingsQuery.data ?? [], [mappingsQuery.data]);
 
   const filteredMappings = useMemo(() => {
     if (!debouncedMappingSearch) return allMappings;
     return allMappings.filter(
-      (m: any) =>
+      (m) =>
         (m.supplier_raw_text ?? "").toLowerCase().includes(debouncedMappingSearch) ||
         (m.product_id ?? "").toLowerCase().includes(debouncedMappingSearch) ||
         (m.supplier_article ?? "").toLowerCase().includes(debouncedMappingSearch)
     );
   }, [allMappings, debouncedMappingSearch]);
 
-  // GAP-6.4: Pagination for mappings
-  const [visibleCount, setVisibleCount] = useState(MAPPINGS_PAGE_SIZE);
+  // GAP-6.4: Pagination for mappings — track extra pages loaded per search term
+  const [pagination, setPagination] = useState({ search: debouncedMappingSearch, extra: 0 });
+  const visibleCount = MAPPINGS_PAGE_SIZE + (pagination.search === debouncedMappingSearch ? pagination.extra : 0);
   const displayedMappings = filteredMappings.slice(0, visibleCount);
   const hasMore = filteredMappings.length > visibleCount;
-
-  // Reset visible count when search changes
-  useEffect(() => {
-    setVisibleCount(MAPPINGS_PAGE_SIZE);
-  }, [debouncedMappingSearch]);
 
   // GAP-6.6: Export mappings to CSV
   const handleExportCSV = useCallback(() => {
     if (!allMappings.length) return;
 
-    const rows = allMappings.map((m: any) => ({
+    const rows = allMappings.map((m) => ({
       "Исходный текст поставщика": m.supplier_raw_text ?? "",
       "Артикул поставщика": m.supplier_article ?? "",
       "ID целевого товара": m.product_id ?? "",
@@ -603,7 +599,7 @@ function MappingsPanel({ supplier }: { supplier: SupplierProfile }) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {displayedMappings.map((m: any, idx: number) => (
+                {displayedMappings.map((m, idx) => (
                   <TableRow key={idx} className="text-xs">
                     <TableCell className="py-2 font-medium">{m.supplier_raw_text ?? "\u2014"}</TableCell>
                     <TableCell className="py-2 text-muted-foreground">{m.supplier_article ?? "\u2014"}</TableCell>
@@ -625,7 +621,7 @@ function MappingsPanel({ supplier }: { supplier: SupplierProfile }) {
                   variant="ghost"
                   size="sm"
                   className="h-6 text-[10px]"
-                  onClick={() => setVisibleCount((prev) => prev + MAPPINGS_PAGE_SIZE)}
+                  onClick={() => setPagination(prev => ({ search: debouncedMappingSearch, extra: (prev.search === debouncedMappingSearch ? prev.extra : 0) + MAPPINGS_PAGE_SIZE }))}
                 >
                   Показать ещё
                 </Button>

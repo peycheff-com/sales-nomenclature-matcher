@@ -4,7 +4,10 @@ Token usage tracking for LLM/embedding/rerank API calls.
 Usage:
     tracker = TokenTracker(request_id="req_123")
     tracker.record("embed", "openai", "text-embedding-3-large", prompt_tokens=500)
-    tracker.record("llm_rerank", "openrouter", "gpt-4o-mini", prompt_tokens=1200, completion_tokens=300)
+    tracker.record(
+        "llm_rerank", "openrouter", "gpt-4o-mini",
+        prompt_tokens=1200, completion_tokens=300,
+    )
     await tracker.flush(session)  # Persist all accumulated records to DB
 """
 

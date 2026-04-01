@@ -39,8 +39,11 @@ def check_health() -> None:
         resp = requests.get(HEALTH_URL, timeout=10)
         data = resp.json()
         if resp.status_code != 200 or data.get("status") != "ok":
+            status = data.get('status')
+            checks = data.get('checks')
             send_telegram(
-                f"\u26a0\ufe0f <b>Matcher degraded</b>\nStatus: {data.get('status')}\nChecks: {data.get('checks')}"
+                f"\u26a0\ufe0f <b>Matcher degraded</b>\n"
+                f"Status: {status}\nChecks: {checks}"
             )
     except Exception as e:
         send_telegram(f"\U0001f534 <b>Matcher DOWN</b>\nError: {e}")

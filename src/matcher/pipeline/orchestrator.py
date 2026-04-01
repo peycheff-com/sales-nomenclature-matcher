@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from matcher.config import settings
 from matcher.db.repos.alias import AliasRepo
 from matcher.indexing.search import hybrid_search
 from matcher.normalization.pipeline import run_pipeline

@@ -89,11 +89,18 @@ I have a dataset with the following columns: {columns}
 Here are the first 5 rows:
 {json.dumps(sample_data, ensure_ascii=False, indent=2)}
 
-Your task is to identify which column contains the "product nomenclature", "product name", "item description" or basically the raw string that a human would recognize as the primary product being sold or ordered. 
-Usually it's named something like "Номенклатура", "Наименование", "Товар", "Product", "Description", but it could be deeply nested or misspelled in messy files.
-Do NOT select columns that only contain quantities, prices, article codes (unless it's the only descriptive text), or sequential IDs.
+Your task is to identify which column contains the "product nomenclature", \
+"product name", "item description" or basically the raw string that a human \
+would recognize as the primary product being sold or ordered.
+Usually it's named something like "Номенклатура", "Наименование", "Товар", \
+"Product", "Description", but it could be deeply nested or misspelled \
+in messy files.
+Do NOT select columns that only contain quantities, prices, article codes \
+(unless it's the only descriptive text), or sequential IDs.
 
-Return ONLY a valid JSON object with a single key "target_column" and the exact string name of the column as the value. Do not explain anything. Output raw JSON.
+Return ONLY a valid JSON object with a single key "target_column" and the \
+exact string name of the column as the value. Do not explain anything. \
+Output raw JSON.
 Example: {{"target_column": "Наименование товара"}}
 """
 
@@ -162,8 +169,9 @@ GRID:
 {grid_text}
 
 TASK: Identify ALL distinct data tables/regions in this grid. For each table, determine:
-1. "role" — classify as "supplier_input" (client/external product list to match), 
-   "catalog_reference" (our own canonical product catalog), or "metadata" (notes, mappings, auxiliary)
+1. "role" — classify as "supplier_input" (client/external product \
+list to match), "catalog_reference" (our own canonical product \
+catalog), or "metadata" (notes, mappings, auxiliary)
 2. "col_start" — first column letter (e.g. "A")
 3. "col_end" — last column letter (e.g. "C")
 4. "header_row" — 1-based row number where the column headers are
@@ -172,14 +180,18 @@ TASK: Identify ALL distinct data tables/regions in this grid. For each table, de
 7. "label" — a short human-readable label for this table, derived from any title/header text
 
 Also extract:
-- "supplier_name" — if you can identify the client/supplier company name from any headers or titles, provide it (e.g. from text like "Номенклатура клиента = КЕМИКС" → "КЕМИКС"). null if not found.
+- "supplier_name" — if you can identify the client/supplier company \
+name from any headers or titles, provide it (e.g. from text like \
+"Номенклатура клиента = КЕМИКС" → "КЕМИКС"). null if not found.
 
 IMPORTANT RULES:
 - Look for visual separators (empty columns) between tables
 - Headers like "Номенклатура клиента" or "Номенклатура нашего поставщика" indicate supplier_input
-- Headers like "Номенклатура наша" or "Каталог" or "Эталонная номенклатура" indicate catalog_reference
+- Headers like "Номенклатура наша" or "Каталог" or \
+"Эталонная номенклатура" indicate catalog_reference
 - If a column contains "Единицы измерения" or "ед.", that's the unit column
-- A table with client/external products is supplier_input; the company's own products are catalog_reference
+- A table with client/external products is supplier_input; \
+the company's own products are catalog_reference
 - If you can only detect ONE table, set its role to "supplier_input"
 
 Return ONLY valid JSON:

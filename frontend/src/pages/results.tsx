@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, ChevronRight, FileSearch, Loader2, RefreshCw, Trash2 } from "lucide-react";
-import { getMatchRequest, deleteMatchRequest, matchBatch } from "@/api/match";
+import { getMatchRequest, deleteMatchRequest } from "@/api/match";
 import { listSuppliers } from "@/api/suppliers";
 import { POLLING_INTERVAL } from "@/lib/constants";
 import { formatDate } from "@/lib/format";

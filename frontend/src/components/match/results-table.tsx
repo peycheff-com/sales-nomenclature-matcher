@@ -93,7 +93,7 @@ export default function ResultsTable({ requestId }: ResultsTableProps) {
           const map = new Map(result.items.map(r => [r.request_item_id, r.final_decision]));
           return {
             ...old,
-            items: old.items.map(i => map.has(i.request_item_id) ? { ...i, final_decision: map.get(i.request_item_id) as any } : i)
+            items: old.items.map(i => map.has(i.request_item_id) ? { ...i, final_decision: map.get(i.request_item_id) as MatchResult["final_decision"] } : i)
           };
         }
       );
@@ -255,15 +255,15 @@ export default function ResultsTable({ requestId }: ResultsTableProps) {
         return {
           ...old,
           items: old.items.map((i) =>
-            i.request_item_id === itemId ? { ...i, final_decision: decision as any } : i
+            i.request_item_id === itemId ? { ...i, final_decision: decision as MatchResult["final_decision"] } : i
           ),
         };
       }
     );
   };
 
-  const fetchedData = itemsQuery.data?.items ?? [];
-  
+  const fetchedData = useMemo(() => itemsQuery.data?.items ?? [], [itemsQuery.data]);
+
   const filteredData = useMemo(() => {
     let result = fetchedData;
     if (debouncedSearchQuery.trim()) {
@@ -285,6 +285,7 @@ export default function ResultsTable({ requestId }: ResultsTableProps) {
     ? Math.ceil(itemsQuery.data.total / PAGE_SIZE)
     : 0;
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data: filteredData,
     columns,
@@ -522,7 +523,6 @@ export default function ResultsTable({ requestId }: ResultsTableProps) {
                       <TableRow className={rowColor}>
                         <TableCell colSpan={columns.length} className="bg-muted/5 border-t-0 pt-0 pb-4 px-12">
                           <CandidatesPanel
-                            itemId={row.original.request_item_id}
                             candidates={candidatesQuery.data?.candidates}
                             isLoading={candidatesQuery.isLoading}
                             reasons={row.original.reasons}
@@ -560,7 +560,6 @@ export default function ResultsTable({ requestId }: ResultsTableProps) {
 }
 
 function CandidatesPanel({
-  itemId,
   candidates,
   isLoading,
   reasons,
@@ -569,7 +568,6 @@ function CandidatesPanel({
   isSelecting,
   hasDecision
 }: {
-  itemId: string;
   candidates: Candidate[] | undefined;
   isLoading: boolean;
   reasons: string[];

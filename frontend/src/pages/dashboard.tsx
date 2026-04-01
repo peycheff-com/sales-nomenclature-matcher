@@ -4,7 +4,6 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { FileUp, Upload, ClipboardList, Loader2, Trash2, AlertTriangle, Database, PackageSearch, HelpCircle } from "lucide-react";
 import { toast } from "sonner";
 import { matchBatch, parseFilePreview, parseFileStructured, smartUpload, listMatchRequests, previewGoogleSheet } from "@/api/match";
-import type { FileAnalysisResult } from "@/api/match";
 import { listSuppliers } from "@/api/suppliers";
 import type { MatchItemInput } from "@/api/types";
 import { REQUEST_STATUS_LABELS } from "@/lib/constants";
@@ -79,14 +78,14 @@ export default function DashboardPage() {
 
   // Structured analysis state (two-panel mode)
   const [structuredMode, setStructuredMode] = useState(false);
-  const [catalogItems, setCatalogItems] = useState<any[]>([]);
-  const [detectedSupplierName, setDetectedSupplierName] = useState<string | null>(null);
+  const [catalogItems, setCatalogItems] = useState<Record<string, unknown>[]>([]);
+  const [, setDetectedSupplierName] = useState<string | null>(null);
   const [editedSupplierName, setEditedSupplierName] = useState("");
 
   const [textInput, setTextInput] = useState("");
   const [gsheetUrl, setGsheetUrl] = useState("");
   const [confirmSubmit, setConfirmSubmit] = useState<{ msg: string; items: MatchItemInput[]; ext: string } | null>(null);
-  const [lastRemoved, setLastRemoved] = useState<{ item: MatchItemInput; index: number } | null>(null);
+  const [, setLastRemoved] = useState<{ item: MatchItemInput; index: number } | null>(null);
 
 
   const suppliersQuery = useQuery({
@@ -105,7 +104,7 @@ export default function DashboardPage() {
       setParsedItems(extractItemsFromData(data.rows));
       setFileName("Google Sheet (" + gsheetUrl.slice(0, 30) + "...)");
     },
-    onError: (err: any) => {
+    onError: () => {
       toast.error("Ошибка при чтении Google Таблицы. Проверьте права доступа по ссылке.");
     }
   });
@@ -122,7 +121,7 @@ export default function DashboardPage() {
   });
 
   const parseMutation = useMutation({
-    mutationFn: ({ file, supplierId, useAiColumnPicker }: { file: File; supplierId?: string, useAiColumnPicker: boolean }) => parseFilePreview(file, useAiColumnPicker),
+    mutationFn: ({ file, useAiColumnPicker }: { file: File; supplierId?: string, useAiColumnPicker: boolean }) => parseFilePreview(file, useAiColumnPicker),
     onSuccess: (data) => {
       setStructuredMode(false);
       setCatalogItems([]);
@@ -130,7 +129,7 @@ export default function DashboardPage() {
       setParsedItems(data.items);
       toast.success(`Извлечено ${data.items.length} позиций для предпросмотра`);
     },
-    onError: (err: any) => {
+    onError: () => {
       toast.error("Ошибка при разборе файла. Проверьте формат.");
     },
   });
@@ -139,10 +138,10 @@ export default function DashboardPage() {
     mutationFn: (file: File) => parseFileStructured(file),
     onSuccess: (data) => {
       setStructuredMode(true);
-      const supplierItems = (data.supplier_items || []).map((item: any, idx: number) => ({
-        raw_text: item.raw_text,
-        line_id: item.line_id || String(idx + 1),
-        original_row: item.original_row,
+      const supplierItems = (data.supplier_items || []).map((item, idx) => ({
+        raw_text: String(item.raw_text ?? ""),
+        line_id: String(item.line_id || idx + 1),
+        original_row: item.original_row as Record<string, unknown> | undefined,
       }));
       setParsedItems(supplierItems);
       setCatalogItems(data.catalog_items || []);
@@ -187,7 +186,7 @@ export default function DashboardPage() {
     }
   }
 
-  function extractItemsFromData(data: Record<string, any>[]): MatchItemInput[] {
+  function extractItemsFromData(data: Record<string, unknown>[]): MatchItemInput[] {
     return data.map((row, idx) => {
       const rawText =
         row["Номенклатура клиента"] ||
@@ -613,9 +612,9 @@ export default function DashboardPage() {
                                 <TableBody>
                                   {catalogItems.slice(0, 50).map((item, idx) => (
                                     <TableRow key={idx}>
-                                      <TableCell className="py-1 px-2 text-xs font-medium">{item.raw_text}</TableCell>
-                                      <TableCell className="py-1 px-2 text-xs text-muted-foreground">{item.unit || "—"}</TableCell>
-                                      <TableCell className="py-1 px-2 text-xs text-muted-foreground">{item.price || "—"}</TableCell>
+                                      <TableCell className="py-1 px-2 text-xs font-medium">{String(item.raw_text ?? "")}</TableCell>
+                                      <TableCell className="py-1 px-2 text-xs text-muted-foreground">{String(item.unit || "—")}</TableCell>
+                                      <TableCell className="py-1 px-2 text-xs text-muted-foreground">{String(item.price || "—")}</TableCell>
                                     </TableRow>
                                   ))}
                                 </TableBody>

@@ -102,28 +102,40 @@ def downgrade() -> None:
                 if key == "openai":
                     conn.execute(
                         sa.text(
-                            "INSERT INTO system_settings (key, value, updated_at) VALUES ('openai_api_key', :v, NOW()) ON CONFLICT (key) DO NOTHING"
+                            "INSERT INTO system_settings"
+                            " (key, value, updated_at)"
+                            " VALUES ('openai_api_key', :v, NOW())"
+                            " ON CONFLICT (key) DO NOTHING"
                         ),
                         {"v": config.get("api_key", "")},
                     )
                 elif key == "openrouter":
                     conn.execute(
                         sa.text(
-                            "INSERT INTO system_settings (key, value, updated_at) VALUES ('openrouter_api_key', :v, NOW()) ON CONFLICT (key) DO NOTHING"
+                            "INSERT INTO system_settings"
+                            " (key, value, updated_at)"
+                            " VALUES ('openrouter_api_key', :v, NOW())"
+                            " ON CONFLICT (key) DO NOTHING"
                         ),
                         {"v": config.get("api_key", "")},
                     )
                 elif key == "google":
                     conn.execute(
                         sa.text(
-                            "INSERT INTO system_settings (key, value, updated_at) VALUES ('google_api_key', :v, NOW()) ON CONFLICT (key) DO NOTHING"
+                            "INSERT INTO system_settings"
+                            " (key, value, updated_at)"
+                            " VALUES ('google_api_key', :v, NOW())"
+                            " ON CONFLICT (key) DO NOTHING"
                         ),
                         {"v": config.get("api_key", "")},
                     )
                 elif key == "cohere":
                     conn.execute(
                         sa.text(
-                            "INSERT INTO system_settings (key, value, updated_at) VALUES ('cohere_api_key', :v, NOW()) ON CONFLICT (key) DO NOTHING"
+                            "INSERT INTO system_settings"
+                            " (key, value, updated_at)"
+                            " VALUES ('cohere_api_key', :v, NOW())"
+                            " ON CONFLICT (key) DO NOTHING"
                         ),
                         {"v": config.get("api_key", "")},
                     )

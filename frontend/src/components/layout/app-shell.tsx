@@ -22,6 +22,7 @@ interface SidebarContextValue {
 
 const SidebarContext = createContext<SidebarContextValue>({ open: false, toggle: () => {} });
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useSidebarContext() {
   return useContext(SidebarContext);
 }

@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from matcher.api.deps import get_db
 from matcher.auth.deps import get_current_user
-from matcher.db.models import User
+from matcher.db.models import CatalogProduct, User
 from matcher.db.repos.catalog import CatalogRepo
 from matcher.db.repos.match import MatchRepo
 from matcher.db.repos.supplier import SupplierRepo
@@ -35,11 +35,22 @@ async def review_item(
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
 
+    if item.final_decision and item.reviewed_by != current_user.username:
+        raise HTTPException(
+            status_code=409,
+            detail="Item already reviewed by another user. Refresh to see latest state.",
+        )
+
     # Determine final product ID
     final_product_id = body.final_product_id
     if body.final_decision == "accepted" and not final_product_id:
         # Accept the best candidate
         final_product_id = item.best_product_id
+
+    if body.final_decision == "corrected" and final_product_id:
+        product = await db.get(CatalogProduct, final_product_id)
+        if not product:
+            raise HTTPException(status_code=404, detail="Product not found in catalog")
 
     # Update the review
     await match_repo.update_item_review(
@@ -113,6 +124,11 @@ async def batch_review_items(
         final_product_id = req_item.final_product_id
         if req_item.final_decision == "accepted" and not final_product_id:
             final_product_id = item.best_product_id
+
+        if req_item.final_decision == "corrected" and final_product_id:
+            product = await db.get(CatalogProduct, final_product_id)
+            if not product:
+                continue
 
         await match_repo.update_item_review(
             request_item_id=req_item.request_item_id,

@@ -5,7 +5,6 @@ import { Trash2, Copy, Check, FileSearch, Calendar, Search, ChevronUp, ChevronDo
 import { toast } from "sonner";
 import { listMatchRequests, deleteMatchRequest } from "@/api/match";
 import { listSuppliers } from "@/api/suppliers";
-import type { MatchRequestDetails } from "@/api/types";
 import { REQUEST_STATUS_LABELS } from "@/lib/constants";
 import { formatDate } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
@@ -64,25 +63,22 @@ export default function RequestsPage() {
   // GAP-3.4: Bulk selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  const createdAfter = dateRange === "today"
-    ? new Date(new Date().setHours(0, 0, 0, 0)).toISOString()
-    : dateRange === "3d"
-    ? new Date(Date.now() - 3 * 86400000).toISOString()
-    : dateRange === "7d"
-    ? new Date(Date.now() - 7 * 86400000).toISOString()
-    : dateRange === "30d"
-    ? new Date(Date.now() - 30 * 86400000).toISOString()
-    : undefined;
-
   const requestsQuery = useQuery({
     queryKey: ["match-requests", page, statusFilter, supplierFilter, dateRange],
-    queryFn: () => listMatchRequests({
-      page,
-      limit: PAGE_SIZE,
-      status: statusFilter,
-      supplier_id: supplierFilter,
-      created_after: createdAfter,
-    }),
+    queryFn: () => {
+      let createdAfter: string | undefined;
+      if (dateRange === "today") createdAfter = new Date(new Date().setHours(0, 0, 0, 0)).toISOString();
+      else if (dateRange === "3d") createdAfter = new Date(Date.now() - 3 * 86400000).toISOString();
+      else if (dateRange === "7d") createdAfter = new Date(Date.now() - 7 * 86400000).toISOString();
+      else if (dateRange === "30d") createdAfter = new Date(Date.now() - 30 * 86400000).toISOString();
+      return listMatchRequests({
+        page,
+        limit: PAGE_SIZE,
+        status: statusFilter,
+        supplier_id: supplierFilter,
+        created_after: createdAfter,
+      });
+    },
     refetchInterval: 10_000,
   });
 
@@ -125,7 +121,7 @@ export default function RequestsPage() {
     },
   });
 
-  const rawRequests = requestsQuery.data?.items ?? [];
+  const rawRequests = useMemo(() => requestsQuery.data?.items ?? [], [requestsQuery.data]);
   const total = requestsQuery.data?.total ?? 0;
   const totalPages = Math.ceil(total / PAGE_SIZE) || 1;
 
@@ -191,22 +187,6 @@ export default function RequestsPage() {
       setSortDir("asc");
     }
   }, [sortBy, sortDir]);
-
-  // GAP-3.1: Sort indicator component
-  const SortIndicator = ({ field }: { field: SortField }) => {
-    if (sortBy !== field) {
-      return (
-        <span className="ml-1 inline-flex opacity-0 group-hover:opacity-40 transition-opacity">
-          <ChevronUp className="h-3 w-3" />
-        </span>
-      );
-    }
-    return (
-      <span className="ml-1 inline-flex text-foreground">
-        {sortDir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-      </span>
-    );
-  };
 
   // GAP-3.4: Selection helpers
   const toggleSelect = useCallback((id: string) => {
@@ -358,7 +338,7 @@ export default function RequestsPage() {
                 >
                   <span className="inline-flex items-center">
                     Статус
-                    <SortIndicator field="status" />
+                    <SortIndicator field="status" sortBy={sortBy} sortDir={sortDir} />
                   </span>
                 </TableHead>
                 <TableHead>Прогресс</TableHead>
@@ -370,7 +350,7 @@ export default function RequestsPage() {
                 >
                   <span className="inline-flex items-center">
                     Всего
-                    <SortIndicator field="total_items" />
+                    <SortIndicator field="total_items" sortBy={sortBy} sortDir={sortDir} />
                   </span>
                 </TableHead>
                 {/* GAP-3.1: Sortable created date header */}
@@ -380,7 +360,7 @@ export default function RequestsPage() {
                 >
                   <span className="inline-flex items-center">
                     Создан
-                    <SortIndicator field="created_at" />
+                    <SortIndicator field="created_at" sortBy={sortBy} sortDir={sortDir} />
                   </span>
                 </TableHead>
                 <TableHead className="w-12"></TableHead>
@@ -539,5 +519,20 @@ export default function RequestsPage() {
         </AlertDialogContent>
       </AlertDialog>
     </PageLayout>
+  );
+}
+
+function SortIndicator({ field, sortBy, sortDir }: { field: SortField; sortBy: SortField | null; sortDir: SortDir }) {
+  if (sortBy !== field) {
+    return (
+      <span className="ml-1 inline-flex opacity-0 group-hover:opacity-40 transition-opacity">
+        <ChevronUp className="h-3 w-3" />
+      </span>
+    );
+  }
+  return (
+    <span className="ml-1 inline-flex text-foreground">
+      {sortDir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+    </span>
   );
 }
