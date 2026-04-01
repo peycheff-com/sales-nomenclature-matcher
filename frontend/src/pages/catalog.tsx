@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Search, Server, Upload, RefreshCw, ChevronDown, ChevronRight,
-  Trash2, AlertTriangle, Loader2, CheckCircle, Info, FileText,
+  Trash2, AlertTriangle, Loader2, CheckCircle, Info, FileText, AlertCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -116,6 +116,11 @@ export default function CatalogPage() {
     mutationFn: reindexCatalog,
     onSuccess: () => {
       toast.success("Переиндексация поиска запущена (в фоне)");
+      // Poll stats every 5s to show progress
+      const interval = setInterval(() => {
+        queryClient.invalidateQueries({ queryKey: ["catalog-stats"] });
+      }, 5000);
+      setTimeout(() => clearInterval(interval), 120_000);
     },
     onError: (err) => {
       const msg = err instanceof Error ? err.message : "";
@@ -302,13 +307,54 @@ export default function CatalogPage() {
               </div>
               <p className="text-xs text-muted-foreground mt-1">Всего позиций в индексе</p>
 
-              {/* GAP-5.10: Index health indicator */}
-              {statsQuery.data && (
-                <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <CheckCircle className="h-3.5 w-3.5 text-green-500" />
-                  <span>Индекс: {statsQuery.data.total_products.toLocaleString()} товаров &mdash; Актуален</span>
-                </div>
-              )}
+              {/* Index health: embedding coverage */}
+              {statsQuery.data && (() => {
+                const { total_products, embedded_products, embedding_coverage_pct, embedding_model } = statsQuery.data;
+                const hasEmbeddings = embedded_products > 0;
+                const fullCoverage = embedded_products >= total_products && total_products > 0;
+                const noEmbeddings = embedded_products === 0 && total_products > 0;
+                return (
+                  <div className="mt-3 space-y-2">
+                    {/* Coverage bar */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="text-muted-foreground">Эмбеддинги</span>
+                        <span className={`font-medium ${fullCoverage ? "text-green-600" : noEmbeddings ? "text-red-600" : "text-yellow-600"}`}>
+                          {embedded_products.toLocaleString()} / {total_products.toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${fullCoverage ? "bg-green-500" : noEmbeddings ? "bg-red-400" : "bg-yellow-500"}`}
+                          style={{ width: `${Math.min(embedding_coverage_pct, 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                    {/* Status line */}
+                    <div className="flex items-center gap-1.5 text-xs">
+                      {fullCoverage ? (
+                        <>
+                          <CheckCircle className="h-3.5 w-3.5 text-green-500 shrink-0" />
+                          <span className="text-green-700">Индекс актуален</span>
+                        </>
+                      ) : noEmbeddings ? (
+                        <>
+                          <AlertCircle className="h-3.5 w-3.5 text-red-500 shrink-0" />
+                          <span className="text-red-700">Индекс не построен</span>
+                        </>
+                      ) : (
+                        <>
+                          <AlertCircle className="h-3.5 w-3.5 text-yellow-500 shrink-0" />
+                          <span className="text-yellow-700">Индекс неполный ({embedding_coverage_pct}%)</span>
+                        </>
+                      )}
+                    </div>
+                    {embedding_model && (
+                      <p className="text-[10px] text-muted-foreground">Модель: {embedding_model}</p>
+                    )}
+                  </div>
+                );
+              })()}
 
               <div className="mt-4 pt-4 border-t border-border flex flex-col gap-2">
                 <Button
@@ -351,18 +397,26 @@ export default function CatalogPage() {
                   {uploadMutation.isPending ? "Загрузка..." : "Загрузить из файла"}
                 </Button>
                 <Button
-                  variant="outline"
+                  variant={statsQuery.data && statsQuery.data.embedded_products < statsQuery.data.total_products ? "default" : "outline"}
                   size="sm"
-                  className="w-full justify-start text-xs"
+                  className={`w-full justify-start text-xs ${
+                    statsQuery.data && statsQuery.data.embedded_products < statsQuery.data.total_products
+                      ? "bg-orange-500 hover:bg-orange-600 text-white"
+                      : ""
+                  }`}
                   onClick={() => reindexMutation.mutate()}
                   disabled={reindexMutation.isPending}
                 >
                   {reindexMutation.isPending ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin text-orange-500" />
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : (
-                    <RefreshCw className="mr-2 h-4 w-4 text-orange-500" />
+                    <RefreshCw className={`mr-2 h-4 w-4 ${
+                      statsQuery.data && statsQuery.data.embedded_products < statsQuery.data.total_products
+                        ? ""
+                        : "text-orange-500"
+                    }`} />
                   )}
-                  Обновить индекс поиска
+                  {reindexMutation.isPending ? "Индексация запущена..." : "Обновить индекс поиска"}
                 </Button>
                 
                 <div className="pt-2 border-t mt-2">
@@ -571,13 +625,13 @@ export default function CatalogPage() {
                                       </div>
                                     </dl>
                                   </div>
-                                  <div>
+                                  <div className="flex flex-col">
                                     <h4 className="font-medium mb-2 text-muted-foreground">Полное наименование</h4>
                                     <p className="text-xs border p-2 rounded bg-muted/30 select-all mb-4">
                                       {prod.name}
                                     </p>
 
-                                    <div className="flex justify-end pt-4 border-t border-border mt-auto h-full items-end">
+                                    <div className="flex justify-end pt-4 border-t border-border mt-auto">
                                       <Button
                                         variant="ghost"
                                         size="sm"

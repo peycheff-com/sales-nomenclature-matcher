@@ -64,11 +64,7 @@ async def get_quality_history(
     else:
         conditions.append(QualityReport.scope == "all")
 
-    stmt = (
-        select(QualityReport)
-        .where(and_(*conditions))
-        .order_by(QualityReport.created_at.asc())
-    )
+    stmt = select(QualityReport).where(and_(*conditions)).order_by(QualityReport.created_at.asc())
     result = await db.execute(stmt)
     reports = result.scalars().all()
 

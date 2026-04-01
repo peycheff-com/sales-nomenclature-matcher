@@ -164,7 +164,6 @@ class CatalogRepo:
 
     async def activate_index_version(self, version_id: str) -> bool:
         """Activate a specific index version, deactivating all others."""
-        from datetime import UTC, datetime
 
         from sqlalchemy import update
 
@@ -176,9 +175,7 @@ class CatalogRepo:
             return False
 
         # Deactivate all
-        await self.session.execute(
-            update(IndexVersion).values(is_active=False)
-        )
+        await self.session.execute(update(IndexVersion).values(is_active=False))
         # Activate target
         await self.session.execute(
             update(IndexVersion)

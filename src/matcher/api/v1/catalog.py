@@ -27,6 +27,9 @@ class CatalogProductOut(BaseModel):
 
 class CatalogStats(BaseModel):
     total_products: int
+    embedded_products: int
+    embedding_model: str | None = None
+    embedding_coverage_pct: float = 0.0
     onec_connected: bool
 
 
@@ -62,14 +65,40 @@ async def catalog_stats(
     current_user: User = Depends(get_current_user),
 ):
     """Get catalog statistics and 1C connection status."""
+    from sqlalchemy import func as sa_func
+    from sqlalchemy import select as sa_select
+
+    from matcher.db.models import CatalogEmbedding
+
     repo = CatalogRepo(db)
     total = await repo.count_active()
+
+    # Count products that have at least one embedding
+    result = await db.execute(
+        sa_select(sa_func.count(sa_func.distinct(CatalogEmbedding.product_id)))
+    )
+    embedded = result.scalar() or 0
+
+    # Get active embedding model name
+    embedding_model: str | None = None
+    versions = await repo.list_index_versions()
+    active_version = next((v for v in versions if v.is_active), None)
+    if active_version:
+        embedding_model = active_version.embedding_model
 
     from matcher.api.v1.settings import _onec_settings
 
     onec_connected = bool(_onec_settings.enabled and _onec_settings.base_url)
 
-    return CatalogStats(total_products=total, onec_connected=onec_connected)
+    coverage = (embedded / total * 100) if total > 0 else 0.0
+
+    return CatalogStats(
+        total_products=total,
+        embedded_products=embedded,
+        embedding_model=embedding_model,
+        embedding_coverage_pct=round(coverage, 1),
+        onec_connected=onec_connected,
+    )
 
 
 @router.post("/catalog/import", response_model=JobAccepted, status_code=202)

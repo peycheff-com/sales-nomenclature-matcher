@@ -11,6 +11,9 @@ export interface CatalogProduct {
 
 export interface CatalogStats {
   total_products: number;
+  embedded_products: number;
+  embedding_model: string | null;
+  embedding_coverage_pct: number;
   onec_connected: boolean;
 }
 

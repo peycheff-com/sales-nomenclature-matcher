@@ -60,9 +60,7 @@ class AuditRepo:
 
         from sqlalchemy import func
 
-        count_result = await self.session.execute(
-            select(func.count(AuditLog.log_id)).where(where)
-        )
+        count_result = await self.session.execute(select(func.count(AuditLog.log_id)).where(where))
         total = count_result.scalar() or 0
 
         stmt = (
