@@ -66,11 +66,9 @@ async def _process_batch(
         try:
             ctx = run_pipeline(item["raw_text"])
             if cached_synonym_map:
-                async with db_factory() as syn_session:
-                    syn_repo = SynonymRepo(syn_session)
-                    ctx = await apply_db_synonyms(
-                        ctx, syn_repo, supplier_id, synonym_map=cached_synonym_map
-                    )
+                ctx = await apply_db_synonyms(
+                    ctx, None, supplier_id, synonym_map=cached_synonym_map
+                )
             pre_normalized[item["request_item_id"]] = ctx
         except Exception as e:
             logger.warning("Pre-normalization failed for %s: %s", item["request_item_id"], e)

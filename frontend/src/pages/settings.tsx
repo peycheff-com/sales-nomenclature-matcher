@@ -545,12 +545,12 @@ export default function SettingsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-border">
               <div className="space-y-2">
                 <Label className="flex items-center gap-1">
-                  Количество кандидатов для Rerank (top_n)
+                  Количество кандидатов поиска (retrieval)
                   <Tooltip>
                     <TooltipTrigger render={<button type="button" className="text-muted-foreground" />}>
                       <HelpCircle className="h-3.5 w-3.5" />
                     </TooltipTrigger>
-                    <TooltipContent>Сколько лучших результатов векторного поиска передать в LLM для переранжирования</TooltipContent>
+                    <TooltipContent>Сколько кандидатов возвращает гибридный поиск (retrieval) перед этапом reranking</TooltipContent>
                   </Tooltip>
                 </Label>
                 <Input
@@ -558,7 +558,25 @@ export default function SettingsPage() {
                   {...form.register("retrieval_top_n", { valueAsNumber: true })}
                 />
                 <p className="text-[10px] text-muted-foreground">
-                  Кол-во лучших по вектору, передаваемых в LLM-rerank.
+                  Кол-во лучших результатов гибридного поиска.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1">
+                  Кандидатов для Reranking (rerank top_n)
+                  <Tooltip>
+                    <TooltipTrigger render={<button type="button" className="text-muted-foreground" />}>
+                      <HelpCircle className="h-3.5 w-3.5" />
+                    </TooltipTrigger>
+                    <TooltipContent>Сколько лучших кандидатов передать в реранкер для переранжирования</TooltipContent>
+                  </Tooltip>
+                </Label>
+                <Input
+                  type="number"
+                  {...form.register("rerank_top_n", { valueAsNumber: true })}
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Кол-во лучших по вектору, передаваемых в реранкер.
                 </p>
               </div>
             </div>

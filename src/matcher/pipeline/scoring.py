@@ -34,6 +34,11 @@ class PairFeatures:
     brand_conflict: bool = False
     # Metadata richness
     candidate_has_identifiers: bool = False
+    # Data presence flags (for dead-weight detection)
+    query_has_brand: bool = False
+    candidate_has_brand: bool = False
+    query_has_category: bool = False
+    candidate_has_category: bool = False
 
 
 @dataclass
@@ -151,6 +156,9 @@ def compute_pair_features(
     elif cb and not qb:
         pass
 
+    f.query_has_brand = bool(qb)
+    f.candidate_has_brand = bool(cb)
+
     # Category matching
     qc = (query_category or "").lower().strip()
     cc = (candidate_category or "").lower().strip()
@@ -163,6 +171,9 @@ def compute_pair_features(
             f.category_fuzzy = ratio
             if ratio < 0.3:
                 f.category_conflict = True
+
+    f.query_has_category = bool(qc)
+    f.candidate_has_category = bool(cc)
 
     # Number signature matching (Jaccard on critical numbers)
     qn = set(query_numbers)
@@ -226,16 +237,23 @@ def _compute_effective_weights(features: PairFeatures) -> dict[str, float]:
     # Detect inapplicable features (both sides missing → no signal possible)
     dead_keys: list[str] = []
 
-    # Brand: inapplicable when BOTH query and candidate have no brand
-    if features.brand_exact == 0.0 and features.brand_fuzzy == 0.0 and not features.brand_conflict:
-        # Could be a match with no brand data on either side
+    # Brand: only dead when NEITHER side has brand data
+    if (
+        features.brand_exact == 0.0
+        and features.brand_fuzzy == 0.0
+        and not features.brand_conflict
+        and not features.query_has_brand
+        and not features.candidate_has_brand
+    ):
         dead_keys.extend(["brand_exact", "brand_fuzzy"])
 
-    # Category: inapplicable when both sides have no category
+    # Category: only dead when NEITHER side has category data
     if (
         features.category_exact == 0.0
         and features.category_fuzzy == 0.0
         and not features.category_conflict
+        and not features.query_has_category
+        and not features.candidate_has_category
     ):
         dead_keys.extend(["category_exact", "category_fuzzy"])
 

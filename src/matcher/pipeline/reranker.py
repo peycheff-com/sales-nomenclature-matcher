@@ -301,6 +301,18 @@ async def _llm_rerank(
 
     # Sort by score descending, take top_n
     results.sort(key=lambda r: r.rerank_score, reverse=True)
+
+    # Normalize rerank scores to [0, 1] range
+    if results and len(results) > 1:
+        scores = [r.rerank_score for r in results]
+        min_s, max_s = min(scores), max(scores)
+        if max_s > min_s:
+            for r in results:
+                r.rerank_score = (r.rerank_score - min_s) / (max_s - min_s)
+        elif max_s > 0:
+            for r in results:
+                r.rerank_score = 1.0
+
     return results[:top_n]
 
 

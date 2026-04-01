@@ -150,7 +150,7 @@ async def match_single(
                 query_text=raw_text,
                 normalized_text=normalized_text,
                 session=session,
-                top_n=30,
+                top_n=retrieval_top_n,
                 token_tracker=token_tracker,
                 query_embedding=query_embedding,
             )

@@ -15,7 +15,7 @@ from matcher.normalization.pipeline import NormalizationContext
 
 async def apply_db_synonyms(
     ctx: NormalizationContext,
-    synonym_repo: SynonymRepo,
+    synonym_repo: SynonymRepo | None,
     supplier_id: str | None = None,
     synonym_map: dict[str, str] | None = None,
 ) -> NormalizationContext:

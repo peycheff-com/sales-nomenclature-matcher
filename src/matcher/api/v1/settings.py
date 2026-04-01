@@ -389,6 +389,9 @@ async def update_settings(
     if body.llm_matcher_batch_size is not None:
         settings.llm_matcher_batch_size = body.llm_matcher_batch_size
     if body.onec is not None:
+        # Preserve real password if masked value was sent back
+        if body.onec.password == "********" and _onec_settings.password:
+            body.onec.password = _onec_settings.password
         _onec_settings = body.onec
 
     # Persist thresholds + 1C settings to DB
