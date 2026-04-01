@@ -4,6 +4,11 @@ import re
 
 from matcher.normalization.pipeline import NormalizationContext, load_config
 
+# Dimensional measurement units that appear in product specs (thickness, diameter)
+# but should NOT be treated as the product's selling unit.
+# The selling unit (шт, м, кг, etc.) is a separate concern.
+_DIMENSIONAL_ONLY = frozenset({"mm", "cm"})
+
 
 def normalize_units(ctx: NormalizationContext) -> NormalizationContext:
     """Normalize measurement units to standard forms."""
@@ -22,7 +27,7 @@ def normalize_units(ctx: NormalizationContext) -> NormalizationContext:
         match = re.search(pattern, text, re.IGNORECASE)
         if match:
             normalized = unit_map[unit_src]
-            if detected_unit is None:
+            if detected_unit is None and normalized not in _DIMENSIONAL_ONLY:
                 detected_unit = normalized
             text = text[: match.start()] + " " + normalized + text[match.end() :]
 
@@ -32,7 +37,7 @@ def normalize_units(ctx: NormalizationContext) -> NormalizationContext:
         match = re.search(pattern, text, re.IGNORECASE)
         if match:
             normalized = unit_map[unit_src]
-            if detected_unit is None:
+            if detected_unit is None and normalized not in _DIMENSIONAL_ONLY:
                 detected_unit = normalized
             text = re.sub(pattern, normalized, text, flags=re.IGNORECASE)
 

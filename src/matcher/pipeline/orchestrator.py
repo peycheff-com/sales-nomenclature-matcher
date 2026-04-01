@@ -64,6 +64,7 @@ async def match_single(
     synonym_map: dict[str, str] | None = None,
     pre_normalized_ctx: NormalizationContext | None = None,
     query_embedding: list[float] | None = ...,
+    pre_llm_result=None,
 ) -> MatchItemResult:
     """Run the full matching pipeline on a single input line."""
     request_item_id = f"item_{uuid.uuid4().hex[:12]}"
@@ -143,27 +144,33 @@ async def match_single(
     # ── LLM Matcher path (opt-in) ──────────────────────────────────────────
     _hybrid_candidates = None  # cache for fallback reuse
     if settings.llm_matcher_enabled:
-        catalog_count = await get_catalog_count(session)
-        if catalog_count <= settings.small_catalog_threshold:
-            llm_candidates = await get_cached_catalog(session)
-        else:
-            llm_candidates = await hybrid_search(
-                query_text=raw_text,
-                normalized_text=normalized_text,
-                session=session,
-                top_n=retrieval_top_n,
-                token_tracker=token_tracker,
-                query_embedding=query_embedding,
-            )
-            _hybrid_candidates = llm_candidates  # save for fallback
+        # Use pre-computed LLM result from batch phase if available
+        llm_result = pre_llm_result
+        if llm_result is None:
+            catalog_count = await get_catalog_count(session)
+            if catalog_count <= settings.small_catalog_threshold:
+                llm_candidates = await get_cached_catalog(session)
+            else:
+                llm_candidates = await hybrid_search(
+                    query_text=raw_text,
+                    normalized_text=normalized_text,
+                    session=session,
+                    top_n=retrieval_top_n,
+                    token_tracker=token_tracker,
+                    query_embedding=query_embedding,
+                )
+                _hybrid_candidates = llm_candidates
 
-        llm_result = await llm_match(
-            raw_text=raw_text,
-            normalized_text=normalized_text,
-            extracted_attrs=extracted_attrs,
-            candidates=llm_candidates,
-            token_tracker=token_tracker,
-        )
+            llm_result = await llm_match(
+                raw_text=raw_text,
+                normalized_text=normalized_text,
+                extracted_attrs=extracted_attrs,
+                candidates=llm_candidates,
+                token_tracker=token_tracker,
+            )
+        else:
+            # For pre-computed results, load catalog for candidate lookup
+            llm_candidates = await get_cached_catalog(session)
 
         if llm_result is not None:
             scoring_result = ScoringResult(
@@ -184,10 +191,19 @@ async def match_single(
 
             best_candidate = None
             if llm_result.product_id:
-                matched = next(
-                    (c for c in llm_candidates if c.product_id == llm_result.product_id),
-                    None,
-                )
+                pid = llm_result.product_id
+                # LLMs may strip the "prd_" prefix or return partial IDs
+                matched = next((c for c in llm_candidates if c.product_id == pid), None)
+                if not matched:
+                    matched = next(
+                        (c for c in llm_candidates if c.product_id.endswith(pid)),
+                        None,
+                    )
+                if not matched and not pid.startswith("prd_"):
+                    matched = next(
+                        (c for c in llm_candidates if c.product_id == f"prd_{pid}"),
+                        None,
+                    )
                 if matched:
                     best_candidate = {
                         "product_id": matched.product_id,
@@ -197,7 +213,7 @@ async def match_single(
                         "category_path": matched.category_path,
                     }
                 else:
-                    best_candidate = {"product_id": llm_result.product_id}
+                    logger.warning("LLM returned unknown product_id: %s", pid)
 
             alternatives = []
             for alt in llm_result.alternatives[:5]:

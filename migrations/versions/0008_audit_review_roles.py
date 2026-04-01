@@ -46,11 +46,13 @@ def upgrade() -> None:
     # 3. Expand user role constraint to include reviewer and catalog_operator
     # Drop existing check constraint (name may vary across environments)
     conn = op.get_bind()
-    result = conn.execute(sa.text("""
+    result = conn.execute(
+        sa.text("""
         SELECT conname FROM pg_constraint
         WHERE conrelid = 'users'::regclass AND contype = 'c'
           AND pg_get_constraintdef(oid) LIKE '%role%'
-    """))
+    """)
+    )
     for row in result:
         op.drop_constraint(row[0], "users", type_="check")
     op.create_check_constraint(

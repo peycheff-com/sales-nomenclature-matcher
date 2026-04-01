@@ -175,15 +175,36 @@ def compute_pair_features(
     f.query_has_category = bool(qc)
     f.candidate_has_category = bool(cc)
 
-    # Number signature matching (Jaccard on critical numbers)
-    qn = set(query_numbers)
-    cn = set(candidate_numbers)
+    # Number signature matching (fuzzy Jaccard — tolerant of small differences)
+    qn = list(query_numbers)
+    cn = list(candidate_numbers)
     if qn and cn:
-        intersection = qn & cn
-        union = qn | cn
-        f.number_signature_score = len(intersection) / len(union) if union else 0.0
+        matched_q = set()
+        matched_c = set()
+        # First pass: exact matches
+        for i, q in enumerate(qn):
+            for j, c in enumerate(cn):
+                if j not in matched_c and q == c:
+                    matched_q.add(i)
+                    matched_c.add(j)
+                    break
+        # Second pass: fuzzy matches for unmatched (tolerance: 15% relative or 0.1 absolute)
+        for i, q in enumerate(qn):
+            if i in matched_q:
+                continue
+            for j, c in enumerate(cn):
+                if j in matched_c:
+                    continue
+                diff = abs(q - c)
+                max_val = max(abs(q), abs(c), 1e-9)
+                if diff <= 0.1 or diff / max_val <= 0.15:
+                    matched_q.add(i)
+                    matched_c.add(j)
+                    break
+        total_unique = len(qn) + len(cn) - len(matched_q)
+        f.number_signature_score = len(matched_q) / total_unique if total_unique else 0.0
         # Critical number conflict: query has numbers but none match
-        if len(intersection) == 0 and len(qn) > 0:
+        if len(matched_q) == 0 and len(qn) > 0:
             f.critical_number_conflict = True
     elif qn and not cn:
         # Query has numbers but candidate doesn't — mild concern, not conflict

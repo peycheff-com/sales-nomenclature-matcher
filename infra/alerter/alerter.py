@@ -76,8 +76,7 @@ def check_health() -> None:
             )
             if consecutive_slow_responses >= SLOW_RESPONSE_COUNT_TRIGGER:
                 msg += (
-                    f"\n\u23f1 Response time: {elapsed:.1f}s"
-                    f" (slow x{consecutive_slow_responses})"
+                    f"\n\u23f1 Response time: {elapsed:.1f}s (slow x{consecutive_slow_responses})"
                 )
             send_telegram(msg)
         elif consecutive_slow_responses >= SLOW_RESPONSE_COUNT_TRIGGER:

@@ -216,13 +216,35 @@ async def llm_match_batch(
     catalog: list[SearchCandidate],
     token_tracker: TokenTracker | None = None,
 ) -> list[LLMMatchResult | None]:
-    """Match multiple items in batched LLM calls. Falls back to single calls."""
-    batch_size = settings.llm_matcher_batch_size
-    results: list[LLMMatchResult | None] = [None] * len(items)
+    """Match multiple items via LLM, sending as many as fit per API call.
 
+    Estimates prompt size and splits into the fewest calls possible,
+    aiming for a single call when items + catalog fit within context.
+    Falls back to individual calls for items that fail in batch.
+    """
+    results: list[LLMMatchResult | None] = [None] * len(items)
     model_override = settings.llm_matcher_model or None
     catalog_table = _format_catalog_table(catalog)
     system = _SYSTEM_PROMPT.format(catalog_table=catalog_table)
+
+    # Estimate tokens: ~4 chars per token. Keep well under context limits.
+    # Gemini 2.5 Flash has 1M context, most models have at least 128K.
+    system_tokens_est = len(system) // 3
+    max_prompt_tokens = 100_000  # conservative limit for most models
+    available_for_items = max_prompt_tokens - system_tokens_est
+    chars_per_item = max(80, sum(len(it.get("raw_text", "")) for it in items) // max(len(items), 1))
+    tokens_per_item = chars_per_item // 3 + 40  # overhead per line
+    items_per_call = max(1, available_for_items // max(tokens_per_item, 1))
+
+    # Use configured batch_size as minimum, but allow larger if context permits
+    batch_size = max(settings.llm_matcher_batch_size, min(items_per_call, len(items)))
+    logger.info(
+        "LLM batch: %d items, ~%d tokens/item, batch_size=%d, calls=%d",
+        len(items),
+        tokens_per_item,
+        batch_size,
+        (len(items) + batch_size - 1) // batch_size,
+    )
 
     for batch_start in range(0, len(items), batch_size):
         batch = items[batch_start : batch_start + batch_size]
@@ -239,6 +261,8 @@ async def llm_match_batch(
         user = _USER_PROMPT_BATCH.format(items_list="\n".join(items_lines))
 
         client, model, extra_body = make_llm_client(model_override=model_override)
+        # Scale max_tokens for response: ~30 tokens per item (JSON entry)
+        response_tokens = min(16384, max(2048, len(batch) * 60))
 
         try:
             response = await client.chat.completions.create(
@@ -248,7 +272,7 @@ async def llm_match_batch(
                     {"role": "user", "content": user},
                 ],
                 temperature=0.0,
-                max_tokens=2048,
+                max_tokens=response_tokens,
                 extra_body=extra_body or {},
             )
 
@@ -275,19 +299,14 @@ async def llm_match_batch(
                             reasoning=entry.get("reasoning", ""),
                             alternatives=entry.get("alternatives", []),
                         )
+            logger.info(
+                "LLM batch call %d-%d: %d/%d items resolved",
+                batch_start,
+                batch_start + len(batch),
+                sum(1 for i in batch_indices if results[i] is not None),
+                len(batch),
+            )
         except Exception as e:
             logger.warning("Batch LLM match failed at %d: %s", batch_start, e)
-
-        # Fallback: items without results get individual calls
-        for i, global_idx in enumerate(batch_indices):
-            if results[global_idx] is None:
-                item = batch[i]
-                results[global_idx] = await llm_match(
-                    raw_text=item["raw_text"],
-                    normalized_text=item.get("normalized_text", item["raw_text"]),
-                    extracted_attrs=item.get("extracted_attrs", {}),
-                    candidates=catalog,
-                    token_tracker=token_tracker,
-                )
 
     return results

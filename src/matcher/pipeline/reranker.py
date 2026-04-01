@@ -135,7 +135,16 @@ async def _http_rerank(
     import httpx
 
     documents = [_candidate_to_document(c) for c in candidates]
-    model = settings.llm_rerank_model or "rerank-multilingual-v3.0"
+
+    _RERANK_DEFAULTS = {
+        "cohere": "rerank-multilingual-v3.0",
+        "jina": "jina-reranker-v2-base-multilingual",
+        "together": "Salesforce/Llama-Rank-V1",
+        "dashscope": "gte-rerank",
+    }
+    model = settings.llm_rerank_model or _RERANK_DEFAULTS.get(
+        provider_id, "rerank-multilingual-v3.0"
+    )
     base_url = provider_config.get("base_url", "").rstrip("/")
     api_key = provider_config.get("api_key", "")
 
@@ -144,15 +153,13 @@ async def _http_rerank(
     if provider_id == "dashscope":
         endpoint = f"{base_url}/services/aigc/text-rerank/text-rerank"
         payload = {
-            "model": model or "gte-rerank",
+            "model": model,
             "input": {"query": query, "documents": documents},
             "parameters": {"top_n": top_n},
         }
     else:
         # Standard format (Cohere, Together, Jina)
         endpoint = f"{base_url}/rerank" if not base_url.endswith("/rerank") else base_url
-        if provider_id == "jina":
-            model = model or "jina-reranker-v2-base-multilingual"
         payload = {"model": model, "query": query, "documents": documents, "top_n": top_n}
 
     async with httpx.AsyncClient() as client:

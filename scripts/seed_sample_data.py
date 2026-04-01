@@ -196,18 +196,12 @@ def _generate_pipes(rng: random.Random) -> list[dict]:
                             f"Труба {pipe_full} {brand} d{d}x{wall} мм"
                             f" L={length} м{sdr_part}{pn_part}"
                         )
-                        len_s = str(length).replace('.', '')
+                        len_s = str(length).replace(".", "")
                         brd = brand[:3].upper()
                         if pn:
-                            code = (
-                                f"TR-{code_pref}-{d}"
-                                f"-PN{pn}-{len_s}-{brd}"
-                            )
+                            code = f"TR-{code_pref}-{d}-PN{pn}-{len_s}-{brd}"
                         else:
-                            code = (
-                                f"TR-{code_pref}-{d}"
-                                f"-{len_s}-{brd}"
-                            )
+                            code = f"TR-{code_pref}-{d}-{len_s}-{brd}"
                         article = (
                             f"{code_pref}{d}PN{pn}{brand[:2].upper()}"
                             if pn
@@ -334,24 +328,14 @@ def _generate_cables(rng: random.Random) -> list[dict]:
                                 f"Кабель силовой {ctype} {cores}x{sec_str} мм²{color_part} "
                                 f"{gost} {brand} бухта {length} м"
                             )
-                            ctype_short = ctype.split('(')[0].split('-')[0]
+                            ctype_short = ctype.split("(")[0].split("-")[0]
                             brd3 = brand[:3].upper()
-                            clr2 = color[:2].upper() if color else 'DF'
-                            code = (
-                                f"CB-{ctype_short}-{cores}x{sec_str}"
-                                f"-{brd3}-{length}-{clr2}"
-                            )
-                            ctype_clean = ctype.replace(
-                                '(', ''
-                            ).replace(')', '').replace('-', '')
+                            clr2 = color[:2].upper() if color else "DF"
+                            code = f"CB-{ctype_short}-{cores}x{sec_str}-{brd3}-{length}-{clr2}"
+                            ctype_clean = ctype.replace("(", "").replace(")", "").replace("-", "")
                             brd2 = brand[:2].upper()
-                            clr1 = (
-                                color[:1].upper() if color else ''
-                            )
-                            article = (
-                                f"{ctype_clean}{cores}x{sec_str}"
-                                f"{brd2}{clr1}"
-                            )
+                            clr1 = color[:1].upper() if color else ""
+                            article = f"{ctype_clean}{cores}x{sec_str}{brd2}{clr1}"
                             mfr_code = (
                                 f"{brand[:3].upper()}-{cores}x{sec_str}-{rng.randint(100, 999)}"
                             )
@@ -1685,8 +1669,8 @@ def _generate_paints(rng: random.Random) -> list[dict]:
                 name = f"{ptype.capitalize()} {brand} {prod_name}{color_part} {vol} л"
                 full_name = f"{ptype.capitalize()} {brand} {prod_name}{color_part} {vol} л"
                 brd3 = brand[:3].upper()
-                pn5 = prod_name[:5].replace(' ', '').upper()
-                clr3 = color[:3].upper() if color else 'STD'
+                pn5 = prod_name[:5].replace(" ", "").upper()
+                clr3 = color[:3].upper() if color else "STD"
                 code = f"SP-{brd3}-{pn5}-{clr3}-{vol}"
                 article = f"SP{brand[:3].upper()}{ptype[:3].upper()}{vol}L"
                 mfr_code = f"{brand[:4].upper()}-SP-{rng.randint(1000, 9999)}"
@@ -4751,18 +4735,11 @@ def _generate_electrical(rng: random.Random) -> list[dict]:
             for color in colors:
                 name = f"{type_name} {brand} {line} {color}"
                 full_name = f"{type_name} {brand} серия {line} {color} скрытой установки"
-                line_ns = line.replace(' ', '')
+                line_ns = line.replace(" ", "")
                 tn3 = type_name[:3].upper()
                 brd3 = brand[:3].upper()
-                article = (
-                    f"{line_ns}-{tn3}"
-                    f"-{color[:2].upper()}"
-                    f"-{rng.randint(100, 999)}"
-                )
-                code = (
-                    f"EL-{brd3}-{line_ns}"
-                    f"-{tn3}-{color[:3].upper()}"
-                )
+                article = f"{line_ns}-{tn3}-{color[:2].upper()}-{rng.randint(100, 999)}"
+                code = f"EL-{brd3}-{line_ns}-{tn3}-{color[:3].upper()}"
                 mfr_code = f"{brand[:3].upper()}{rng.randint(100000, 999999)}"
 
                 products.append(

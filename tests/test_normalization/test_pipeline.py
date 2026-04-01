@@ -63,7 +63,8 @@ class TestUnitNormalization:
     def test_normalizes_mm(self):
         ctx = run_pipeline("труба 32 мм")
         assert "mm" in ctx.text
-        assert ctx.unit == "mm"
+        # mm is a dimensional measurement, not a selling unit — unit should be None
+        assert ctx.unit is None
 
     def test_normalizes_ml(self):
         ctx = run_pipeline("пена 750 мл")
@@ -176,7 +177,8 @@ class TestFullPipeline:
         ctx = run_pipeline("Утеплитель Роквул Лайт Баттс 1000x600x50 мм")
         assert ctx.brand == "rockwool"
         assert ctx.dimensions  # Should extract dimensions
-        assert ctx.unit == "mm"
+        # mm is a dimensional measurement, not a selling unit
+        assert ctx.unit is None
 
     def test_valve_danfoss(self):
         ctx = run_pipeline("Клапан данфосс RA-N 15 1/2")

@@ -77,10 +77,11 @@ export default function ResultsPage() {
   const request = requestQuery.data;
   const isProcessing =
     request?.status === "queued" || request?.status === "running";
+  const [now] = useState(() => Date.now());
   const isStuck =
     request?.status === "running" &&
     request?.started_at &&
-    Date.now() - new Date(request.started_at).getTime() > 5 * 60 * 1000 &&
+    now - new Date(request.started_at).getTime() > 5 * 60 * 1000 &&
     request.processed_items < request.total_items;
 
   if (requestQuery.isLoading) {

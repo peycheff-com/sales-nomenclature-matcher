@@ -6,7 +6,6 @@ import pytest
 
 from matcher.config import PROVIDER_CAPABILITIES, Settings
 
-
 # ── Registry internal consistency ──────────────────────────────────────────
 
 

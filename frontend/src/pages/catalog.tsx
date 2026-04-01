@@ -310,7 +310,6 @@ export default function CatalogPage() {
               {/* Index health: embedding coverage */}
               {statsQuery.data && (() => {
                 const { total_products, embedded_products, embedding_coverage_pct, embedding_model } = statsQuery.data;
-                const hasEmbeddings = embedded_products > 0;
                 const fullCoverage = embedded_products >= total_products && total_products > 0;
                 const noEmbeddings = embedded_products === 0 && total_products > 0;
                 return (

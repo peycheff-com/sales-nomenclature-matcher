@@ -52,10 +52,23 @@ def llm_available() -> bool:
 
 
 def clean_json_response(content: str) -> str:
-    """Strip markdown fences from LLM JSON responses."""
+    """Strip markdown fences and fix common LLM JSON issues."""
+    import re
+
     content = content.strip()
     if content.startswith("```json"):
         content = content.split("```json", 1)[-1].rsplit("```", 1)[0].strip()
     elif content.startswith("```"):
         content = content.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+    # Fix trailing commas before } or ] (common LLM mistake)
+    content = re.sub(r",\s*([}\]])", r"\1", content)
+    # Fix truncated JSON — if it ends mid-object, try to close it
+    if content and content[-1] not in ("]", "}"):
+        # Try to find the last complete object
+        last_close = max(content.rfind("}"), content.rfind("]"))
+        if last_close > 0:
+            content = content[: last_close + 1]
+            # Ensure arrays are closed
+            if content.count("[") > content.count("]"):
+                content += "]"
     return content

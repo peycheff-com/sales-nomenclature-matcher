@@ -53,7 +53,22 @@ services:
       context: .
       args:
         USE_LOCAL: "false"
-    command: arq matcher.worker.settings.WorkerSettings
+    command: arq matcher.worker.settings.MatchWorkerSettings
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./src:/app/src
+
+  catalog-worker:
+    build:
+      context: .
+      args:
+        USE_LOCAL: "false"
+    command: arq matcher.worker.settings.CatalogWorkerSettings
     env_file: .env
     depends_on:
       db:

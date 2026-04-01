@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getReviewQueue } from "@/api/match";
 import { listSuppliers } from "@/api/suppliers";
@@ -72,7 +72,10 @@ export default function ReviewPage() {
       }),
   });
 
-  const items: ReviewQueueItem[] = reviewQuery.data?.items ?? [];
+  const items: ReviewQueueItem[] = useMemo(
+    () => reviewQuery.data?.items ?? [],
+    [reviewQuery.data?.items]
+  );
   const totalCount: number = reviewQuery.data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
@@ -127,10 +130,9 @@ export default function ReviewPage() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [items, selectedIndex, handleAction]);
 
-  // Reset selected index when data changes
-  useEffect(() => {
-    setSelectedIndex(0);
-  }, [page, supplierId]);
+  // Reset selected index when page/supplier changes — via state setter callbacks
+  const handleSetPage = useCallback((p: number) => { setPage(p); setSelectedIndex(0); }, []);
+  const handleSetSupplierId = useCallback((id: string) => { setSupplierId(id); setSelectedIndex(0); }, []);
 
   const suppliers: SupplierProfile[] = suppliersQuery.data?.items ?? [];
 
@@ -140,7 +142,7 @@ export default function ReviewPage() {
         {/* Toolbar */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Select value={supplierId} onValueChange={(v) => { setSupplierId(v || ""); setPage(0); }}>
+            <Select value={supplierId} onValueChange={(v) => { handleSetSupplierId(v || ""); handleSetPage(0); }}>
               <SelectTrigger className="w-[220px]">
                 <SelectValue placeholder="Все поставщики" />
               </SelectTrigger>
@@ -243,7 +245,7 @@ export default function ReviewPage() {
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                onClick={() => handleSetPage(Math.max(0, page - 1))}
                 disabled={page === 0}
               >
                 <ChevronLeft className="mr-1 h-4 w-4" />
@@ -252,7 +254,7 @@ export default function ReviewPage() {
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                onClick={() => handleSetPage(Math.min(totalPages - 1, page + 1))}
                 disabled={page >= totalPages - 1}
               >
                 Вперёд

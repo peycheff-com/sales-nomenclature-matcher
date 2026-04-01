@@ -332,6 +332,11 @@ async def update_settings(
     """Update runtime settings. Only provided fields are updated."""
     global _onec_settings
 
+    # Ensure in-memory state is current before applying partial updates,
+    # otherwise a process restart (hot-reload) can cause .env defaults
+    # to overwrite DB-persisted provider settings.
+    await load_persisted_settings(db, force=True)
+
     # Validate provider capabilities for assigned roles
     if body.llm_provider is not None and not settings.provider_supports(body.llm_provider, "chat"):
         raise HTTPException(

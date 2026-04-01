@@ -86,6 +86,41 @@ async def _process_batch(
         except Exception as e:
             logger.warning("Batch embedding failed, items will embed individually: %s", e)
 
+    # ── Phase 2.5: Bulk LLM matching (single API call for all items) ──────
+    pre_llm_results: dict[str, object] = {}
+    if settings.llm_matcher_enabled:
+        from matcher.pipeline.features import extract_features
+        from matcher.pipeline.llm_matcher import get_cached_catalog, llm_match_batch
+
+        try:
+            async with db_factory() as llm_session:
+                catalog = await get_cached_catalog(llm_session)
+            batch_items = []
+            batch_keys = []
+            for it in item_rows:
+                rid = it["request_item_id"]
+                ctx = pre_normalized.get(rid)
+                attrs = extract_features(ctx).to_dict() if ctx else {}
+                batch_items.append(
+                    {
+                        "raw_text": it["raw_text"],
+                        "normalized_text": ctx.text if ctx else it["raw_text"],
+                        "extracted_attrs": attrs,
+                    }
+                )
+                batch_keys.append(rid)
+            llm_results = await llm_match_batch(batch_items, catalog, token_tracker=tracker)
+            for i, res in enumerate(llm_results):
+                if res is not None:
+                    pre_llm_results[batch_keys[i]] = res
+            logger.info(
+                "Bulk LLM match: %d/%d items matched",
+                sum(1 for r in llm_results if r and r.product_id),
+                len(llm_results),
+            )
+        except Exception as e:
+            logger.warning("Bulk LLM match failed, falling back to scoring: %s", e)
+
     async def _process_one(item: dict) -> None:
         async with sem:
             try:
@@ -103,6 +138,7 @@ async def _process_batch(
                         synonym_map=cached_synonym_map,
                         pre_normalized_ctx=pre_normalized.get(rid),
                         query_embedding=pre_embeddings.get(rid, ...),
+                        pre_llm_result=pre_llm_results.get(rid),
                     )
 
                     best_product_id = None
