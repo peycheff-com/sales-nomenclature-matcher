@@ -112,6 +112,27 @@ class MatchRepo:
         )
         return result.rowcount > 0
 
+    async def clear_item_results(self, request_id: str) -> None:
+        """Reset all items in a request to pending state for reprocessing."""
+        # Delete candidates
+        item_ids_stmt = select(MatchRequestItem.request_item_id).where(
+            MatchRequestItem.request_id == request_id
+        )
+        await self.session.execute(
+            delete(MatchCandidate).where(MatchCandidate.request_item_id.in_(item_ids_stmt))
+        )
+        # Reset item statuses
+        await self.session.execute(
+            update(MatchRequestItem)
+            .where(MatchRequestItem.request_id == request_id)
+            .values(
+                status="no_match",
+                best_product_id=None,
+                confidence=None,
+                normalized_text=None,
+            )
+        )
+
     # ------------------------------------------------------------------
     # Match request items
     # ------------------------------------------------------------------
@@ -280,16 +301,20 @@ class MatchRepo:
         decision: str,
         final_product_id: str | None,
         reviewed_by: str,
+        review_notes: str | None = None,
     ) -> None:
+        values: dict = {
+            "final_decision": decision,
+            "final_product_id": final_product_id,
+            "reviewed_by": reviewed_by,
+            "reviewed_at": datetime.now(UTC),
+        }
+        if review_notes is not None:
+            values["review_notes"] = review_notes
         await self.session.execute(
             update(MatchRequestItem)
             .where(MatchRequestItem.request_item_id == request_item_id)
-            .values(
-                final_decision=decision,
-                final_product_id=final_product_id,
-                reviewed_by=reviewed_by,
-                reviewed_at=datetime.now(UTC),
-            )
+            .values(**values)
         )
 
     # ------------------------------------------------------------------
@@ -316,3 +341,45 @@ class MatchRepo:
         )
         self.session.add(label)
         await self.session.flush()
+
+    # ------------------------------------------------------------------
+    # Review queue
+    # ------------------------------------------------------------------
+
+    async def get_review_queue(
+        self,
+        *,
+        supplier_id: str | None = None,
+        page: int = 1,
+        page_size: int = 50,
+    ) -> tuple[list, int]:
+        """Get items needing review across all requests."""
+        conditions = [
+            MatchRequestItem.status == "review_needed",
+            MatchRequestItem.final_decision.is_(None),
+        ]
+        if supplier_id:
+            conditions.append(MatchRequest.supplier_id == supplier_id)
+
+        where = and_(*conditions)
+        base = (
+            select(MatchRequestItem, MatchRequest.supplier_id, MatchRequest.file_name)
+            .join(MatchRequest, MatchRequestItem.request_id == MatchRequest.request_id)
+            .where(where)
+        )
+
+        count_result = await self.session.execute(
+            select(func.count(MatchRequestItem.request_item_id))
+            .select_from(MatchRequestItem)
+            .join(MatchRequest, MatchRequestItem.request_id == MatchRequest.request_id)
+            .where(where)
+        )
+        total = count_result.scalar() or 0
+
+        stmt = (
+            base.order_by(MatchRequestItem.confidence.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.all()), total

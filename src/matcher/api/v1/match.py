@@ -330,6 +330,77 @@ async def get_item_candidates(
     return {"request_item_id": request_item_id, "candidates": candidates}
 
 
+@router.post("/match/requests/{request_id}/retry", status_code=200)
+async def retry_match_request(
+    request_id: str,
+    db: AsyncSession = Depends(get_db),
+    arq: object = Depends(get_arq_pool),
+    current_user: User = Depends(require_role("admin", "operator")),
+):
+    """Retry a stuck or failed match request by resetting it to 'queued'."""
+    repo = MatchRepo(db)
+    request = await repo.get_request(request_id)
+    if not request:
+        raise HTTPException(status_code=404, detail="Request not found")
+    if request.status not in ("running", "failed"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Запрос в статусе '{request.status}' — повтор невозможен",
+        )
+
+    # Reset counters and re-queue
+    await repo.update_request_status(
+        request_id,
+        "queued",
+        processed_items=0,
+        auto_matched_items=0,
+        review_needed_items=0,
+        no_match_items=0,
+        error_message=None,
+    )
+    # Clear previous results so items are reprocessed
+    await repo.clear_item_results(request_id)
+    await db.commit()
+
+    await arq.enqueue_job("batch_match", request_id)
+    return {"ok": True, "request_id": request_id, "status": "queued"}
+
+
+@router.get("/match/review-queue")
+async def get_review_queue(
+    supplier_id: str | None = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get items needing review across all requests."""
+    repo = MatchRepo(db)
+    rows, total = await repo.get_review_queue(
+        supplier_id=supplier_id, page=page, page_size=page_size
+    )
+    items = []
+    for row in rows:
+        item = row[0]  # MatchRequestItem
+        req_supplier_id = row[1]
+        req_file_name = row[2]
+        items.append(
+            {
+                "request_item_id": item.request_item_id,
+                "request_id": item.request_id,
+                "raw_text": item.raw_text,
+                "normalized_text": item.normalized_text,
+                "status": item.status,
+                "confidence": float(item.confidence) if item.confidence else None,
+                "best_product_id": item.best_product_id,
+                "reasons": item.reasons_json if isinstance(item.reasons_json, list) else [],
+                "supplier_id": req_supplier_id,
+                "file_name": req_file_name,
+            }
+        )
+    return {"items": items, "total": total, "page": page, "page_size": page_size}
+
+
 @router.delete("/match/requests/{request_id}", status_code=200)
 async def delete_match_request(
     request_id: str,

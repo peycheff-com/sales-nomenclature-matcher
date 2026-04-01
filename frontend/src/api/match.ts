@@ -94,6 +94,10 @@ export async function deleteMatchRequest(requestId: string): Promise<{ ok: boole
   return api.delete(`match/requests/${requestId}`).json<{ ok: boolean }>();
 }
 
+export async function retryMatchRequest(requestId: string): Promise<{ ok: boolean }> {
+  return api.post(`match/requests/${requestId}/retry`).json<{ ok: boolean }>();
+}
+
 export async function getMatchItems(
   requestId: string,
   params: { status?: string; page?: number; page_size?: number },

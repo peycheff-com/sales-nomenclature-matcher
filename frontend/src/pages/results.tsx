@@ -2,7 +2,8 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, ChevronRight, FileSearch, Loader2, RefreshCw, Trash2 } from "lucide-react";
-import { getMatchRequest, deleteMatchRequest } from "@/api/match";
+import { toast } from "sonner";
+import { getMatchRequest, deleteMatchRequest, retryMatchRequest } from "@/api/match";
 import { listSuppliers } from "@/api/suppliers";
 import { POLLING_INTERVAL } from "@/lib/constants";
 import { formatDate } from "@/lib/format";
@@ -61,9 +62,26 @@ export default function ResultsPage() {
     },
   });
 
+  const retryMutation = useMutation({
+    mutationFn: retryMatchRequest,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["match-request", requestId] });
+      toast.success("Запрос поставлен в очередь на повторную обработку");
+    },
+    onError: (err) => {
+      const msg = err instanceof Error ? err.message : "Неизвестная ошибка";
+      toast.error(`Ошибка при повторе: ${msg}`);
+    },
+  });
+
   const request = requestQuery.data;
   const isProcessing =
     request?.status === "queued" || request?.status === "running";
+  const isStuck =
+    request?.status === "running" &&
+    request?.started_at &&
+    Date.now() - new Date(request.started_at).getTime() > 5 * 60 * 1000 &&
+    request.processed_items < request.total_items;
 
   if (requestQuery.isLoading) {
     return (
@@ -122,6 +140,17 @@ export default function ResultsPage() {
             <Trash2 className="h-4 w-4 mr-2" />
             Удалить
           </Button>
+          {(isStuck || request.status === "failed") && (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={retryMutation.isPending}
+              onClick={() => retryMutation.mutate(requestId)}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${retryMutation.isPending ? "animate-spin" : ""}`} />
+              Повторить
+            </Button>
+          )}
           {(request.status === "done" || request.processed_items > 0) && (
             <ExportButton
               requestId={request.request_id}
