@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { PageLayout } from "@/components/layout/page-layout";
+import { RequestsTab } from "@/components/features/requests-tab";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   AlertDialog,
@@ -104,8 +105,9 @@ export default function DashboardPage() {
       setParsedItems(extractItemsFromData(data.rows));
       setFileName("Google Sheet (" + gsheetUrl.slice(0, 30) + "...)");
     },
-    onError: () => {
-      toast.error("Ошибка при чтении Google Таблицы. Проверьте права доступа по ссылке.");
+    onError: (err) => {
+      const msg = err instanceof Error ? err.message : "";
+      toast.error(`Ошибка при чтении Google Таблицы. ${msg}`);
     }
   });
 
@@ -115,8 +117,9 @@ export default function DashboardPage() {
       toast.success("Запрос создан");
       navigate({ to: "/requests/$requestId", params: { requestId: data.request_id } });
     },
-    onError: () => {
-      toast.error("Ошибка при создании запроса");
+    onError: (err) => {
+      const msg = err instanceof Error ? err.message : "Неизвестная ошибка";
+      toast.error(`Ошибка при создании запроса: ${msg}`);
     },
   });
 
@@ -129,8 +132,9 @@ export default function DashboardPage() {
       setParsedItems(data.items);
       toast.success(`Извлечено ${data.items.length} позиций для предпросмотра`);
     },
-    onError: () => {
-      toast.error("Ошибка при разборе файла. Проверьте формат.");
+    onError: (err) => {
+      const msg = err instanceof Error ? err.message : "Проверьте формат.";
+      toast.error(`Ошибка при разборе файла: ${msg}`);
     },
   });
 
@@ -155,8 +159,9 @@ export default function DashboardPage() {
       if (sn) msgs.push(`поставщик: ${sn}`);
       toast.success(`Обнаружено ${data.tables_detected} таблиц: ${msgs.join(", ")}`);
     },
-    onError: () => {
-      toast.error("Ошибка при анализе структуры файла. Переключаем на базовый режим...");
+    onError: (err) => {
+      const msg = err instanceof Error ? err.message : "Неизвестная ошибка";
+      toast.error(`Ошибка структуры файла: ${msg}. Переключаем на базовый режим...`);
       setUseAi(false);
       if (selectedFile) {
         parseMutation.mutate({ file: selectedFile, supplierId, useAiColumnPicker: false });
@@ -171,8 +176,9 @@ export default function DashboardPage() {
       toast.success("Каталог + сопоставление запущены");
       navigate({ to: "/requests/$requestId", params: { requestId: data.request_id } });
     },
-    onError: () => {
-      toast.error("Ошибка при умной загрузке");
+    onError: (err) => {
+      const msg = err instanceof Error ? err.message : "Неизвестная ошибка";
+      toast.error(`Ошибка при умной загрузке: ${msg}`);
     },
   });
 
@@ -378,11 +384,16 @@ export default function DashboardPage() {
 
   return (
     <PageLayout
-      title="Загрузка данных"
-      description="Загрузите прайс-листы для сопоставления"
+      title="Рабочий стол"
+      description="Загрузка данных и история запросов"
     >
-
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+      <Tabs defaultValue="upload" className="w-full">
+        <TabsList className="mb-4">
+          <TabsTrigger value="upload">Новый запрос</TabsTrigger>
+          <TabsTrigger value="history">История запросов</TabsTrigger>
+        </TabsList>
+        <TabsContent value="upload" className="mt-0">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Main upload area */}
         <div className="lg:col-span-2 space-y-4">
           {/* Supplier selector */}
@@ -911,6 +922,11 @@ export default function DashboardPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+        </TabsContent>
+        <TabsContent value="history" className="mt-0">
+          <RequestsTab />
+        </TabsContent>
+      </Tabs>
     </PageLayout>
   );
 }

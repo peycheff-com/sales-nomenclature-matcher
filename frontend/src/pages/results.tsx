@@ -57,7 +57,7 @@ export default function ResultsPage() {
     mutationFn: deleteMatchRequest,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["match-requests"] });
-      navigate({ to: "/requests" });
+      navigate({ to: "/" });
     },
   });
 
@@ -87,7 +87,7 @@ export default function ResultsPage() {
           variant={requestQuery.isError ? "error" : "empty"}
           onRetry={requestQuery.isError ? () => requestQuery.refetch() : undefined}
           action={
-            <Link to="/requests">
+            <Link to="/">
               <Button variant="outline" size="sm">
                 <ArrowLeft className="mr-1 h-4 w-4" />
                 К списку запросов
@@ -105,7 +105,7 @@ export default function ResultsPage() {
       description={`Создан: ${formatDate(request.created_at)}${request.supplier_id ? ` | Поставщик: ${supplierName || request.supplier_id}` : ""}`}
       actions={
         <div className="flex gap-2 items-center">
-          <Link to="/requests">
+          <Link to="/">
             <Button variant="ghost" size="sm" aria-label="Назад к списку">
               <ArrowLeft className="mr-1 h-4 w-4" />
               Назад
@@ -134,9 +134,7 @@ export default function ResultsPage() {
 
       {/* Breadcrumbs */}
       <nav aria-label="Навигация" className="flex items-center gap-1 text-xs text-muted-foreground -mt-2 mb-2">
-        <Link to="/" className="hover:text-foreground transition-colors">Главная</Link>
-        <ChevronRight className="h-3 w-3" />
-        <Link to="/requests" className="hover:text-foreground transition-colors">Запросы</Link>
+        <Link to="/" className="hover:text-foreground transition-colors">Рабочий стол</Link>
         <ChevronRight className="h-3 w-3" />
         <span className="text-foreground font-medium">{request.request_id.slice(0, 8)}</span>
       </nav>

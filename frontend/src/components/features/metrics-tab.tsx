@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Link } from "@tanstack/react-router";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   BarChart3,
@@ -11,7 +10,6 @@ import {
   Server,
   Search,
   HelpCircle,
-  ArrowRight,
   Shield,
   UserCog,
   Eye,

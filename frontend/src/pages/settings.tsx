@@ -35,6 +35,9 @@ import { ModelCombobox } from "@/components/ui/model-combobox";
 import { SkeletonCard } from "@/components/ui/skeleton";
 import { QueryErrorBanner } from "@/components/ui/query-error-banner";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MetricsTab } from "@/components/features/metrics-tab";
+import { UsersTab } from "@/components/features/users-tab";
 
 export default function SettingsPage() {
   const queryClient = useQueryClient();
@@ -83,8 +86,9 @@ export default function SettingsPage() {
       form.reset(updatedData);
       toast.success("Настройки успешно сохранены");
     },
-    onError: () => {
-      toast.error("Ошибка при сохранении настроек");
+    onError: (err) => {
+      const msg = err instanceof Error ? err.message : "";
+      toast.error(`Ошибка при сохранении настроек: ${msg}`);
     },
   });
 
@@ -214,8 +218,8 @@ export default function SettingsPage() {
 
   return (
     <PageLayout
-      title="Настройки системы"
-      description="Управление моделями, порогами и подключениями."
+      title="Системный раздел"
+      description="Управление моделями, метриками и доступом."
       actions={
         isDirty && (
           <Badge
@@ -227,10 +231,18 @@ export default function SettingsPage() {
         )
       }
     >
-      <form
-        onSubmit={form.handleSubmit(onSubmit)}
-        className="space-y-6 max-w-4xl"
-      >
+      <Tabs defaultValue="settings" className="w-full">
+        <TabsList className="mb-4">
+          <TabsTrigger value="settings">Параметры</TabsTrigger>
+          <TabsTrigger value="metrics">Метрики</TabsTrigger>
+          <TabsTrigger value="users">Доступ и Роли</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="settings" className="mt-0">
+          <form
+            onSubmit={form.handleSubmit(onSubmit)}
+            className="space-y-6 max-w-4xl"
+          >
         <Card>
           <CardHeader>
             <CardTitle>Провайдеры ИИ (LLM & Embeddings)</CardTitle>
@@ -716,6 +728,14 @@ export default function SettingsPage() {
           </Button>
         </div>
       </form>
+        </TabsContent>
+        <TabsContent value="metrics" className="mt-0">
+          <MetricsTab />
+        </TabsContent>
+        <TabsContent value="users" className="mt-0">
+          <UsersTab />
+        </TabsContent>
+      </Tabs>
     </PageLayout>
   );
 }

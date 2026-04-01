@@ -1,18 +1,14 @@
 import { Link, useMatchRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { BarChart3, FileSearch, LayoutDashboard, Settings as SettingsIcon, Database, Users, Shield, UserCog } from "lucide-react";
+import { BarChart3, LayoutDashboard, Settings as SettingsIcon, Database } from "lucide-react";
 import { getMe } from "@/api/auth";
 import { listMatchRequests } from "@/api/match";
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { to: "/", label: "Загрузка", icon: LayoutDashboard, adminOnly: false, badgeKey: null },
-  { to: "/requests", label: "Запросы", icon: FileSearch, adminOnly: false, badgeKey: "requests" as const },
-  { to: "/catalog", label: "Каталог", icon: Database, adminOnly: false, badgeKey: null },
-  { to: "/suppliers", label: "Поставщики", icon: Users, adminOnly: false, badgeKey: null },
-  { to: "/admin", label: "Админ / Метрики", icon: Shield, adminOnly: true, badgeKey: null },
-  { to: "/users", label: "Пользователи", icon: UserCog, adminOnly: true, badgeKey: null },
-  { to: "/settings", label: "Настройки", icon: SettingsIcon, adminOnly: true, badgeKey: null },
+  { to: "/", label: "Рабочий стол", icon: LayoutDashboard, adminOnly: false, badgeKey: "requests" as const },
+  { to: "/catalog", label: "База данных", icon: Database, adminOnly: false, badgeKey: null },
+  { to: "/settings", label: "Система", icon: SettingsIcon, adminOnly: true, badgeKey: null },
 ] as const;
 
 interface SidebarProps {

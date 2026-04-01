@@ -54,6 +54,8 @@ import {
 } from "@/components/ui/dialog";
 import { PageLayout } from "@/components/layout/page-layout";
 import { EmptyState } from "@/components/ui/empty-state";
+import { SuppliersTab } from "@/components/features/suppliers-tab";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton, SkeletonTable } from "@/components/ui/skeleton";
 import { QueryErrorBanner } from "@/components/ui/query-error-banner";
 import { Pagination } from "@/components/ui/pagination";
@@ -105,8 +107,9 @@ export default function CatalogPage() {
       toast.success("Импорт из 1С запущен (в фоне)");
       setImportStatus("sync");
     },
-    onError: () => {
-      toast.error("Ошибка при запуске импорта");
+    onError: (err) => {
+      const msg = err instanceof Error ? err.message : "";
+      toast.error(`Ошибка при запуске импорта: ${msg}`);
       setImportStatus(null);
     },
   });
@@ -116,8 +119,9 @@ export default function CatalogPage() {
     onSuccess: () => {
       toast.success("Переиндексация поиска запущена (в фоне)");
     },
-    onError: () => {
-      toast.error("Ошибка при запуске переиндексации");
+    onError: (err) => {
+      const msg = err instanceof Error ? err.message : "";
+      toast.error(`Ошибка при запуске переиндексации: ${msg}`);
     },
   });
 
@@ -128,8 +132,9 @@ export default function CatalogPage() {
       queryClient.invalidateQueries({ queryKey: ["catalog-stats"] });
       setImportStatus("file");
     },
-    onError: () => {
-      toast.error("Ошибка при загрузке файла");
+    onError: (err) => {
+      const msg = err instanceof Error ? err.message : "";
+      toast.error(`Ошибка при загрузке файла: ${msg}`);
       setImportStatus(null);
     },
   });
@@ -143,8 +148,9 @@ export default function CatalogPage() {
       queryClient.invalidateQueries({ queryKey: ["catalog-stats"] });
       queryClient.invalidateQueries({ queryKey: ["catalog-search"] });
     },
-    onError: () => {
-      toast.error("Ошибка при удалении товара");
+    onError: (err) => {
+      const msg = err instanceof Error ? err.message : "";
+      toast.error(`Ошибка при удалении товара: ${msg}`);
     },
   });
 
@@ -159,8 +165,9 @@ export default function CatalogPage() {
       queryClient.invalidateQueries({ queryKey: ["catalog-stats"] });
       queryClient.invalidateQueries({ queryKey: ["catalog-search"] });
     },
-    onError: () => {
-      toast.error("Ошибка при очистке каталога");
+    onError: (err) => {
+      const msg = err instanceof Error ? err.message : "";
+      toast.error(`Ошибка при очистке каталога: ${msg}`);
     },
   });
 
@@ -275,10 +282,16 @@ export default function CatalogPage() {
 
   return (
     <PageLayout
-      title="Базовый каталог"
-      description="Эталонная номенклатура (1С/PIM)."
+      title="База данных"
+      description="Единый справочник и маппинги"
     >
-      <div className="grid gap-6 md:grid-cols-4">
+      <Tabs defaultValue="catalog" className="w-full">
+        <TabsList className="mb-4">
+          <TabsTrigger value="catalog">Эталонный каталог</TabsTrigger>
+          <TabsTrigger value="suppliers">Поставщики и алиасы</TabsTrigger>
+        </TabsList>
+        <TabsContent value="catalog" className="mt-0">
+          <div className="grid gap-6 md:grid-cols-4">
         <div className="md:col-span-1 space-y-6">
           {statsQuery.isError && (
             <QueryErrorBanner
@@ -787,6 +800,11 @@ export default function CatalogPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+        </TabsContent>
+        <TabsContent value="suppliers" className="mt-0">
+          <SuppliersTab />
+        </TabsContent>
+      </Tabs>
     </PageLayout>
   );
 }
