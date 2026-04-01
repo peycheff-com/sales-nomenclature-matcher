@@ -8,7 +8,7 @@ Create Date: 2026-04-01
 from alembic import op
 
 revision = "0007_unique_source_hash"
-down_revision = "0006_add_integrity_constraints"
+down_revision = "0006_integrity"
 branch_labels = None
 depends_on = None
 
