@@ -338,27 +338,27 @@ async def list_models(
     """Fetch available models dynamically from the specified provider."""
     target_provider = provider_id or "openrouter"
 
-    # Defaults
-    base_url = "https://openrouter.ai/api/v1"
-    api_key = getattr(settings, "OPENROUTER_API_KEY", "")
-
-    if target_provider == "together":
-        base_url = "https://api.together.xyz/v1"
-        api_key = getattr(settings, "TOGETHER_API_KEY", "")
-    elif target_provider == "openai":
-        base_url = "https://api.openai.com/v1"
-        api_key = getattr(settings, "OPENAI_API_KEY", "")
-    elif target_provider == "cohere":
-        base_url = "https://api.cohere.com/v1"
-        api_key = getattr(settings, "COHERE_API_KEY", "")
-
-    # Override from registry if configured
+    # Read base_url and api_key from dynamic registry (primary source)
     reg = getattr(settings, "providers_registry", {}).get(target_provider, {})
-    if reg.get("base_url"):
-        base_url = reg["base_url"]
-    if reg.get("api_key"):
-        api_key = reg["api_key"]
+    base_url = reg.get("base_url", "")
+    api_key = reg.get("api_key", "")
 
+    # Fallback defaults if registry has no base_url
+    _DEFAULT_URLS = {
+        "openrouter": "https://openrouter.ai/api/v1",
+        "openai": "https://api.openai.com/v1",
+        "together": "https://api.together.xyz/v1",
+        "cohere": "https://api.cohere.com/v2",
+        "jina": "https://api.jina.ai/v1",
+        "dashscope": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+        "google": "https://generativelanguage.googleapis.com/v1beta",
+    }
+    if not base_url:
+        base_url = _DEFAULT_URLS.get(target_provider, "")
+    if not base_url:
+        return OpenRouterModelsResponse(models=_get_known_models(target_provider))
+
+    # Cohere v2 uses /models endpoint but with Bearer token
     url = f"{base_url.rstrip('/')}/models"
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
 
@@ -369,21 +369,35 @@ async def list_models(
             data = resp.json()
     except Exception as e:
         logger.warning("Failed to fetch models from %s: %s", url, e)
-        if target_provider == "openrouter":
-            return OpenRouterModelsResponse(models=_FALLBACK_MODELS)
-        return OpenRouterModelsResponse(models=[])
+        return OpenRouterModelsResponse(models=_get_known_models(target_provider))
 
     models: list[OpenRouterModel] = []
-    items = data.get("data", [])
+
+    # Cohere has { "models": [...] } with "endpoints" array
+    items = data.get("data", data.get("models", []))
 
     for m in items:
-        m_id = m.get("id")
+        m_id = m.get("id") or m.get("name", "")
         if not m_id:
             continue
 
         m_name = m.get("name", m_id)
         m_type = m.get("type", None)
-        ctx = m.get("context_length", 0)
+        ctx = m.get("context_length") or m.get("context_window", 0) or 0
+
+        # Cohere: derive type from "endpoints" array
+        endpoints = m.get("endpoints", [])
+        if endpoints and not m_type:
+            if "rerank" in endpoints:
+                m_type = "rerank"
+            elif "embed" in endpoints:
+                m_type = "embedding"
+            elif "chat" in endpoints or "generate" in endpoints:
+                m_type = "chat"
+
+        # Together: derive from "type" field which can be "chat", "embedding", "rerank", "language", etc.
+        if m_type == "language":
+            m_type = "chat"
 
         # OpenRouter modality checking
         arch = m.get("architecture", {})
@@ -392,22 +406,66 @@ async def list_models(
             if modality and "text" not in modality:
                 continue
 
-        # Heuristics for type if missing
+        # Heuristic fallback for type
         if not m_type:
             lower_id = m_id.lower()
             if "embed" in lower_id:
                 m_type = "embedding"
             elif "rerank" in lower_id or "ranker" in lower_id or "bge-" in lower_id:
                 m_type = "rerank"
-            elif "jina-" in lower_id and "v2" in lower_id:
-                m_type = "embedding"  # simple heuristic
             else:
                 m_type = "chat"
 
         models.append(OpenRouterModel(id=m_id, name=m_name, context_length=ctx, type=m_type))
 
-    models.sort(key=lambda x: x.context_length, reverse=True)
+    # Always append well-known models for this provider that might be missing from API list
+    existing_ids = {m.id for m in models}
+    for known in _get_known_models(target_provider):
+        if known.id not in existing_ids:
+            models.append(known)
+
+    models.sort(key=lambda x: (x.type or "", -x.context_length))
     return OpenRouterModelsResponse(models=models)
+
+
+def _get_known_models(provider: str) -> list[OpenRouterModel]:
+    """Return well-known models per provider as fallback/supplement."""
+    known: dict[str, list[OpenRouterModel]] = {
+        "openrouter": _FALLBACK_MODELS,
+        "openai": [
+            OpenRouterModel(id="gpt-4o", name="GPT-4o", context_length=128000, type="chat"),
+            OpenRouterModel(id="gpt-4o-mini", name="GPT-4o Mini", context_length=128000, type="chat"),
+            OpenRouterModel(id="gpt-4.1-mini", name="GPT-4.1 Mini", context_length=1000000, type="chat"),
+            OpenRouterModel(id="gpt-4.1-nano", name="GPT-4.1 Nano", context_length=1000000, type="chat"),
+            OpenRouterModel(id="text-embedding-3-small", name="Embedding 3 Small", context_length=8191, type="embedding"),
+            OpenRouterModel(id="text-embedding-3-large", name="Embedding 3 Large", context_length=8191, type="embedding"),
+        ],
+        "together": [
+            OpenRouterModel(id="meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8", name="Llama 4 Maverick", context_length=1000000, type="chat"),
+            OpenRouterModel(id="Qwen/Qwen3-235B-A22B", name="Qwen3 235B", context_length=131072, type="chat"),
+            OpenRouterModel(id="togethercomputer/m2-bert-80M-8k-retrieval", name="M2-BERT Embedding", context_length=8192, type="embedding"),
+            OpenRouterModel(id="BAAI/bge-large-en-v1.5", name="BGE Large EN v1.5", context_length=512, type="embedding"),
+            OpenRouterModel(id="Salesforce/Llama-Rank-V1", name="Llama Rank V1 (Rerank)", context_length=8192, type="rerank"),
+        ],
+        "cohere": [
+            OpenRouterModel(id="command-r-plus", name="Command R+", context_length=128000, type="chat"),
+            OpenRouterModel(id="command-r", name="Command R", context_length=128000, type="chat"),
+            OpenRouterModel(id="embed-multilingual-v3.0", name="Embed Multilingual v3.0", context_length=512, type="embedding"),
+            OpenRouterModel(id="embed-english-v3.0", name="Embed English v3.0", context_length=512, type="embedding"),
+            OpenRouterModel(id="rerank-multilingual-v3.0", name="Rerank Multilingual v3.0", context_length=4096, type="rerank"),
+            OpenRouterModel(id="rerank-english-v3.0", name="Rerank English v3.0", context_length=4096, type="rerank"),
+        ],
+        "jina": [
+            OpenRouterModel(id="jina-embeddings-v3", name="Jina Embeddings v3", context_length=8192, type="embedding"),
+            OpenRouterModel(id="jina-reranker-v2-base-multilingual", name="Jina Reranker v2 Multilingual", context_length=1024, type="rerank"),
+            OpenRouterModel(id="jina-colbert-v2", name="Jina ColBERT v2", context_length=8192, type="rerank"),
+        ],
+        "dashscope": [
+            OpenRouterModel(id="text-embedding-v3", name="DashScope Embedding v3", context_length=8192, type="embedding"),
+            OpenRouterModel(id="gte-rerank", name="GTE Rerank", context_length=4096, type="rerank"),
+        ],
+    }
+    return known.get(provider, [])
 
 
 @router.post("/settings/test-onec")
