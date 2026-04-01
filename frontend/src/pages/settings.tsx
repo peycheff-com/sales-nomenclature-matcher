@@ -260,7 +260,15 @@ export default function SettingsPage() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Ранжирующая LLM модель</Label>
+                <Label className="flex items-center gap-1">
+                  Ранжирующая LLM модель
+                  <Tooltip>
+                    <TooltipTrigger render={<button type="button" className="text-muted-foreground" />}>
+                      <HelpCircle className="h-3.5 w-3.5" />
+                    </TooltipTrigger>
+                    <TooltipContent>Модель для ранжирования и принятия финальных решений о совпадениях. Рекомендуется: gpt-4o-mini или аналог.</TooltipContent>
+                  </Tooltip>
+                </Label>
                 <div className="flex gap-2 relative">
                   <ModelCombobox
                     value={form.watch("llm_model")}

@@ -420,7 +420,10 @@ export default function DashboardPage() {
                   <div className="mt-4 space-y-4">
                     {/* Drag-and-drop zone */}
                     <div
-                      className={`flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed p-8 transition-colors ${
+                      role="button"
+                      tabIndex={0}
+                      aria-label="Загрузить файл"
+                      className={`flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed p-8 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                         dragging
                           ? "border-primary bg-primary/5"
                           : "border-border hover:border-primary/50"
@@ -429,6 +432,7 @@ export default function DashboardPage() {
                       onDragLeave={handleDragLeave}
                       onDrop={handleDrop}
                       onClick={() => fileInputRef.current?.click()}
+                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInputRef.current?.click(); } }}
                     >
                       <FileUp className="mb-2 h-8 w-8 text-muted-foreground" />
                       <p className="text-sm text-muted-foreground">
