@@ -65,38 +65,96 @@ def _web_search(query: str, max_results: int = 4) -> str:
 
 
 async def _catalog_search(query: str, session: AsyncSession) -> str:
-    """Searches the local 1C catalog to find specific articles or product identifiers."""
+    """Searches the local product catalog for specific articles or keywords."""
     candidates = await hybrid_search(
-        query_text=query, normalized_text=query, session=session, top_n=5
+        query_text=query, normalized_text=query, session=session, top_n=10
     )
     if not candidates:
         return "No catalog matches found for that query."
 
     snippets = []
     for c in candidates:
-        snippets.append(
-            f"ID: {c.product_id} | Name: {c.name} | Article: {c.article} | Brand: {c.brand}"
-        )
+        parts = [f"ID: {c.product_id}", f"Name: {c.name}"]
+        if c.article:
+            parts.append(f"Article: {c.article}")
+        if c.brand:
+            parts.append(f"Brand: {c.brand}")
+        if c.category_path:
+            parts.append(f"Category: {c.category_path}")
+        if c.unit:
+            parts.append(f"Unit: {c.unit}")
+        snippets.append(" | ".join(parts))
     return "\n".join(snippets)
+
+
+def _decompose_query(query: str) -> str:
+    """Decompose a product query into structured components using the normalization pipeline."""
+    from matcher.normalization.pipeline import run_pipeline
+    from matcher.pipeline.features import extract_features
+
+    ctx = run_pipeline(query)
+    attrs = extract_features(ctx)
+
+    result = {
+        "normalized_text": ctx.text,
+        "brand": attrs.brand,
+        "article": attrs.article,
+        "numbers": attrs.numbers,
+        "dimensions": attrs.dimensions,
+        "unit": attrs.unit,
+        "packaging": attrs.packaging,
+        "tokens": ctx.tokens[:20] if ctx.tokens else [],
+    }
+    # Identify the leading category word (first alpha token > 3 chars)
+    for token in (ctx.tokens or []):
+        if len(token) > 3 and token.isalpha():
+            result["category_word"] = token
+            break
+
+    return json.dumps(result, ensure_ascii=False, indent=2)
 
 
 TOOLS = [
     {
         "type": "function",
         "function": {
-            "name": "search_catalog",
+            "name": "decompose_query",
             "description": (
-                "Searches the internal 1C product catalog for"
-                " specific brands, articles, or keywords."
-                " Use this when the initial candidates"
-                " didn't contain the exact product."
+                "Analyze a product query and break it into structured components: "
+                "category word, brand, article, numbers/dimensions, unit, material. "
+                "Use this FIRST to understand what the product is before searching."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description": "The search keywords, model number, or brand.",
+                        "description": "The product text to analyze.",
+                    }
+                },
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_catalog",
+            "description": (
+                "Search the internal product catalog by keywords. "
+                "Try different queries: category word alone, brand + category, "
+                "article number, or simplified product description. "
+                "Returns up to 10 matches with IDs, names, articles, brands."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": (
+                            "Search keywords. Can be a single category word, "
+                            "a brand name, an article number, or a combination."
+                        ),
                     }
                 },
                 "required": ["query"],
@@ -108,15 +166,17 @@ TOOLS = [
         "function": {
             "name": "web_search",
             "description": (
-                "Searches the public internet for obscure"
-                " product nomenclature, verifying manufacturer"
-                " specifications, or checking what an"
-                " SKU refers to."
+                "Search the public internet to understand obscure product "
+                "nomenclature, decode abbreviations, verify manufacturer specs, "
+                "or identify what a cryptic SKU refers to."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "query": {"type": "string", "description": "The internet search query."}
+                    "query": {
+                        "type": "string",
+                        "description": "Internet search query.",
+                    }
                 },
                 "required": ["query"],
             },
@@ -126,30 +186,31 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "final_decision",
-            "description": "Submit your final confident matching decision.",
+            "description": (
+                "Submit your final matching decision after gathering enough context."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "decision_type": {
                         "type": "string",
-                        "enum": ["exact_match", "no_match"],
+                        "enum": ["exact_match", "likely_match", "no_match"],
                         "description": (
-                            "If you are highly confident, emit exact_match. Otherwise no_match."
+                            "'exact_match' = identical product, confident. "
+                            "'likely_match' = same product family, likely correct "
+                            "but needs human verification. "
+                            "'no_match' = no suitable match found."
                         ),
                     },
                     "product_id": {
                         "type": "string",
                         "description": (
-                            "The ID of the candidate from"
-                            " the catalog if exact_match."
-                            " Leave empty otherwise."
+                            "The catalog product ID if exact_match or likely_match."
                         ),
                     },
                     "reasoning": {
                         "type": "string",
-                        "description": (
-                            "A short, one sentence explanation of why this product matches."
-                        ),
+                        "description": "Brief explanation of your decision.",
                     },
                 },
                 "required": ["decision_type", "reasoning"],
@@ -159,17 +220,89 @@ TOOLS = [
 ]
 
 
+def _build_system_prompt(
+    raw_text: str,
+    candidate_str: list[str],
+    extracted_attrs: dict | None,
+) -> str:
+    """Build an adaptive system prompt based on the matching context."""
+    attrs_block = ""
+    if extracted_attrs:
+        parts = []
+        for k, v in extracted_attrs.items():
+            if v and v != [] and v != {}:
+                parts.append(f"  {k}: {v}")
+        if parts:
+            attrs_block = "\nExtracted attributes:\n" + "\n".join(parts)
+
+    candidates_block = "\n".join(candidate_str) if candidate_str else "None found"
+    has_candidates = bool(candidate_str)
+
+    strategy_guidance = ""
+    if not has_candidates:
+        strategy_guidance = (
+            "\nSTRATEGY: No candidates were found by the automated search. "
+            "Follow this approach:\n"
+            "1. Call `decompose_query` to understand the product structure\n"
+            "2. Search the catalog using just the CATEGORY WORD "
+            "(e.g., if the product is 'Воздуховод D250 оц.', search 'воздуховод')\n"
+            "3. If catalog has products in the same category, compare specs "
+            "to find the closest match\n"
+            "4. If the query contains unknown abbreviations, use `web_search` "
+            "to decode them\n"
+            "5. Submit `final_decision` with your best judgment\n"
+        )
+    else:
+        strategy_guidance = (
+            "\nSTRATEGY: Some candidates were found but none scored high enough. "
+            "Follow this approach:\n"
+            "1. Review the candidates — do any match the request closely?\n"
+            "2. If the product description is unclear, call `decompose_query` "
+            "to identify key attributes\n"
+            "3. If needed, `search_catalog` with different keywords "
+            "(try article, brand, or category separately)\n"
+            "4. Use `web_search` only for truly obscure terms or SKUs\n"
+            "5. Submit `final_decision` — use 'likely_match' if the category "
+            "matches but exact specs differ\n"
+        )
+
+    return (
+        "You are a Product Matching Specialist for a B2B nomenclature system.\n"
+        "Your task: determine if the client's product request matches any "
+        "product in our catalog.\n"
+        f'\nCLIENT REQUEST: "{raw_text}"\n'
+        f"{attrs_block}\n"
+        f"\nCurrent Catalog Candidates:\n{candidates_block}\n"
+        f"{strategy_guidance}\n"
+        "RULES:\n"
+        "- 'exact_match': ONLY when you are certain it is the same product "
+        "(same brand, model, specifications)\n"
+        "- 'likely_match': Same product FAMILY/CATEGORY, specifications may "
+        "differ — good enough for human review\n"
+        "- 'no_match': Completely different product, or nothing in catalog "
+        "is even close\n"
+        "- Different sizes/dimensions within the same product type IS a "
+        "'likely_match' (e.g., D250 vs D160 of the same duct type)\n"
+        "- NEVER guess — if uncertain, prefer 'likely_match' over 'exact_match'\n"
+    )
+
+
 async def resolve_agentically(
-    raw_text: str, top_candidates: list[dict], session: AsyncSession
+    raw_text: str,
+    top_candidates: list[dict],
+    session: AsyncSession,
+    extracted_attrs: dict | None = None,
 ) -> dict | None:
     """
-    Invokes the LLM in an agentic Tool Calling loop to resolve ambiguity.
+    Adaptive agentic resolution with think-then-act strategy.
+
     Returns:
-       {"status": "auto_match" | "no_match", "product_id": str | None, "reasoning": str}
-       Or None if the LLM failed to emit a valid output.
+       {"status": "auto_match"|"review_needed"|"no_match",
+        "product_id": str|None, "reasoning": str}
+       Or None if the LLM failed.
     """
     if not settings.active_llm_api_key or settings.active_llm_api_key == "none":
-        return None  # Agent disabled for local without LLM
+        return None
 
     client, model, extra_body = _make_llm_client()
 
@@ -177,42 +310,22 @@ async def resolve_agentically(
     for cd in top_candidates:
         c = cd.get("candidate")
         if c:
-            candidate_str.append(
-                f"ID: {c.product_id} | Name: {c.name} | Article: {c.article} | Brand: {c.brand}"
-            )
+            parts = [f"ID: {c.product_id}", f"Name: {c.name}"]
+            if c.article:
+                parts.append(f"Article: {c.article}")
+            if c.brand:
+                parts.append(f"Brand: {c.brand}")
+            candidate_str.append(" | ".join(parts))
 
-    initial_prompt = (
-        "You are the Advanced Resolution Agent for a B2B"
-        " Nomenclature Matching System.\n"
-        "The standard pipeline failed to find a highly"
-        " confident match for the following client request.\n"
-        f'\nCLIENT REQUEST: "{raw_text}"\n'
-        "\nCurrent Top Catalog Candidates:\n"
-        f"{chr(10).join(candidate_str) if candidate_str else 'None'}"
-        "\n\nYour job is to determine if the CLIENT REQUEST"
-        " perfectly matches any of our catalog candidates,"
-        " or if you can find the correct one by searching"
-        " the internal catalog using `search_catalog`.\n"
-        "If the CLIENT REQUEST is obscure (e.g., just an SKU"
-        " or a weird abbreviation), use the `web_search`"
-        " tool to figure out what the product is.\n"
-        "\nOnce you have gathered enough context and are"
-        " highly confident, call the `final_decision` tool.\n"
-        "Only return 'exact_match' if you are absolutely"
-        " certain the product is identical (variants like"
-        " 256GB vs 128GB or different colors must NOT be"
-        " matched unless specified).\n"
-    )
+    system_prompt = _build_system_prompt(raw_text, candidate_str, extracted_attrs)
+    messages = [{"role": "system", "content": system_prompt}]
 
-    messages = [{"role": "system", "content": initial_prompt}]
-
-    max_loops = 4
+    max_loops = 6
     loop_count = 0
-    final_output = None
 
     while loop_count < max_loops:
         loop_count += 1
-        logger.info(f"Agentic loop {loop_count} for request: {raw_text}")
+        logger.info("Agentic loop %d for: %s", loop_count, raw_text[:80])
 
         try:
             response = await client.chat.completions.create(
@@ -224,7 +337,7 @@ async def resolve_agentically(
                 extra_body=extra_body or {},
             )
         except Exception as e:
-            logger.error(f"Agentic resolution API call failed: {e}")
+            logger.error("Agentic resolution API call failed: %s", e)
             return None
 
         # Token tracking
@@ -238,22 +351,22 @@ async def resolve_agentically(
             )
 
         msg = response.choices[0].message
-
-        # Build the message for the history using standard OpenAI structures
-        msg_dict = {"role": "assistant"}
+        msg_dict: dict = {"role": "assistant"}
         if msg.content:
             msg_dict["content"] = msg.content
 
         if msg.tool_calls:
-            msg_dict["tool_calls"] = []
-            for t in msg.tool_calls:
-                msg_dict["tool_calls"].append(
-                    {
-                        "id": t.id,
-                        "type": "function",
-                        "function": {"name": t.function.name, "arguments": t.function.arguments},
-                    }
-                )
+            msg_dict["tool_calls"] = [
+                {
+                    "id": t.id,
+                    "type": "function",
+                    "function": {
+                        "name": t.function.name,
+                        "arguments": t.function.arguments,
+                    },
+                }
+                for t in msg.tool_calls
+            ]
             messages.append(msg_dict)
 
             for tool_call in msg.tool_calls:
@@ -263,8 +376,14 @@ async def resolve_agentically(
                 except json.JSONDecodeError:
                     args = {}
 
-                # Execute the tool
-                if fn_name == "search_catalog":
+                if fn_name == "decompose_query":
+                    query = args.get("query", raw_text)
+                    result = _decompose_query(query)
+                    messages.append(
+                        {"role": "tool", "tool_call_id": tool_call.id, "content": result}
+                    )
+
+                elif fn_name == "search_catalog":
                     query = args.get("query", raw_text)
                     result = await _catalog_search(query, session)
                     messages.append(
@@ -283,36 +402,40 @@ async def resolve_agentically(
                     pid = args.get("product_id")
                     reason = args.get("reasoning", "Agent completed review.")
 
-                    final_output = {
-                        "status": "auto_match"
-                        if decision_type == "exact_match" and pid
-                        else "no_match",
-                        "product_id": pid if decision_type == "exact_match" else None,
+                    # Map decision types to pipeline statuses
+                    if decision_type == "exact_match" and pid:
+                        status = "auto_match"
+                    elif decision_type == "likely_match" and pid:
+                        status = "review_needed"
+                    else:
+                        status = "no_match"
+
+                    return {
+                        "status": status,
+                        "product_id": pid if status != "no_match" else None,
                         "reasoning": reason,
                     }
+                else:
                     messages.append(
                         {
                             "role": "tool",
                             "tool_call_id": tool_call.id,
-                            "content": "Decision received.",
+                            "content": "Unknown tool.",
                         }
                     )
-                    return final_output
-                else:
-                    messages.append(
-                        {"role": "tool", "tool_call_id": tool_call.id, "content": "Unknown tool."}
-                    )
-
         else:
-            # Re-prompt if not confident enough to make a tool call but didn't finish.
             content = msg.content or ""
             msg_dict["content"] = content
             messages.append(msg_dict)
             messages.append(
                 {
                     "role": "user",
-                    "content": "Please invoke the `final_decision` tool to register your answer.",
+                    "content": (
+                        "Please call `final_decision` with your verdict. "
+                        "Use 'likely_match' if the category matches but "
+                        "exact specs differ."
+                    ),
                 }
             )
 
-    return final_output
+    return None

@@ -32,6 +32,8 @@ class PairFeatures:
     packaging_conflict: bool = False
     unit_conflict: bool = False
     brand_conflict: bool = False
+    # Metadata richness
+    candidate_has_identifiers: bool = False
 
 
 @dataclass
@@ -120,6 +122,7 @@ def compute_pair_features(
     f.rerank_score = min(1.0, max(0.0, rerank_score))
     f.supplier_mapping_hit = 1.0 if supplier_mapping_hit else 0.0
     f.alias_hit = 1.0 if alias_hit else 0.0
+    f.candidate_has_identifiers = bool(candidate_article or candidate_brand)
 
     # Article exact match
     if query_article and candidate_article:
@@ -249,7 +252,10 @@ def score_candidate(features: PairFeatures) -> ScoringResult:
     # Penalties
     penalty = 0.0
     if features.critical_number_conflict:
-        penalty -= 0.18
+        if features.candidate_has_identifiers:
+            penalty -= 0.18  # Specific product, wrong numbers
+        else:
+            penalty -= 0.08  # Generic product, numbers just differentiate variants
     if features.category_conflict:
         penalty -= 0.15
     if features.packaging_conflict:
@@ -273,6 +279,7 @@ def score_candidate(features: PairFeatures) -> ScoringResult:
         features.critical_number_conflict
         and features.article_exact == 0.0
         and features.manufacturer_code_exact == 0.0
+        and features.candidate_has_identifiers
     ):
         result.auto_match_forbidden = True
     if features.category_conflict and features.rerank_score < 0.95:

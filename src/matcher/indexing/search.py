@@ -193,6 +193,17 @@ async def hybrid_search(
     result = await session.execute(text(sql), params)
     rows = result.fetchall()
 
+    # Relaxed fallback: if primary search returned nothing, try broader search
+    if not rows:
+        rows = await _relaxed_fallback_search(
+            session=session,
+            normalized_text=normalized_text,
+            query_embedding=query_embedding,
+            top_n=top_n // 2,
+            rrf_k=rrf_k,
+            filter_clause=filter_clause,
+        )
+
     candidates = []
     for row in rows:
         candidates.append(
@@ -218,3 +229,117 @@ async def hybrid_search(
         )
 
     return candidates
+
+
+async def _relaxed_fallback_search(
+    session: AsyncSession,
+    normalized_text: str,
+    query_embedding: list[float] | None,
+    top_n: int,
+    rrf_k: int,
+    filter_clause: str,
+) -> list:
+    """Broader search with lower thresholds and leading-word tsvector.
+
+    Extracts the first meaningful word (the category noun) and searches by that,
+    combined with lower trigram thresholds. Universal across industries.
+    """
+    # Extract leading category word (first alpha token > 3 chars)
+    leading_word = None
+    for token in normalized_text.split():
+        if len(token) > 3 and token.isalpha():
+            leading_word = token
+            break
+
+    if not leading_word:
+        return []
+
+    logger.info("Relaxed fallback: leading_word=%s for query=%s", leading_word, normalized_text)
+
+    params: dict = {
+        "query_text": normalized_text,
+        "leading_word": leading_word,
+        "top_n": top_n,
+        "rrf_k": rrf_k,
+    }
+
+    lexical_cte = """
+    lexical_matches AS (
+        SELECT product_id,
+               GREATEST(
+                   ts_rank(search_tsv, to_tsquery('russian', :leading_word)),
+                   similarity(normalized_name, :query_text) * 0.8,
+                   similarity(search_document, :query_text) * 0.5
+               ) as lex_score,
+               ROW_NUMBER() OVER (
+                   ORDER BY GREATEST(
+                       ts_rank(search_tsv, to_tsquery('russian', :leading_word)),
+                       similarity(normalized_name, :query_text) * 0.8,
+                       similarity(search_document, :query_text) * 0.5
+                   ) DESC
+               ) as rank
+        FROM catalog_products
+        WHERE is_active = true
+          AND (
+              search_tsv @@ to_tsquery('russian', :leading_word)
+              OR similarity(normalized_name, :query_text) > 0.08
+              OR similarity(search_document, :query_text) > 0.05
+          )
+        ORDER BY lex_score DESC
+        LIMIT 100
+    )"""
+
+    if query_embedding is not None:
+        semantic_cte = """
+        semantic_matches AS (
+            SELECT e.product_id,
+                   1 - (e.embedding_vector <=> :query_vector::vector) as sem_score,
+                   ROW_NUMBER() OVER (
+                       ORDER BY e.embedding_vector <=> :query_vector::vector
+                   ) as rank
+            FROM catalog_embeddings e
+            JOIN catalog_products p ON e.product_id = p.product_id
+            WHERE p.is_active = true
+            ORDER BY e.embedding_vector <=> :query_vector::vector
+            LIMIT 100
+        )"""
+        params["query_vector"] = str(query_embedding)
+    else:
+        semantic_cte = """
+        semantic_matches AS (
+            SELECT NULL::text as product_id, 0.0::float as sem_score, 0 as rank
+            WHERE false
+        )"""
+
+    sql = f"""
+    WITH
+    {lexical_cte},
+    {semantic_cte},
+    rrf_scores AS (
+        SELECT
+            COALESCE(l.product_id, s.product_id) as product_id,
+            0 as exact_hit,
+            COALESCE(l.lex_score, 0) as lex_score,
+            COALESCE(s.sem_score, 0) as sem_score,
+            CASE WHEN l.product_id IS NOT NULL THEN 1.0 / (:rrf_k + l.rank) ELSE 0 END
+            + CASE WHEN s.product_id IS NOT NULL THEN 1.0 / (:rrf_k + s.rank) ELSE 0 END
+            as rrf_score
+        FROM lexical_matches l
+        FULL OUTER JOIN semantic_matches s ON l.product_id = s.product_id
+    )
+    SELECT
+        p.product_id, p.name, p.normalized_name, p.article,
+        p.brand, p.normalized_brand, p.manufacturer_code,
+        p.category_id, p.category_path, p.unit, p.packaging,
+        p.search_document,
+        r.lex_score, r.sem_score, r.exact_hit, r.rrf_score,
+        ROW_NUMBER() OVER (ORDER BY r.rrf_score DESC) as retrieval_rank
+    FROM rrf_scores r
+    JOIN catalog_products p ON r.product_id = p.product_id
+    WHERE p.is_active = true {filter_clause}
+    ORDER BY r.rrf_score DESC
+    LIMIT :top_n
+    """
+
+    result = await session.execute(text(sql), params)
+    return result.fetchall()
