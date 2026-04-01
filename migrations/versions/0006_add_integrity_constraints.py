@@ -6,7 +6,6 @@ Create Date: 2026-04-01
 """
 
 from alembic import op
-from sqlalchemy import text
 
 revision = "0006_integrity"
 down_revision = "0005_token_usage"

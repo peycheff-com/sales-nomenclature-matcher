@@ -1,0 +1,37 @@
+# Token pricing per 1M tokens (USD)
+# Updated: 2026-04-01
+models:
+  # OpenAI
+  gpt-4o:
+    prompt: 2.50
+    completion: 10.00
+  gpt-4o-mini:
+    prompt: 0.15
+    completion: 0.60
+  gpt-4.1-mini:
+    prompt: 0.40
+    completion: 1.60
+  gpt-4.1-nano:
+    prompt: 0.10
+    completion: 0.40
+  text-embedding-3-small:
+    prompt: 0.02
+    completion: 0.0
+  text-embedding-3-large:
+    prompt: 0.13
+    completion: 0.0
+  # Together / open-source common models
+  meta-llama/llama-4-maverick:
+    prompt: 0.20
+    completion: 0.20
+  qwen/qwen3-235b-a22b:
+    prompt: 0.20
+    completion: 0.20
+  # Rerank providers (per search unit, approximated as token cost)
+  rerank-multilingual-v3.0:
+    prompt: 0.01
+    completion: 0.0
+
+default:
+  prompt: 0.50
+  completion: 1.50

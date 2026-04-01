@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Loader2, KeyRound, UserCog, Copy, Check, Users, Upload, AlertTriangle, Info } from "lucide-react";
+import { Plus, Loader2, KeyRound, UserCog, Copy, Check, Users, AlertTriangle, Info } from "lucide-react";
 import { toast } from "sonner";
 import {
   listUsers,
@@ -54,7 +54,6 @@ import {
 import { Label } from "@/components/ui/label";
 import { SkeletonTable } from "@/components/ui/skeleton";
 import { QueryErrorBanner } from "@/components/ui/query-error-banner";
-import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageLayout } from "@/components/layout/page-layout";
 
@@ -212,17 +211,6 @@ export default function UsersPage() {
 
   const pageActions = (
     <div className="flex items-center gap-2">
-      <Tooltip>
-        <TooltipTrigger>
-          <Button variant="outline" size="sm" disabled>
-            <Upload className="mr-2 h-4 w-4" />
-            Импорт пользователей
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>
-          Массовое создание пользователей будет доступно в следующей версии.
-        </TooltipContent>
-      </Tooltip>
       <Dialog
         open={isCreateOpen}
         onOpenChange={(open) => {

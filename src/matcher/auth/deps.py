@@ -132,6 +132,21 @@ async def get_current_user(
     user = await UserRepo(db).get_by_username(username)
     if user is None or not user.is_active:
         raise credentials_exception
+
+    # Block all endpoints except password-change when must_change_password is set
+    _PASSWORD_EXEMPT_PATHS = frozenset(
+        {
+            "/api/v1/auth/force-change-password",
+            "/api/v1/auth/me",
+            "/api/v1/auth/logout",
+        }
+    )
+    if user.must_change_password and request.url.path not in _PASSWORD_EXEMPT_PATHS:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Password change required",
+        )
+
     return user
 
 

@@ -105,3 +105,47 @@ class TestAuthEndpoints:
             MockRepo.return_value.get_by_username = AsyncMock(return_value=mock_user)
             resp = await async_client.get("/api/v1/auth/me", headers=auth_headers)
             assert resp.status_code == 401
+
+    @pytest.mark.asyncio
+    async def test_must_change_password_blocks_other_endpoints(self, async_client, auth_headers):
+        """A user with must_change_password=True should get 403 on normal endpoints."""
+        mock_user = User(
+            user_id="u1",
+            username="test_admin",
+            hashed_password="x",
+            role="admin",
+            is_active=True,
+            must_change_password=True,
+        )
+        with patch("matcher.auth.deps.UserRepo") as MockRepo:
+            MockRepo.return_value.get_by_username = AsyncMock(return_value=mock_user)
+            resp = await async_client.get(
+                "/api/v1/catalog/products",
+                headers=auth_headers,
+            )
+            assert resp.status_code == 403
+            assert "Password change required" in resp.json().get("detail", "")
+
+    @pytest.mark.asyncio
+    async def test_must_change_password_allows_force_change(self, async_client, auth_headers):
+        """A user with must_change_password=True should still access force-change-password."""
+        mock_user = User(
+            user_id="u1",
+            username="test_admin",
+            hashed_password="x",
+            role="admin",
+            is_active=True,
+            must_change_password=True,
+        )
+        with patch("matcher.auth.deps.UserRepo") as MockRepo:
+            MockRepo.return_value.get_by_username = AsyncMock(return_value=mock_user)
+            resp = await async_client.post(
+                "/api/v1/auth/force-change-password",
+                json={"new_password": "new_secure_password_123"},
+                headers=auth_headers,
+            )
+            # Should NOT be 403 "Password change required"
+            # It will either succeed (200) or fail with a different status,
+            # but crucially it must not be blocked by the must_change_password guard
+            detail = resp.json().get("detail", "")
+            assert resp.status_code != 403 or "Password change required" not in detail

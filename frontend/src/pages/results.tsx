@@ -33,6 +33,7 @@ export default function ResultsPage() {
     queryKey: ["match-request", requestId],
     queryFn: () => getMatchRequest(requestId),
     refetchInterval: (query) => {
+      if (document.hidden) return false;
       const status = query.state.data?.status;
       if (status === "queued" || status === "running") return POLLING_INTERVAL;
       return false;

@@ -79,7 +79,10 @@ export default function RequestsPage() {
         created_after: createdAfter,
       });
     },
-    refetchInterval: 10_000,
+    refetchInterval: () => {
+      if (document.hidden) return false;
+      return 10_000;
+    },
   });
 
   const suppliersQuery = useQuery({

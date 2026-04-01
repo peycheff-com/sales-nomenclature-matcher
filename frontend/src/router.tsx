@@ -12,6 +12,7 @@ import {
   setMustChangePassword,
 } from "@/lib/auth-store";
 import { getMe } from "@/api/auth";
+import { queryClient } from "@/lib/query-client";
 import AppShell from "@/components/layout/app-shell";
 import LoginPage from "@/pages/login";
 import DashboardPage from "@/pages/dashboard";
@@ -40,7 +41,11 @@ async function ensureAuthenticated(): Promise<{
     return { authed: true, mustChange: mustChangePassword() };
   }
   try {
-    const user = await getMe();
+    const user = await queryClient.ensureQueryData({
+      queryKey: ["auth", "me"],
+      queryFn: getMe,
+      staleTime: 5 * 60 * 1000,
+    });
     setAuthenticated(true);
     setMustChangePassword(user.must_change_password);
     return { authed: true, mustChange: user.must_change_password };
@@ -49,9 +54,20 @@ async function ensureAuthenticated(): Promise<{
   }
 }
 
+function NotFound() {
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen gap-4">
+      <h1 className="text-4xl font-bold">404</h1>
+      <p className="text-muted-foreground">Страница не найдена</p>
+      <a href="/" className="text-primary underline">Вернуться на главную</a>
+    </div>
+  );
+}
+
 // Root route -- just renders outlet
 const rootRoute = createRootRoute({
   component: () => <Outlet />,
+  notFoundComponent: NotFound,
 });
 
 // Public: login
@@ -119,7 +135,11 @@ const adminRoute = createRoute({
   component: AdminPage,
   beforeLoad: async () => {
     try {
-      const user = await getMe();
+      const user = await queryClient.ensureQueryData({
+        queryKey: ["auth", "me"],
+        queryFn: getMe,
+        staleTime: 5 * 60 * 1000,
+      });
       if (user.role !== "admin") {
         throw redirect({ to: "/" });
       }
@@ -151,7 +171,11 @@ const settingsRoute = createRoute({
   component: SettingsPage,
   beforeLoad: async () => {
     try {
-      const user = await getMe();
+      const user = await queryClient.ensureQueryData({
+        queryKey: ["auth", "me"],
+        queryFn: getMe,
+        staleTime: 5 * 60 * 1000,
+      });
       if (user.role !== "admin") {
         throw redirect({ to: "/" });
       }
@@ -169,7 +193,11 @@ const usersRoute = createRoute({
   component: UsersPage,
   beforeLoad: async () => {
     try {
-      const user = await getMe();
+      const user = await queryClient.ensureQueryData({
+        queryKey: ["auth", "me"],
+        queryFn: getMe,
+        staleTime: 5 * 60 * 1000,
+      });
       if (user.role !== "admin") {
         throw redirect({ to: "/" });
       }

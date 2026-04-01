@@ -33,6 +33,7 @@ def _make_llm_client() -> tuple[AsyncOpenAI, str, dict]:
         api_key=llm_key,
         base_url=settings.active_llm_base_url,
         default_headers=extra_headers or None,
+        timeout=60.0,
     )
     extra_body = {}
 
@@ -50,7 +51,7 @@ def _make_llm_client() -> tuple[AsyncOpenAI, str, dict]:
 def _web_search(query: str, max_results: int = 4) -> str:
     """Fallback web search tool using DuckDuckGo."""
     try:
-        results = DDGS().text(query, max_results=max_results)
+        results = DDGS(timeout=10).text(query, max_results=max_results)
         if not results:
             return "No web results found."
 
@@ -133,9 +134,7 @@ TOOLS = [
                         "type": "string",
                         "enum": ["exact_match", "no_match"],
                         "description": (
-                            "If you are highly confident,"
-                            " emit exact_match."
-                            " Otherwise no_match."
+                            "If you are highly confident, emit exact_match. Otherwise no_match."
                         ),
                     },
                     "product_id": {
@@ -149,8 +148,7 @@ TOOLS = [
                     "reasoning": {
                         "type": "string",
                         "description": (
-                            "A short, one sentence explanation"
-                            " of why this product matches."
+                            "A short, one sentence explanation of why this product matches."
                         ),
                     },
                 },

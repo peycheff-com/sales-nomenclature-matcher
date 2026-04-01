@@ -276,5 +276,8 @@ def _fallback_rerank(
     top_n: int,
 ) -> list[RerankResult]:
     """Fallback: use RRF score as rerank proxy."""
-    sorted_candidates = sorted(candidates, key=lambda c: c.rrf_score, reverse=True)
-    return [RerankResult(candidate=c, rerank_score=c.rrf_score) for c in sorted_candidates[:top_n]]
+    sorted_candidates = sorted(candidates, key=lambda c: c.rrf_score or 0.0, reverse=True)
+    return [
+        RerankResult(candidate=c, rerank_score=(c.rrf_score or 0.0))
+        for c in sorted_candidates[:top_n]
+    ]

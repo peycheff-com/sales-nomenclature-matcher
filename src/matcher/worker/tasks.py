@@ -197,19 +197,27 @@ async def catalog_import(ctx: dict, job_id: str, source_type: str, **kwargs) -> 
     """Import catalog from CSV/XLSX file."""
     redis = ctx.get("redis")
     lock_key = "lock:catalog_import"
+    lock_acquired = False
     if redis:
-        acquired = await redis.set(lock_key, job_id, ex=3600, nx=True)
-        if not acquired:
-            return {
-                "job_id": job_id,
-                "status": "failed",
-                "error": "Another import is already running",
-            }
+        try:
+            acquired = await redis.set(lock_key, job_id, ex=600, nx=True)
+            if not acquired:
+                return {
+                    "job_id": job_id,
+                    "status": "failed",
+                    "error": "Another import is already running",
+                }
+            lock_acquired = True
+        except Exception:
+            logger.warning("Redis unavailable for import lock, proceeding without lock")
     try:
         return await _do_catalog_import(ctx, job_id, source_type, **kwargs)
     finally:
-        if redis:
-            await redis.delete(lock_key)
+        if redis and lock_acquired:
+            try:
+                await redis.delete(lock_key)
+            except Exception:
+                logger.warning("Failed to release import lock")
 
 
 async def _do_catalog_import(ctx: dict, job_id: str, source_type: str, **kwargs) -> dict:

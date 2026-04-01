@@ -44,3 +44,22 @@ jobs:
           script: |
             cd /opt/1C
             docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build --force-recreate api worker nginx
+
+      - name: Verify deployment health
+        if: steps.check.outputs.skip != 'true'
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DO_HOST }}
+          username: root
+          key: ${{ secrets.DO_SSH_KEY }}
+          script: |
+            for i in $(seq 1 30); do
+              if curl -sf http://localhost/api/v1/health | grep -q '"status":"ok"'; then
+                echo "Health check passed on attempt $i"
+                exit 0
+              fi
+              echo "Waiting for health check... attempt $i/30"
+              sleep 5
+            done
+            echo "Health check failed after 150 seconds"
+            exit 1

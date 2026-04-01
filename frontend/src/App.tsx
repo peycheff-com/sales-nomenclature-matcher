@@ -1,33 +1,30 @@
-import { useEffect } from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Toaster } from "@/components/ui/sonner";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { queryClient } from "@/lib/query-client";
 import { router } from "@/router";
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 1,
-      staleTime: 30_000,
-      refetchOnWindowFocus: false,
-    },
-  },
-});
-
-/** GAP-9.8: Offline/online detection */
+/** GAP-9.8: Offline/online detection (debounced to avoid flicker) */
 function useOnlineStatus() {
+  const offlineTimerRef = useRef<ReturnType<typeof setTimeout>>();
+
   useEffect(() => {
     let offlineToastId: string | number | undefined;
 
     const handleOffline = () => {
-      offlineToastId = toast.error("Нет подключения к интернету", {
-        duration: Infinity,
-        id: "offline-status",
-      });
+      clearTimeout(offlineTimerRef.current);
+      offlineTimerRef.current = setTimeout(() => {
+        offlineToastId = toast.error("Нет подключения к интернету", {
+          duration: Infinity,
+          id: "offline-status",
+        });
+      }, 1000);
     };
     const handleOnline = () => {
+      clearTimeout(offlineTimerRef.current);
       toast.dismiss(offlineToastId);
       toast.success("Подключение восстановлено", { duration: 3000 });
     };
@@ -35,6 +32,7 @@ function useOnlineStatus() {
     window.addEventListener("offline", handleOffline);
     window.addEventListener("online", handleOnline);
     return () => {
+      clearTimeout(offlineTimerRef.current);
       window.removeEventListener("offline", handleOffline);
       window.removeEventListener("online", handleOnline);
     };

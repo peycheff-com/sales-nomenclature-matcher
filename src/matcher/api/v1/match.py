@@ -181,6 +181,8 @@ async def preview_google_sheet(
         raise HTTPException(status_code=400, detail="Invalid Google Sheets URL")
 
     doc_id = match.group(1)
+    if len(doc_id) > 200:
+        raise HTTPException(status_code=400, detail="Invalid Google Sheets URL")
 
     gid = "0"
     gid_match = re.search(r"gid=([0-9]+)", url)

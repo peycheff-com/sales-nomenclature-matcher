@@ -27,7 +27,6 @@ jobs:
 
       - name: Run Ruff Linting
         run: uv run ruff check . --output-format=github
-        continue-on-error: true
 
   lint-frontend:
     runs-on: ubuntu-latest
@@ -74,4 +73,3 @@ jobs:
         env:
           PYTHONPATH: src
         run: uv run pytest
-        continue-on-error: true

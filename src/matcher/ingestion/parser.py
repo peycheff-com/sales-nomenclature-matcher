@@ -58,6 +58,7 @@ def _make_llm_client() -> tuple[AsyncOpenAI, str, dict]:
         api_key=llm_key,
         base_url=settings.active_llm_base_url,
         default_headers=extra_headers or None,
+        timeout=30.0,
     )
     extra_body: dict = {}
     if "qwen" in model.lower():

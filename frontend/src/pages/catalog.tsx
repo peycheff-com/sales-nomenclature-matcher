@@ -153,30 +153,33 @@ export default function CatalogPage() {
   const handleBulkDelete = useCallback(async () => {
     if (bulkDeleting) return;
     setBulkDeleting(true);
-    const ids = Array.from(selectedIds);
-    let successCount = 0;
-    let errorCount = 0;
-    for (const id of ids) {
-      try {
-        await deleteCatalogProduct(id);
-        successCount++;
-      } catch {
-        errorCount++;
+    try {
+      const ids = Array.from(selectedIds);
+      let successCount = 0;
+      let errorCount = 0;
+      for (const id of ids) {
+        try {
+          await deleteCatalogProduct(id);
+          successCount++;
+        } catch {
+          errorCount++;
+        }
       }
+      setBulkDeleteOpen(false);
+      setSelectedIds(new Set());
+      setExpandedProduct(null);
+      if (successCount > 0) {
+        toast.success(`Удалено товаров: ${successCount}`);
+        queryClient.invalidateQueries({ queryKey: ["catalog-stats"] });
+        queryClient.invalidateQueries({ queryKey: ["catalog-search"] });
+      }
+      if (errorCount > 0) {
+        toast.error(`Не удалось удалить: ${errorCount}`);
+      }
+    } finally {
+      setBulkDeleting(false);
     }
-    setBulkDeleting(false);
-    setBulkDeleteOpen(false);
-    setSelectedIds(new Set());
-    setExpandedProduct(null);
-    if (successCount > 0) {
-      toast.success(`Удалено товаров: ${successCount}`);
-      queryClient.invalidateQueries({ queryKey: ["catalog-stats"] });
-      queryClient.invalidateQueries({ queryKey: ["catalog-search"] });
-    }
-    if (errorCount > 0) {
-      toast.error(`Не удалось удалить: ${errorCount}`);
-    }
-  }, [selectedIds, queryClient]);
+  }, [bulkDeleting, selectedIds, queryClient]);
 
   // GAP-5.8: Open format info dialog instead of file picker directly
   const handleFileButtonClick = () => {

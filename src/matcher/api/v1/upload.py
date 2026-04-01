@@ -13,6 +13,8 @@ from matcher.schemas.match import BatchRequestAccepted
 
 router = APIRouter(tags=["Upload"])
 
+MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB
+
 # XLSX/ZIP magic bytes (PK\x03\x04)
 _XLSX_MAGIC = b"\x50\x4b\x03\x04"
 # Old XLS magic bytes (Microsoft Compound File)
@@ -44,7 +46,9 @@ async def upload_match_file(
     current_user: User = Depends(get_current_user),
 ):
     """Securely upload an Excel file and enqueue it for batch matching."""
-    contents = await file.read()
+    contents = await file.read(MAX_UPLOAD_BYTES + 1)
+    if len(contents) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="File exceeds 50 MB limit.")
     _validate_excel_content(contents)
     try:
         if use_ai_column_picker:
@@ -99,7 +103,9 @@ async def parse_match_file(
     When ``analyze_structure`` is True, uses AI to detect multiple tables
     (supplier input vs catalog reference) and returns a structured analysis.
     """
-    contents = await file.read()
+    contents = await file.read(MAX_UPLOAD_BYTES + 1)
+    if len(contents) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="File exceeds 50 MB limit.")
     _validate_excel_content(contents)
 
     try:
@@ -146,7 +152,9 @@ async def smart_upload(
        d. Reindexes embeddings
        e. Runs batch matching on supplier items
     """
-    contents = await file.read()
+    contents = await file.read(MAX_UPLOAD_BYTES + 1)
+    if len(contents) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="File exceeds 50 MB limit.")
     _validate_excel_content(contents)
 
     await load_persisted_settings(db, force=True)

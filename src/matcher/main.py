@@ -58,8 +58,11 @@ async def lifespan(app: FastAPI):
     yield
 
     # Cleanup
-    app.state.arq_pool.close()
-    await app.state.arq_pool.wait_closed()
+    try:
+        app.state.arq_pool.close()
+        await app.state.arq_pool.wait_closed()
+    except Exception:
+        logger.exception("Error closing ARQ pool")
     await engine.dispose()
     logger.info("Shutdown complete")
 

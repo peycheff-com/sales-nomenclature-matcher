@@ -12,7 +12,11 @@ TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 CHECK_INTERVAL = int(os.environ.get("CHECK_INTERVAL", "60"))
 ALERT_COOLDOWN = int(os.environ.get("ALERT_COOLDOWN", "600"))  # 10 min between alerts
 
+SLOW_RESPONSE_THRESHOLD = 5.0  # seconds
+SLOW_RESPONSE_COUNT_TRIGGER = 3  # consecutive slow responses before alerting
+
 last_alert_time = 0
+consecutive_slow_responses = 0
 
 
 def send_telegram(message: str) -> None:
@@ -34,18 +38,58 @@ def send_telegram(message: str) -> None:
         print(f"Failed to send Telegram alert: {e}")
 
 
+def _format_checks(checks: dict | None) -> str:
+    """Format individual check statuses for the alert message."""
+    if not checks:
+        return "n/a"
+    parts = []
+    for name, status in checks.items():
+        icon = "\u2705" if status == "ok" else "\u274c"
+        parts.append(f"  {icon} {name}: {status}")
+    return "\n".join(parts)
+
+
 def check_health() -> None:
+    global consecutive_slow_responses
     try:
+        start = time.monotonic()
         resp = requests.get(HEALTH_URL, timeout=10)
+        elapsed = time.monotonic() - start
         data = resp.json()
-        if resp.status_code != 200 or data.get("status") != "ok":
-            status = data.get('status')
-            checks = data.get('checks')
-            send_telegram(
+
+        version = data.get("version", "unknown")
+        status = data.get("status")
+        checks = data.get("checks")  # only present in DEBUG mode
+
+        # Track slow responses
+        if elapsed > SLOW_RESPONSE_THRESHOLD:
+            consecutive_slow_responses += 1
+        else:
+            consecutive_slow_responses = 0
+
+        if resp.status_code != 200 or status != "ok":
+            msg = (
                 f"\u26a0\ufe0f <b>Matcher degraded</b>\n"
-                f"Status: {status}\nChecks: {checks}"
+                f"Status: {status}\n"
+                f"Version: {version}\n"
+                f"Checks:\n{_format_checks(checks)}"
+            )
+            if consecutive_slow_responses >= SLOW_RESPONSE_COUNT_TRIGGER:
+                msg += (
+                    f"\n\u23f1 Response time: {elapsed:.1f}s"
+                    f" (slow x{consecutive_slow_responses})"
+                )
+            send_telegram(msg)
+        elif consecutive_slow_responses >= SLOW_RESPONSE_COUNT_TRIGGER:
+            send_telegram(
+                f"\u23f1 <b>Matcher slow</b>\n"
+                f"Response time: {elapsed:.1f}s"
+                f" (>{SLOW_RESPONSE_THRESHOLD}s"
+                f" x{consecutive_slow_responses})\n"
+                f"Version: {version}"
             )
     except Exception as e:
+        consecutive_slow_responses = 0
         send_telegram(f"\U0001f534 <b>Matcher DOWN</b>\nError: {e}")
 
 

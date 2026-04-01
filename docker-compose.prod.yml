@@ -5,6 +5,9 @@ services:
       dockerfile: infra/nginx/Dockerfile
     ports:
       - "80:80"
+      - "443:443"
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt:ro
     depends_on:
       api:
         condition: service_healthy

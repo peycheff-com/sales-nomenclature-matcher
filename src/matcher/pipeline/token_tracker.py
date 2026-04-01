@@ -17,6 +17,7 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
+from pathlib import Path
 
 from sqlalchemy import insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,22 +26,44 @@ from matcher.db.models import TokenUsageLog
 
 logger = logging.getLogger(__name__)
 
-# Approximate pricing per 1M tokens (USD). Updated as needed.
-COST_PER_1M: dict[str, dict[str, float]] = {
-    # OpenAI
-    "gpt-4o": {"prompt": 2.50, "completion": 10.00},
-    "gpt-4o-mini": {"prompt": 0.15, "completion": 0.60},
-    "gpt-4.1-mini": {"prompt": 0.40, "completion": 1.60},
-    "gpt-4.1-nano": {"prompt": 0.10, "completion": 0.40},
-    "text-embedding-3-small": {"prompt": 0.02, "completion": 0.0},
-    "text-embedding-3-large": {"prompt": 0.13, "completion": 0.0},
-    # Together / open-source common models
-    "meta-llama/llama-4-maverick": {"prompt": 0.20, "completion": 0.20},
-    "qwen/qwen3-235b-a22b": {"prompt": 0.20, "completion": 0.20},
-    # Rerank providers (per search unit, approximated as token cost)
-    "rerank-multilingual-v3.0": {"prompt": 0.01, "completion": 0.0},
-}
-DEFAULT_COST = {"prompt": 0.50, "completion": 1.50}  # Fallback
+# Hardcoded fallback defaults in case the config file is missing.
+_FALLBACK_DEFAULT_COST: dict[str, float] = {"prompt": 0.50, "completion": 1.50}
+
+
+def _load_pricing() -> tuple[dict[str, dict[str, float]], dict[str, float]]:
+    """Load token pricing from configs/token_pricing.yaml.
+
+    Returns (model_costs, default_cost). Falls back to built-in defaults
+    if the YAML file is missing or cannot be parsed.
+    """
+    config_path = Path(__file__).resolve().parents[3] / "configs" / "token_pricing.yaml"
+    try:
+        import yaml  # noqa: E402 - local import to keep yaml optional at top-level
+
+        with open(config_path) as f:
+            data = yaml.safe_load(f)
+        models = {
+            str(k): {"prompt": float(v["prompt"]), "completion": float(v["completion"])}
+            for k, v in data.get("models", {}).items()
+        }
+        default_section = data.get("default", {})
+        fallback_p = _FALLBACK_DEFAULT_COST["prompt"]
+        fallback_c = _FALLBACK_DEFAULT_COST["completion"]
+        default = {
+            "prompt": float(default_section.get("prompt", fallback_p)),
+            "completion": float(default_section.get("completion", fallback_c)),
+        }
+        logger.debug("Loaded token pricing from %s (%d models)", config_path, len(models))
+        return models, default
+    except FileNotFoundError:
+        logger.warning("Token pricing config not found at %s, using built-in defaults", config_path)
+        return {}, _FALLBACK_DEFAULT_COST.copy()
+    except Exception as e:
+        logger.warning("Failed to load token pricing config: %s, using built-in defaults", e)
+        return {}, _FALLBACK_DEFAULT_COST.copy()
+
+
+COST_PER_1M, DEFAULT_COST = _load_pricing()
 
 
 @dataclass
