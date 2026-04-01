@@ -16,6 +16,7 @@ from matcher.pipeline.features import extract_features, extract_numbers_from_tex
 from matcher.pipeline.overrides import check_supplier_override
 from matcher.pipeline.reranker import rerank_candidates
 from matcher.pipeline.scoring import compute_attribute_overlap, compute_pair_features, score_candidate
+from matcher.pipeline.agent import resolve_agentically
 
 logger = logging.getLogger(__name__)
 
@@ -195,15 +196,47 @@ async def match_single(
             "reasons": sc["reasons"],
         })
 
+    result_status = best_decision.status
+    result_confidence = best_decision.confidence
+    result_reasons = best["reasons"].copy()
+    
+    # Trigger Agentic RAG loop if not confident and settings allow it
+    if result_status != "auto_match" and settings.active_llm_api_key and settings.active_llm_api_key != "none":
+        agent_decision = await resolve_agentically(raw_text, scored_candidates[:5], session)
+        if agent_decision:
+            new_status = agent_decision.get("status")
+            if new_status == "auto_match":
+                # Override the result to auto match
+                result_status = "auto_match"
+                result_confidence = 0.99
+                
+                # Fetch the product from DB if available (or use existing)
+                pid = agent_decision.get("product_id")
+                # Look for it in alternatives
+                matched_alt = next((alt for alt in alternatives if alt["product_id"] == pid), None)
+                if matched_alt:
+                    best_candidate_dict = {
+                        "product_id": matched_alt["product_id"],
+                        "name": matched_alt["name"],
+                        "article": matched_alt["article"],
+                        "brand": matched_alt["brand"],
+                        "category_path": "",
+                    }
+                else:
+                    # Agent hallucinated or found something via catalog search not in top 5
+                    best_candidate_dict["product_id"] = pid
+                    
+            result_reasons = [f"Agent Resolution: {agent_decision.get('reasoning')}"]
+
     return MatchItemResult(
         request_item_id=request_item_id,
         line_id=line_id,
         raw_text=raw_text,
         normalized_text=normalized_text,
         extracted_attributes=extracted_attrs,
-        status=best_decision.status,
-        confidence=best_decision.confidence,
+        status=result_status,
+        confidence=result_confidence,
         best_candidate=best_candidate_dict,
         alternatives=alternatives,
-        reasons=best["reasons"],
+        reasons=result_reasons,
     )
