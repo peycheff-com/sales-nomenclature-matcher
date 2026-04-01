@@ -254,6 +254,14 @@ class Settings(BaseSettings):
     rerank_enabled: bool = True
     agentic_resolution_enabled: bool = False
 
+    # Adaptive retrieval
+    small_catalog_threshold: int = 500  # Below this, retrieval returns all products
+
+    # LLM Matcher mode
+    llm_matcher_enabled: bool = False
+    llm_matcher_model: str = ""  # if empty, uses llm_model
+    llm_matcher_batch_size: int = 5  # items per LLM call in small-catalog batch mode
+
     # Embedding config
     embedding_model: str = "text-embedding-3-large"
     embedding_dimensions: int = 1024

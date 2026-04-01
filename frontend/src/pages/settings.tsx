@@ -75,6 +75,10 @@ export default function SettingsPage() {
         enabled: false,
       },
       agentic_resolution_enabled: false,
+      small_catalog_threshold: 500,
+      llm_matcher_enabled: false,
+      llm_matcher_model: "",
+      llm_matcher_batch_size: 5,
     },
   });
 
@@ -446,7 +450,61 @@ export default function SettingsPage() {
               </div>
             </div>
 
+            <div className="grid grid-cols-1 gap-4">
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <div className="space-y-0.5">
+                  <Label className="text-base cursor-pointer" htmlFor="llm-matcher-enable">
+                    Включить LLM Matcher (прямое сопоставление через LLM)
+                  </Label>
+                  <div className="text-sm text-muted-foreground w-11/12">
+                    Вместо каскада поиск→реранжирование→скоринг, система отправляет каталог и запрос напрямую в LLM для сопоставления.
+                    <b> Рекомендуется для каталогов до 500 позиций.</b>
+                  </div>
+                </div>
+                <Switch
+                  id="llm-matcher-enable"
+                  checked={form.watch("llm_matcher_enabled")}
+                  onCheckedChange={(checked: boolean) =>
+                    form.setValue("llm_matcher_enabled", checked, { shouldDirty: true })
+                  }
+                />
+              </div>
+
+              {form.watch("llm_matcher_enabled") && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pl-4 border-l-2 border-primary/20">
+                  <div className="space-y-2">
+                    <Label>Модель LLM Matcher</Label>
+                    <Input
+                      placeholder="Оставьте пустым для использования основной LLM модели"
+                      {...form.register("llm_matcher_model")}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Размер мини-батча</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={20}
+                      {...form.register("llm_matcher_batch_size", { valueAsNumber: true })}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-border">
+              <div className="space-y-2">
+                <Label>Порог малого каталога</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={10000}
+                  {...form.register("small_catalog_threshold", { valueAsNumber: true })}
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Каталог ≤ этого размера — поиск без фильтров (все товары ранжируются)
+                </p>
+              </div>
               <div className="space-y-2">
                 <Label className="flex items-center gap-1">
                   Размерности (Dimensions) Embeddings

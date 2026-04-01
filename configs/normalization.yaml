@@ -62,6 +62,24 @@ brand_aliases:
   роквул: rockwool
   пеноплэкс: penoplex
   пеноплекс: penoplex
+  vaillant: vaillant
+  вайлант: vaillant
+  viega: viega
+  вьега: viega
+  uponor: uponor
+  юпонор: uponor
+  watts: watts
+  ваттс: watts
+  oventrop: oventrop
+  овентроп: oventrop
+  giacomini: giacomini
+  джакомини: giacomini
+  geberit: geberit
+  геберит: geberit
+  roca: roca
+  рока: roca
+  grohe: grohe
+  гроэ: grohe
 
 unit_aliases:
   # length
@@ -111,6 +129,20 @@ unit_aliases:
   rpm: rpm
   дюйм: inch
   '"': inch
+  # Volume
+  куб.м: cbm
+  м3: cbm
+  м³: cbm
+  # Linear
+  п.м: lm
+  п.м.: lm
+  пм: lm
+  # Sets
+  комп: set
+  компл: set
+  комплект: set
+  пар: pair
+  пара: pair
 
 packaging_keywords:
   - "упаковка"
@@ -138,6 +170,11 @@ packaging_keywords:
   - "ведро"
   - "бутылка"
   - "бут"
+  - "лист"
+  - "плита"
+  - "панель"
+  - "секция"
+  - "комплект"
 
 cyrillic_to_latin:
   а: a
@@ -207,6 +244,17 @@ abbreviations:
   "гидр.": гидравлический
   "техн.": технический
   "пром.": промышленный
+  # HVAC
+  "кр.": круглый
+  кр: круглый
+  прям: прямоугольный
+  возд: воздуховод
+  вент: вентиляция
+  # Metalwork
+  ст: сталь
+  "ст.": сталь
+  # Pipe fittings
+  "д.": диаметр
 
 packaging_aliases:
   упак.: упаковка
@@ -229,6 +277,12 @@ packaging_aliases:
   бал: баллон
   бут.: бутылка
   бут: бутылка
+  лист: лист
+  плита: плита
+  панель: панель
+  секция: секция
+  компл.: комплект
+  компл: комплект
 
 dimension_patterns:
   - "(?P<d1>\\d+(?:[.,]\\d+)?)\\s*[xхXХ*×]\\s*(?P<d2>\\d+(?:[.,]\\d+)?)(?:\\s*[xхXХ*×]\\s*(?P<d3>\\d+(?:[.,]\\d+)?))?"

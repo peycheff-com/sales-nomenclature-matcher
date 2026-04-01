@@ -6,10 +6,34 @@ from dataclasses import dataclass
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from matcher.config import settings
 from matcher.indexing.embedder import embed_single
 from matcher.pipeline.token_tracker import TokenTracker
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Catalog count cache (module-level)
+# ---------------------------------------------------------------------------
+
+_catalog_count: int | None = None
+
+
+async def get_catalog_count(session: AsyncSession) -> int:
+    """Get the number of active catalog products, cached after first call."""
+    global _catalog_count
+    if _catalog_count is None:
+        result = await session.execute(
+            text("SELECT COUNT(*) FROM catalog_products WHERE is_active = true")
+        )
+        _catalog_count = result.scalar() or 0
+    return _catalog_count
+
+
+def invalidate_catalog_count() -> None:
+    """Reset the cached catalog count. Call after import/reindex."""
+    global _catalog_count
+    _catalog_count = None
 
 
 @dataclass
@@ -33,6 +57,144 @@ class SearchCandidate:
     exact_match: bool = False
     rrf_score: float = 0.0
     retrieval_rank: int = 0
+
+
+async def _full_catalog_search(
+    session: AsyncSession,
+    query_text: str,
+    normalized_text: str,
+    query_embedding: list[float] | None,
+    rrf_k: int,
+    top_n: int,
+    article_hint: str | None = None,
+) -> list[SearchCandidate]:
+    """Rank ALL active products without filtering. For small catalogs only."""
+    params: dict = {
+        "query_text": normalized_text,
+        "ts_query": normalized_text,
+        "top_n": top_n,
+        "rrf_k": rrf_k,
+    }
+
+    if article_hint:
+        exact_cte = """
+        exact_matches AS (
+            SELECT product_id, 1 as exact_hit,
+                   ROW_NUMBER() OVER (ORDER BY product_id) as rank
+            FROM catalog_products
+            WHERE is_active = true
+              AND (article = :article_hint
+                   OR code = :article_hint
+                   OR manufacturer_code = :article_hint)
+        )"""
+        params["article_hint"] = article_hint
+    else:
+        exact_cte = """
+        exact_matches AS (
+            SELECT NULL::text as product_id, 0 as exact_hit, 0 as rank
+            WHERE false
+        )"""
+
+    lexical_cte = """
+    lexical_matches AS (
+        SELECT product_id,
+               GREATEST(
+                   ts_rank(search_tsv, plainto_tsquery('russian', :ts_query)),
+                   similarity(normalized_name, :query_text) * 0.8,
+                   similarity(search_document, :query_text) * 0.5
+               ) as lex_score,
+               ROW_NUMBER() OVER (
+                   ORDER BY GREATEST(
+                       ts_rank(search_tsv, plainto_tsquery('russian', :ts_query)),
+                       similarity(normalized_name, :query_text) * 0.8,
+                       similarity(search_document, :query_text) * 0.5
+                   ) DESC
+               ) as rank
+        FROM catalog_products
+        WHERE is_active = true
+        ORDER BY lex_score DESC
+    )"""
+
+    if query_embedding is not None:
+        semantic_cte = """
+        semantic_matches AS (
+            SELECT e.product_id,
+                   1 - (e.embedding_vector <=> :query_vector::vector) as sem_score,
+                   ROW_NUMBER() OVER (
+                       ORDER BY e.embedding_vector <=> :query_vector::vector
+                   ) as rank
+            FROM catalog_embeddings e
+            JOIN catalog_products p ON e.product_id = p.product_id
+            WHERE p.is_active = true
+            ORDER BY e.embedding_vector <=> :query_vector::vector
+        )"""
+        params["query_vector"] = str(query_embedding)
+    else:
+        semantic_cte = """
+        semantic_matches AS (
+            SELECT NULL::text as product_id, 0.0::float as sem_score, 0 as rank
+            WHERE false
+        )"""
+
+    sql = f"""
+    WITH
+    {exact_cte},
+    {lexical_cte},
+    {semantic_cte},
+    rrf_scores AS (
+        SELECT
+            COALESCE(e.product_id, l.product_id, s.product_id) as product_id,
+            COALESCE(e.exact_hit, 0) as exact_hit,
+            COALESCE(l.lex_score, 0) as lex_score,
+            COALESCE(s.sem_score, 0) as sem_score,
+            CASE WHEN e.product_id IS NOT NULL THEN 1.0 / (:rrf_k + 0) ELSE 0 END
+            + CASE WHEN l.product_id IS NOT NULL THEN 1.0 / (:rrf_k + l.rank) ELSE 0 END
+            + CASE WHEN s.product_id IS NOT NULL THEN 1.0 / (:rrf_k + s.rank) ELSE 0 END
+            as rrf_score
+        FROM lexical_matches l
+        FULL OUTER JOIN semantic_matches s ON l.product_id = s.product_id
+        FULL OUTER JOIN exact_matches e
+            ON COALESCE(l.product_id, s.product_id) = e.product_id
+    )
+    SELECT
+        p.product_id, p.name, p.normalized_name, p.article,
+        p.brand, p.normalized_brand, p.manufacturer_code,
+        p.category_id, p.category_path, p.unit, p.packaging,
+        p.search_document,
+        r.lex_score, r.sem_score, r.exact_hit, r.rrf_score,
+        ROW_NUMBER() OVER (ORDER BY r.rrf_score DESC) as retrieval_rank
+    FROM rrf_scores r
+    JOIN catalog_products p ON r.product_id = p.product_id
+    WHERE p.is_active = true
+    ORDER BY r.rrf_score DESC
+    LIMIT :top_n
+    """
+
+    result = await session.execute(text(sql), params)
+    rows = result.fetchall()
+
+    return [
+        SearchCandidate(
+            product_id=row[0],
+            name=row[1],
+            normalized_name=row[2],
+            article=row[3],
+            brand=row[4],
+            normalized_brand=row[5],
+            manufacturer_code=row[6],
+            category_id=row[7],
+            category_path=row[8],
+            unit=row[9],
+            packaging=row[10],
+            search_document=row[11],
+            lexical_score=float(row[12] or 0),
+            semantic_score=float(row[13] or 0),
+            exact_match=bool(row[14]),
+            rrf_score=float(row[15] or 0),
+            retrieval_rank=int(row[16]),
+        )
+        for row in rows
+    ]
 
 
 async def hybrid_search(
@@ -62,6 +224,25 @@ async def hybrid_search(
     Returns:
         List of SearchCandidate ordered by RRF score descending.
     """
+    # Adaptive retrieval: for small catalogs, rank ALL products (no filtering)
+    catalog_count = await get_catalog_count(session)
+    if catalog_count <= settings.small_catalog_threshold:
+        if query_embedding is ...:
+            try:
+                query_embedding = await embed_single(normalized_text, token_tracker=token_tracker)
+            except Exception as e:
+                logger.warning(f"Embedding failed for query: {e}")
+                query_embedding = None
+        return await _full_catalog_search(
+            session,
+            query_text,
+            normalized_text,
+            query_embedding,
+            rrf_k,
+            top_n,
+            article_hint=article_hint,
+        )
+
     # Get query embedding (use pre-computed if provided, ... sentinel means "compute it")
     if query_embedding is ...:
         try:

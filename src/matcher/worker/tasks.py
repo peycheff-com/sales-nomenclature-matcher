@@ -34,6 +34,9 @@ async def _process_batch(
     """
     from matcher.db.repos.match import MatchRepo
     from matcher.db.repos.synonym import SynonymRepo
+    from matcher.indexing.embedder import embed_texts
+    from matcher.normalization.db_synonyms import apply_db_synonyms
+    from matcher.normalization.pipeline import NormalizationContext, run_pipeline
     from matcher.pipeline.orchestrator import match_single
 
     if max_concurrency is None:
@@ -57,11 +60,40 @@ async def _process_batch(
     except Exception:
         logger.warning("Failed to pre-load synonym map, will load per item")
 
+    # ── Phase 1: Pre-normalize all items ────────────────────────────────────
+    pre_normalized: dict[str, NormalizationContext] = {}
+    for item in item_rows:
+        try:
+            ctx = run_pipeline(item["raw_text"])
+            if cached_synonym_map:
+                async with db_factory() as syn_session:
+                    syn_repo = SynonymRepo(syn_session)
+                    ctx = await apply_db_synonyms(
+                        ctx, syn_repo, supplier_id, synonym_map=cached_synonym_map
+                    )
+            pre_normalized[item["request_item_id"]] = ctx
+        except Exception as e:
+            logger.warning("Pre-normalization failed for %s: %s", item["request_item_id"], e)
+
+    # ── Phase 2: Batch-embed all normalized texts ───────────────────────────
+    pre_embeddings: dict[str, list[float]] = {}
+    items_with_ctx = [it for it in item_rows if it["request_item_id"] in pre_normalized]
+    if items_with_ctx:
+        try:
+            all_texts = [pre_normalized[it["request_item_id"]].text for it in items_with_ctx]
+            all_embs = await embed_texts(all_texts, batch_size=100, token_tracker=tracker)
+            for i, it in enumerate(items_with_ctx):
+                if all_embs[i]:
+                    pre_embeddings[it["request_item_id"]] = all_embs[i]
+        except Exception as e:
+            logger.warning("Batch embedding failed, items will embed individually: %s", e)
+
     async def _process_one(item: dict) -> None:
         async with sem:
             try:
                 async with db_factory() as session:
                     repo = MatchRepo(session)
+                    rid = item["request_item_id"]
                     result = await match_single(
                         raw_text=item["raw_text"],
                         session=session,
@@ -71,6 +103,8 @@ async def _process_batch(
                         review_threshold=effective_review,
                         token_tracker=tracker,
                         synonym_map=cached_synonym_map,
+                        pre_normalized_ctx=pre_normalized.get(rid),
+                        query_embedding=pre_embeddings.get(rid, ...),
                     )
 
                     best_product_id = None
@@ -370,6 +404,12 @@ async def _do_catalog_import(ctx: dict, job_id: str, source_type: str, **kwargs)
             count = await repo.upsert_products(products)
             await session.commit()
 
+        from matcher.indexing.search import invalidate_catalog_count
+        from matcher.pipeline.llm_matcher import invalidate_catalog_cache
+
+        invalidate_catalog_count()
+        invalidate_catalog_cache()
+
         logger.info("Catalog import %s: %d upserted, %d errors", job_id, count, len(errors))
         return {
             "job_id": job_id,
@@ -399,6 +439,12 @@ async def catalog_reindex(ctx: dict, job_id: str, **kwargs) -> dict:
         embedding_version=kwargs.get("embedding_version"),
         session_factory=db_factory,
     )
+    from matcher.indexing.search import invalidate_catalog_count
+    from matcher.pipeline.llm_matcher import invalidate_catalog_cache
+
+    invalidate_catalog_count()
+    invalidate_catalog_cache()
+
     logger.info("Reindex job %s complete: %s", job_id, result)
     return {"job_id": job_id, "status": "done", **result}
 

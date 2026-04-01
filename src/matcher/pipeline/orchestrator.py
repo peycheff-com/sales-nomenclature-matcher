@@ -12,16 +12,18 @@ from matcher.db.repos.alias import AliasRepo
 from matcher.db.repos.supplier import SupplierRepo
 from matcher.db.repos.synonym import SynonymRepo
 from matcher.indexing.embedder import embed_single
-from matcher.indexing.search import hybrid_search
+from matcher.indexing.search import get_catalog_count, hybrid_search
 from matcher.normalization.db_synonyms import apply_db_synonyms
-from matcher.normalization.pipeline import run_pipeline
+from matcher.normalization.pipeline import NormalizationContext, run_pipeline
 from matcher.pipeline.agent import resolve_agentically
 from matcher.pipeline.decision import decide
 from matcher.pipeline.explanations import build_reasons
 from matcher.pipeline.features import extract_features, extract_numbers_from_text
+from matcher.pipeline.llm_matcher import get_cached_catalog, llm_match
 from matcher.pipeline.overrides import check_supplier_override
 from matcher.pipeline.reranker import rerank_candidates
 from matcher.pipeline.scoring import (
+    ScoringResult,
     compute_attribute_overlap,
     compute_pair_features,
     score_candidate,
@@ -60,6 +62,8 @@ async def match_single(
     review_threshold: float | None = None,
     token_tracker: TokenTracker | None = None,
     synonym_map: dict[str, str] | None = None,
+    pre_normalized_ctx: NormalizationContext | None = None,
+    query_embedding: list[float] | None = ...,
 ) -> MatchItemResult:
     """Run the full matching pipeline on a single input line."""
     request_item_id = f"item_{uuid.uuid4().hex[:12]}"
@@ -72,11 +76,15 @@ async def match_single(
             strict_mode = supplier.strict_mode or strict_mode
 
     # Stage 1: Normalize (YAML-based pipeline)
-    ctx = run_pipeline(raw_text)
+    if pre_normalized_ctx is not None:
+        ctx = pre_normalized_ctx
+    else:
+        ctx = run_pipeline(raw_text)
 
     # Stage 1.5: Apply DB-driven synonyms (global + supplier-specific)
-    synonym_repo = SynonymRepo(session)
-    ctx = await apply_db_synonyms(ctx, synonym_repo, supplier_id, synonym_map=synonym_map)
+    if pre_normalized_ctx is None:
+        synonym_repo = SynonymRepo(session)
+        ctx = await apply_db_synonyms(ctx, synonym_repo, supplier_id, synonym_map=synonym_map)
     normalized_text = ctx.text
 
     # Stage 2: Extract features
@@ -84,7 +92,13 @@ async def match_single(
     extracted_attrs = features.to_dict()
 
     # Stage 0+3: Parallel override check and embedding (saves ~200ms/item)
-    embed_task = asyncio.create_task(embed_single(normalized_text, token_tracker=token_tracker))
+    # Use pre-computed embedding if available (batch mode)
+    if query_embedding is not ...:
+        _precomputed_embedding = query_embedding
+        embed_task = asyncio.create_task(asyncio.sleep(0))  # no-op
+    else:
+        _precomputed_embedding = None
+        embed_task = asyncio.create_task(embed_single(normalized_text, token_tracker=token_tracker))
 
     override = await check_supplier_override(
         supplier_id=supplier_id,
@@ -116,22 +130,129 @@ async def match_single(
         )
 
     # Await embedding result
-    try:
-        query_embedding = await embed_task
-    except Exception as e:
-        logger.warning("Pre-computed embedding failed: %s", e)
-        query_embedding = None
+    if _precomputed_embedding is not None:
+        query_embedding = _precomputed_embedding
+    else:
+        try:
+            query_embedding = await embed_task
+        except Exception as e:
+            logger.warning("Pre-computed embedding failed: %s", e)
+            query_embedding = None
+
+    # ── LLM Matcher path (opt-in) ──────────────────────────────────────────
+    _hybrid_candidates = None  # cache for fallback reuse
+    if settings.llm_matcher_enabled:
+        catalog_count = await get_catalog_count(session)
+        if catalog_count <= settings.small_catalog_threshold:
+            llm_candidates = await get_cached_catalog(session)
+        else:
+            llm_candidates = await hybrid_search(
+                query_text=raw_text,
+                normalized_text=normalized_text,
+                session=session,
+                top_n=30,
+                token_tracker=token_tracker,
+                query_embedding=query_embedding,
+            )
+            _hybrid_candidates = llm_candidates  # save for fallback
+
+        llm_result = await llm_match(
+            raw_text=raw_text,
+            normalized_text=normalized_text,
+            extracted_attrs=extracted_attrs,
+            candidates=llm_candidates,
+            token_tracker=token_tracker,
+        )
+
+        if llm_result is not None:
+            scoring_result = ScoringResult(
+                final_score=llm_result.confidence,
+                auto_match_forbidden=False,
+                short_circuit="llm_matcher",
+            )
+            supplier_thresholds = (
+                supplier.normalization_rules.get("thresholds") if supplier else None
+            )
+            decision = decide(
+                scoring_result,
+                strict_mode=strict_mode,
+                auto_threshold=auto_threshold,
+                review_threshold=review_threshold,
+                supplier_thresholds=supplier_thresholds,
+            )
+
+            best_candidate = None
+            if llm_result.product_id:
+                matched = next(
+                    (c for c in llm_candidates if c.product_id == llm_result.product_id),
+                    None,
+                )
+                if matched:
+                    best_candidate = {
+                        "product_id": matched.product_id,
+                        "name": matched.name,
+                        "article": matched.article,
+                        "brand": matched.brand,
+                        "category_path": matched.category_path,
+                    }
+                else:
+                    best_candidate = {"product_id": llm_result.product_id}
+
+            alternatives = []
+            for alt in llm_result.alternatives[:5]:
+                alt_cand = next(
+                    (c for c in llm_candidates if c.product_id == alt.get("product_id")),
+                    None,
+                )
+                alternatives.append(
+                    {
+                        "product_id": alt.get("product_id"),
+                        "name": alt_cand.name if alt_cand else "",
+                        "article": alt_cand.article if alt_cand else None,
+                        "brand": alt_cand.brand if alt_cand else None,
+                        "final_score": alt.get("confidence", 0.0),
+                        "reasons": [alt.get("reasoning", "")],
+                    }
+                )
+
+            return MatchItemResult(
+                request_item_id=request_item_id,
+                line_id=line_id,
+                raw_text=raw_text,
+                normalized_text=normalized_text,
+                extracted_attributes=extracted_attrs,
+                status=decision.status,
+                confidence=decision.confidence,
+                best_candidate=best_candidate,
+                alternatives=alternatives,
+                reasons=[f"LLM Matcher: {llm_result.reasoning}"],
+                decision_trace={
+                    "stage": "llm_matcher",
+                    "llm_confidence": llm_result.confidence,
+                    "reasoning": llm_result.reasoning,
+                    "candidates_shown": len(llm_candidates),
+                    "decision": {
+                        "status": decision.status,
+                        "confidence": decision.confidence,
+                    },
+                },
+            )
+        else:
+            logger.info("LLM matcher returned None, falling back to normal pipeline")
 
     # Stage 3: Candidate retrieval (use pre-computed embedding)
-    # Don't hard-filter by brand — scoring handles brand matching downstream
-    candidates = await hybrid_search(
-        query_text=raw_text,
-        normalized_text=normalized_text,
-        session=session,
-        top_n=retrieval_top_n,
-        token_tracker=token_tracker,
-        query_embedding=query_embedding,
-    )
+    # Reuse candidates from LLM matcher path if available
+    if _hybrid_candidates is not None:
+        candidates = _hybrid_candidates
+    else:
+        candidates = await hybrid_search(
+            query_text=raw_text,
+            normalized_text=normalized_text,
+            session=session,
+            top_n=retrieval_top_n,
+            token_tracker=token_tracker,
+            query_embedding=query_embedding,
+        )
 
     if not candidates:
         # Last resort: agent resolution when retrieval finds nothing

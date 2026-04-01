@@ -22,9 +22,8 @@ from dataclasses import dataclass, field
 
 import chardet
 import pandas as pd
-from openai import AsyncOpenAI
 
-from matcher.config import settings
+from matcher.pipeline.llm_client import clean_json_response, llm_available, make_llm_client
 
 logger = logging.getLogger(__name__)
 
@@ -64,67 +63,47 @@ class FileAnalysisResult:
 # ---------------------------------------------------------------------------
 
 _NAME_KEYWORDS = [
-    "номенклатура", "наименование", "название", "товар", "продукт",
-    "описание", "продукция", "позиция", "name", "product", "description", "item",
+    "номенклатура",
+    "наименование",
+    "название",
+    "товар",
+    "продукт",
+    "описание",
+    "продукция",
+    "позиция",
+    "name",
+    "product",
+    "description",
+    "item",
 ]
 _UNIT_KEYWORDS = ["ед.изм", "ед. изм", "единица", "единицы", "unit", "измерен"]
 _PRICE_KEYWORDS = ["цена", "стоимость", "price", "руб", "₽", "cost"]
 _ARTICLE_KEYWORDS = ["артикул", "арт", "код", "sku", "article", "code", "id товара"]
 _HEADER_KEYWORDS = _NAME_KEYWORDS + _UNIT_KEYWORDS + _PRICE_KEYWORDS + _ARTICLE_KEYWORDS
 _SUPPLIER_HINT_KEYWORDS = [
-    "клиент", "поставщик", "заказчик", "покупатель", "supplier", "client",
+    "клиент",
+    "поставщик",
+    "заказчик",
+    "покупатель",
+    "supplier",
+    "client",
 ]
 _CATALOG_HINT_KEYWORDS = [
-    "каталог", "наш", "эталон", "база", "справочник", "catalog", "reference",
+    "каталог",
+    "наш",
+    "эталон",
+    "база",
+    "справочник",
+    "catalog",
+    "reference",
 ]
 # Rows that look like totals / summaries to skip
-_SKIP_ROW_PATTERNS = re.compile(
-    r"^\s*(итого|всего|total|subtotal|сумма|итог)\b", re.IGNORECASE
-)
+_SKIP_ROW_PATTERNS = re.compile(r"^\s*(итого|всего|total|subtotal|сумма|итог)\b", re.IGNORECASE)
 
 
 # ---------------------------------------------------------------------------
 # LLM helpers
 # ---------------------------------------------------------------------------
-
-
-def _make_llm_client() -> tuple[AsyncOpenAI, str, dict]:
-    """Create an OpenAI-compatible client using current settings."""
-    llm_key = settings.active_llm_api_key
-    model = settings.llm_model
-
-    extra_headers: dict[str, str] = {}
-    if settings.llm_provider == "openrouter":
-        extra_headers["HTTP-Referer"] = "https://matcher.internal"
-        extra_headers["X-Title"] = "Sales Nomenclature Matcher"
-
-    client = AsyncOpenAI(
-        api_key=llm_key,
-        base_url=settings.active_llm_base_url,
-        default_headers=extra_headers or None,
-        timeout=30.0,
-    )
-    extra_body: dict = {}
-    if "qwen" in model.lower():
-        extra_body["no_thinking"] = True
-
-    return client, model, extra_body
-
-
-def _clean_json_response(content: str) -> dict:
-    """Strip markdown fences and parse JSON from LLM response."""
-    content = content.strip()
-    if content.startswith("```json"):
-        content = content.split("```json", 1)[-1].rsplit("```", 1)[0].strip()
-    elif content.startswith("```"):
-        content = content.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
-    return json.loads(content)
-
-
-def _llm_available() -> bool:
-    """Check if an LLM provider is configured with a valid key."""
-    key = settings.active_llm_api_key
-    return bool(key and key not in ("", "sk-your-key-here", "your-key-here", "none"))
 
 
 # ---------------------------------------------------------------------------
@@ -193,11 +172,24 @@ def _read_csv_raw(file_contents: bytes) -> pd.DataFrame:
             delimiter = ","
 
     try:
-        df = pd.read_csv(io.StringIO(text), header=None, sep=delimiter, engine="python",
-                         on_bad_lines="skip", dtype=str)
+        df = pd.read_csv(
+            io.StringIO(text),
+            header=None,
+            sep=delimiter,
+            engine="python",
+            on_bad_lines="skip",
+            dtype=str,
+        )
     except Exception:
-        df = pd.read_csv(io.StringIO(text), header=None, sep=delimiter, engine="python",
-                         on_bad_lines="skip", dtype=str, quoting=csv.QUOTE_NONE)
+        df = pd.read_csv(
+            io.StringIO(text),
+            header=None,
+            sep=delimiter,
+            engine="python",
+            on_bad_lines="skip",
+            dtype=str,
+            quoting=csv.QUOTE_NONE,
+        )
 
     return df
 
@@ -206,6 +198,7 @@ def _get_best_sheet(file_contents: bytes) -> tuple[pd.DataFrame, str]:
     """Pick the sheet with the most data from a multi-sheet Excel file."""
     try:
         import openpyxl
+
         wb = openpyxl.load_workbook(io.BytesIO(file_contents), read_only=True, data_only=True)
         sheet_names = wb.sheetnames
         wb.close()
@@ -234,7 +227,9 @@ def _get_best_sheet(file_contents: bytes) -> tuple[pd.DataFrame, str]:
 
     logger.info(
         "Selected sheet '%s' from %d sheets (score=%d)",
-        best_name, len(sheet_names), best_score,
+        best_name,
+        len(sheet_names),
+        best_score,
     )
     return best_df, best_name
 
@@ -300,7 +295,7 @@ def _detect_header_row(df: pd.DataFrame, col_start: int, col_end: int) -> int:
     best_score = -1
 
     for i in range(min(20, len(df))):
-        row = df.iloc[i, col_start: col_end + 1]
+        row = df.iloc[i, col_start : col_end + 1]
         row_strs = [str(v).lower().strip() for v in row if pd.notna(v)]
         if not row_strs:
             continue
@@ -351,7 +346,7 @@ def _classify_column(df: pd.DataFrame, col_idx: int, header_row: int) -> str:
         return "article"
 
     # Analyze data content (first 20 data rows after header)
-    data_rows = df.iloc[header_row + 1: header_row + 21, col_idx].dropna().astype(str).str.strip()
+    data_rows = df.iloc[header_row + 1 : header_row + 21, col_idx].dropna().astype(str).str.strip()
     data_rows = data_rows[data_rows != ""]
     if len(data_rows) == 0:
         return "other"
@@ -360,9 +355,12 @@ def _classify_column(df: pd.DataFrame, col_idx: int, header_row: int) -> str:
     numeric_ratio = is_numeric.sum() / len(data_rows)
 
     if numeric_ratio > 0.8:
-        avg_val = data_rows.str.replace(r"[^\d.,]", "", regex=True).str.replace(",", ".").apply(
-            lambda x: float(x) if x else 0
-        ).mean()
+        avg_val = (
+            data_rows.str.replace(r"[^\d.,]", "", regex=True)
+            .str.replace(",", ".")
+            .apply(lambda x: float(x) if x else 0)
+            .mean()
+        )
         # Prices tend to be > 1, quantities small
         if avg_val > 10:
             return "price"
@@ -377,17 +375,15 @@ def _classify_column(df: pd.DataFrame, col_idx: int, header_row: int) -> str:
     return "other"
 
 
-def _classify_table_role(
-    df: pd.DataFrame, col_start: int, col_end: int, header_row: int
-) -> str:
+def _classify_table_role(df: pd.DataFrame, col_start: int, col_end: int, header_row: int) -> str:
     """Classify a table group as supplier_input or catalog_reference."""
     # Check header row text for hints
-    row = df.iloc[header_row, col_start: col_end + 1]
+    row = df.iloc[header_row, col_start : col_end + 1]
     header_text = " ".join(str(v).lower() for v in row if pd.notna(v))
 
     # Check rows above header for title hints
     for i in range(max(0, header_row - 3), header_row):
-        title_row = df.iloc[i, col_start: col_end + 1]
+        title_row = df.iloc[i, col_start : col_end + 1]
         header_text += " " + " ".join(str(v).lower() for v in title_row if pd.notna(v))
 
     if any(kw in header_text for kw in _SUPPLIER_HINT_KEYWORDS):
@@ -403,7 +399,7 @@ def _extract_supplier_name(
 ) -> str | None:
     """Try to extract a supplier/client name from title rows above the header."""
     for i in range(max(0, header_row - 5), header_row):
-        row = df.iloc[i, col_start: col_end + 1]
+        row = df.iloc[i, col_start : col_end + 1]
         for v in row:
             if pd.isna(v):
                 continue
@@ -463,7 +459,7 @@ def _analyze_heuristic(df_raw: pd.DataFrame) -> FileAnalysisResult:
         if name_col is None:
             best_len = 0
             for c in range(col_start, col_end + 1):
-                data = df_raw.iloc[header_row + 1:, c].dropna().astype(str)
+                data = df_raw.iloc[header_row + 1 :, c].dropna().astype(str)
                 avg_len = data.str.len().mean() if len(data) > 0 else 0
                 if avg_len > best_len:
                     best_len = avg_len
@@ -488,7 +484,11 @@ def _analyze_heuristic(df_raw: pd.DataFrame) -> FileAnalysisResult:
 
         logger.info(
             "Heuristic: extracted %d items from %s table (cols %d-%d, header row %d)",
-            len(items), role, col_start, col_end, header_row,
+            len(items),
+            role,
+            col_start,
+            col_end,
+            header_row,
         )
 
     return result
@@ -501,10 +501,10 @@ def _analyze_heuristic(df_raw: pd.DataFrame) -> FileAnalysisResult:
 
 async def _analyze_structure_via_llm(raw_rows: list[list]) -> dict | None:
     """Ask the LLM to identify all data regions/tables in a raw sheet."""
-    if not _llm_available():
+    if not llm_available():
         return None
 
-    client, model, extra_body = _make_llm_client()
+    client, model, extra_body = make_llm_client()
 
     max_cols = max(len(r) for r in raw_rows) if raw_rows else 0
     col_letters = []
@@ -569,13 +569,14 @@ Return ONLY valid JSON:
             max_tokens=800,
             extra_body=extra_body or {},
         )
-        result = _clean_json_response(response.choices[0].message.content or "{}")
+        result = json.loads(clean_json_response(response.choices[0].message.content or "{}"))
         tables = result.get("tables")
         if not isinstance(tables, list) or len(tables) == 0:
             return None
         logger.info(
             "LLM detected %d table(s), supplier=%s",
-            len(tables), result.get("supplier_name"),
+            len(tables),
+            result.get("supplier_name"),
         )
         return result
     except Exception as e:
@@ -585,10 +586,10 @@ Return ONLY valid JSON:
 
 async def _identify_column_via_llm(df_head: pd.DataFrame) -> str | None:
     """Use the configured LLM to identify the target nomenclature column."""
-    if not _llm_available():
+    if not llm_available():
         return None
 
-    client, model, extra_body = _make_llm_client()
+    client, model, extra_body = make_llm_client()
 
     sample_data = df_head.fillna("").head(5).to_dict(orient="records")
     columns = list(df_head.columns)
@@ -613,7 +614,7 @@ Return ONLY JSON: {{"target_column": "exact column name"}}"""
             max_tokens=64,
             extra_body=extra_body or {},
         )
-        data = _clean_json_response(response.choices[0].message.content or "{}")
+        data = json.loads(clean_json_response(response.choices[0].message.content or "{}"))
         target = data.get("target_column")
         if target in df_head.columns:
             logger.info("LLM selected target column: %s", target)
@@ -648,7 +649,7 @@ def _extract_region_items(
     price_col: int | None = None,
 ) -> list[dict]:
     """Extract items from a rectangular region, deduplicating."""
-    region = df_raw.iloc[header_row:, col_start: col_end + 1].copy()
+    region = df_raw.iloc[header_row:, col_start : col_end + 1].copy()
     if region.empty:
         return []
 
@@ -736,7 +737,9 @@ async def analyze_file_structure(file_contents: bytes) -> FileAnalysisResult:
 
     logger.info(
         "Analyzing structure of sheet '%s' (%d rows, %d cols)",
-        sheet_name, len(df_raw), len(df_raw.columns),
+        sheet_name,
+        len(df_raw),
+        len(df_raw.columns),
     )
 
     # Try LLM analysis (richer results)
@@ -760,11 +763,13 @@ async def analyze_file_structure(file_contents: bytes) -> FileAnalysisResult:
                 nc = _col_letter_to_index(table_spec["name_col"])
                 uc = (
                     _col_letter_to_index(table_spec["unit_col"])
-                    if table_spec.get("unit_col") else None
+                    if table_spec.get("unit_col")
+                    else None
                 )
                 pc = (
                     _col_letter_to_index(table_spec["price_col"])
-                    if table_spec.get("price_col") else None
+                    if table_spec.get("price_col")
+                    else None
                 )
 
                 items = _extract_region_items(df_raw, cs, ce, hr, nc, uc, pc)
@@ -774,9 +779,14 @@ async def analyze_file_structure(file_contents: bytes) -> FileAnalysisResult:
                 elif role == "supplier_input":
                     result.supplier_items.extend(items)
 
-                logger.info("LLM: %d items from %s '%s' (cols %s-%s)",
-                            len(items), role, table_spec.get("label", "?"),
-                            table_spec["col_start"], table_spec["col_end"])
+                logger.info(
+                    "LLM: %d items from %s '%s' (cols %s-%s)",
+                    len(items),
+                    role,
+                    table_spec.get("label", "?"),
+                    table_spec["col_start"],
+                    table_spec["col_end"],
+                )
             except Exception as e:
                 logger.warning("Failed to extract LLM-detected region: %s", e)
 
@@ -790,7 +800,7 @@ async def analyze_file_structure(file_contents: bytes) -> FileAnalysisResult:
         return result
 
     # Last resort: single-table extraction
-    items = await parse_excel_upload(file_contents, use_ai=_llm_available())
+    items = await parse_excel_upload(file_contents, use_ai=llm_available())
     return FileAnalysisResult(supplier_items=items, tables_detected=1)
 
 
@@ -829,15 +839,14 @@ async def parse_excel_upload(file_contents: bytes, use_ai: bool = False) -> list
                 for i, v in enumerate(df.iloc[header_idx])
             ]
             df.columns = headers
-            df = df.iloc[header_idx + 1:]
+            df = df.iloc[header_idx + 1 :]
     else:
         df = df_raw.copy()
         headers = [
-            str(v).strip() if pd.notna(v) else f"col_{i}"
-            for i, v in enumerate(df.iloc[header_idx])
+            str(v).strip() if pd.notna(v) else f"col_{i}" for i, v in enumerate(df.iloc[header_idx])
         ]
         df.columns = headers
-        df = df.iloc[header_idx + 1:]
+        df = df.iloc[header_idx + 1 :]
 
     df = df.dropna(how="all")
     df = df.fillna("")
@@ -845,10 +854,9 @@ async def parse_excel_upload(file_contents: bytes, use_ai: bool = False) -> list
     # Find target column
     target_col = None
     if use_ai:
-        if not _llm_available():
+        if not llm_available():
             raise ValueError(
-                "Умный поиск включен, но API ключ LLM провайдера"
-                " не настроен в настройках."
+                "Умный поиск включен, но API ключ LLM провайдера не настроен в настройках."
             )
         target_col = await _identify_column_via_llm(df)
 
@@ -902,10 +910,12 @@ async def parse_excel_upload(file_contents: bytes, use_ai: bool = False) -> list
         if lower in seen:
             continue
         seen.add(lower)
-        items.append({
-            "line_id": str(idx),
-            "raw_text": raw_text,
-            "original_row": {k: str(v) for k, v in row.to_dict().items()},
-        })
+        items.append(
+            {
+                "line_id": str(idx),
+                "raw_text": raw_text,
+                "original_row": {k: str(v) for k, v in row.to_dict().items()},
+            }
+        )
 
     return items

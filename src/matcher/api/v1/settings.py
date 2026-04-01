@@ -137,6 +137,10 @@ _PERSIST_KEYS = (
     "embedding_model",
     "embedding_dimensions",
     "providers_registry",
+    "small_catalog_threshold",
+    "llm_matcher_enabled",
+    "llm_matcher_model",
+    "llm_matcher_batch_size",
 )
 
 
@@ -166,6 +170,14 @@ async def load_persisted_settings(db: AsyncSession, force: bool = False) -> None
         settings.agentic_resolution_enabled = stored["agentic_resolution_enabled"].lower() == "true"
     if "embedding_dimensions" in stored and stored["embedding_dimensions"] is not None:
         settings.embedding_dimensions = int(stored["embedding_dimensions"])
+    if "small_catalog_threshold" in stored and stored["small_catalog_threshold"] is not None:
+        settings.small_catalog_threshold = int(stored["small_catalog_threshold"])
+    if "llm_matcher_enabled" in stored and stored["llm_matcher_enabled"] is not None:
+        settings.llm_matcher_enabled = stored["llm_matcher_enabled"].lower() == "true"
+    if "llm_matcher_model" in stored and stored["llm_matcher_model"] is not None:
+        settings.llm_matcher_model = str(stored["llm_matcher_model"])
+    if "llm_matcher_batch_size" in stored and stored["llm_matcher_batch_size"] is not None:
+        settings.llm_matcher_batch_size = int(stored["llm_matcher_batch_size"])
 
     for k in (
         "llm_provider",
@@ -493,63 +505,137 @@ def _get_known_models(provider: str) -> list[OpenRouterModel]:
             M(id="gpt-4o-mini", name="GPT-4o Mini", context_length=128000, type="chat"),
             M(id="gpt-4.1-mini", name="GPT-4.1 Mini", context_length=1000000, type="chat"),
             M(id="gpt-4.1-nano", name="GPT-4.1 Nano", context_length=1000000, type="chat"),
-            M(id="text-embedding-3-small", name="Embedding 3 Small",
-              context_length=8191, type="embedding"),
-            M(id="text-embedding-3-large", name="Embedding 3 Large",
-              context_length=8191, type="embedding"),
+            M(
+                id="text-embedding-3-small",
+                name="Embedding 3 Small",
+                context_length=8191,
+                type="embedding",
+            ),
+            M(
+                id="text-embedding-3-large",
+                name="Embedding 3 Large",
+                context_length=8191,
+                type="embedding",
+            ),
         ],
         "together": [
-            M(id="meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
-              name="Llama 4 Maverick", context_length=1000000, type="chat"),
-            M(id="Qwen/Qwen3-235B-A22B", name="Qwen3 235B",
-              context_length=131072, type="chat"),
-            M(id="togethercomputer/m2-bert-80M-8k-retrieval",
-              name="M2-BERT Embedding", context_length=8192, type="embedding"),
-            M(id="BAAI/bge-large-en-v1.5", name="BGE Large EN v1.5",
-              context_length=512, type="embedding"),
-            M(id="Salesforce/Llama-Rank-V1", name="Llama Rank V1 (Rerank)",
-              context_length=8192, type="rerank"),
+            M(
+                id="meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
+                name="Llama 4 Maverick",
+                context_length=1000000,
+                type="chat",
+            ),
+            M(id="Qwen/Qwen3-235B-A22B", name="Qwen3 235B", context_length=131072, type="chat"),
+            M(
+                id="togethercomputer/m2-bert-80M-8k-retrieval",
+                name="M2-BERT Embedding",
+                context_length=8192,
+                type="embedding",
+            ),
+            M(
+                id="BAAI/bge-large-en-v1.5",
+                name="BGE Large EN v1.5",
+                context_length=512,
+                type="embedding",
+            ),
+            M(
+                id="Salesforce/Llama-Rank-V1",
+                name="Llama Rank V1 (Rerank)",
+                context_length=8192,
+                type="rerank",
+            ),
         ],
         "cohere": [
-            M(id="command-r-plus", name="Command R+",
-              context_length=128000, type="chat"),
-            M(id="command-r", name="Command R",
-              context_length=128000, type="chat"),
-            M(id="embed-multilingual-v3.0", name="Embed Multilingual v3.0",
-              context_length=512, type="embedding"),
-            M(id="embed-english-v3.0", name="Embed English v3.0",
-              context_length=512, type="embedding"),
-            M(id="rerank-multilingual-v3.0", name="Rerank Multilingual v3.0",
-              context_length=4096, type="rerank"),
-            M(id="rerank-english-v3.0", name="Rerank English v3.0",
-              context_length=4096, type="rerank"),
+            M(id="command-r-plus", name="Command R+", context_length=128000, type="chat"),
+            M(id="command-r", name="Command R", context_length=128000, type="chat"),
+            M(
+                id="embed-multilingual-v3.0",
+                name="Embed Multilingual v3.0",
+                context_length=512,
+                type="embedding",
+            ),
+            M(
+                id="embed-english-v3.0",
+                name="Embed English v3.0",
+                context_length=512,
+                type="embedding",
+            ),
+            M(
+                id="rerank-multilingual-v3.0",
+                name="Rerank Multilingual v3.0",
+                context_length=4096,
+                type="rerank",
+            ),
+            M(
+                id="rerank-english-v3.0",
+                name="Rerank English v3.0",
+                context_length=4096,
+                type="rerank",
+            ),
         ],
         "jina": [
-            M(id="jina-embeddings-v3", name="Jina Embeddings v3",
-              context_length=8192, type="embedding"),
-            M(id="jina-reranker-v2-base-multilingual",
-              name="Jina Reranker v2 Multilingual",
-              context_length=1024, type="rerank"),
-            M(id="jina-colbert-v2", name="Jina ColBERT v2",
-              context_length=8192, type="rerank"),
+            M(
+                id="jina-embeddings-v3",
+                name="Jina Embeddings v3",
+                context_length=8192,
+                type="embedding",
+            ),
+            M(
+                id="jina-reranker-v2-base-multilingual",
+                name="Jina Reranker v2 Multilingual",
+                context_length=1024,
+                type="rerank",
+            ),
+            M(id="jina-colbert-v2", name="Jina ColBERT v2", context_length=8192, type="rerank"),
         ],
         "dashscope": [
-            M(id="text-embedding-v3", name="DashScope Embedding v3",
-              context_length=8192, type="embedding"),
-            M(id="gte-rerank", name="GTE Rerank",
-              context_length=4096, type="rerank"),
+            M(
+                id="text-embedding-v3",
+                name="DashScope Embedding v3",
+                context_length=8192,
+                type="embedding",
+            ),
+            M(id="gte-rerank", name="GTE Rerank", context_length=4096, type="rerank"),
         ],
         "google": [
-            M(id="gemini-2.5-flash", name="Gemini 2.5 Flash",
-              context_length=1000000, type="chat"),
-            M(id="gemini-2.5-pro", name="Gemini 2.5 Pro",
-              context_length=1000000, type="chat"),
-            M(id="gemini-2.0-flash", name="Gemini 2.0 Flash",
-              context_length=1000000, type="chat"),
-            M(id="gemini-embedding-001", name="Gemini Embedding 001",
-              context_length=8192, type="embedding"),
-            M(id="text-embedding-004", name="Text Embedding 004",
-              context_length=2048, type="embedding"),
+            M(
+                id="gemini-3.1-pro-preview",
+                name="Gemini 3.1 Pro (Preview)",
+                context_length=1000000,
+                type="chat",
+            ),
+            M(
+                id="gemini-3-flash-preview",
+                name="Gemini 3 Flash (Preview)",
+                context_length=1000000,
+                type="chat",
+            ),
+            M(
+                id="gemini-3.1-flash-lite-preview",
+                name="Gemini 3.1 Flash-Lite (Preview)",
+                context_length=1000000,
+                type="chat",
+            ),
+            M(id="gemini-2.5-flash", name="Gemini 2.5 Flash", context_length=1000000, type="chat"),
+            M(
+                id="gemini-2.5-flash-lite",
+                name="Gemini 2.5 Flash-Lite",
+                context_length=1000000,
+                type="chat",
+            ),
+            M(id="gemini-2.5-pro", name="Gemini 2.5 Pro", context_length=1000000, type="chat"),
+            M(
+                id="gemini-embedding-2-preview",
+                name="Gemini Embedding 2 (Preview)",
+                context_length=8192,
+                type="embedding",
+            ),
+            M(
+                id="gemini-embedding-001",
+                name="Gemini Embedding 001",
+                context_length=2048,
+                type="embedding",
+            ),
         ],
     }
     return known.get(provider, [])

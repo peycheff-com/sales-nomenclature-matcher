@@ -2,43 +2,14 @@ import json
 import logging
 
 from duckduckgo_search import DDGS
-from openai import AsyncOpenAI
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from matcher.config import settings
 from matcher.indexing.search import hybrid_search
+from matcher.pipeline.llm_client import make_llm_client
 from matcher.pipeline.token_tracker import TokenTracker
 
 logger = logging.getLogger(__name__)
-
-
-def _make_llm_client() -> tuple[AsyncOpenAI, str, dict]:
-    """Create an OpenAI-compatible client configured for Agentic tool use."""
-    llm_key = settings.active_llm_api_key
-    model = settings.llm_model
-
-    extra_headers = {}
-    if settings.llm_provider == "openrouter":
-        extra_headers["HTTP-Referer"] = "https://matcher.internal"
-        extra_headers["X-Title"] = "Sales Nomenclature Matcher"
-
-    client = AsyncOpenAI(
-        api_key=llm_key,
-        base_url=settings.active_llm_base_url,
-        default_headers=extra_headers or None,
-        timeout=60.0,
-    )
-    extra_body = {}
-
-    # Provider-specific native web search enablement
-    if settings.llm_provider == "openrouter":
-        extra_body["plugins"] = [{"id": "web"}]
-    elif settings.llm_provider == "dashscope":
-        extra_body["enable_search"] = True
-    elif "qwen" in model.lower():
-        extra_body["no_thinking"] = True
-
-    return client, model, extra_body
 
 
 def _web_search(query: str, max_results: int = 4) -> str:
@@ -302,7 +273,7 @@ async def resolve_agentically(
     if not settings.active_llm_api_key or settings.active_llm_api_key == "none":
         return None
 
-    client, model, extra_body = _make_llm_client()
+    client, model, extra_body = make_llm_client()
 
     candidate_str = []
     for cd in top_candidates:
