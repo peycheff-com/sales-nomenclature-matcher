@@ -8,10 +8,17 @@ if os.path.exists(env_path):
 else:
     lines = []
 
+jwt_secret = secrets.token_hex(32)
+pg_pass = secrets.token_hex(32)
+redis_pass = secrets.token_hex(32)
+
 new_keys = {
-    "JWT_SECRET_KEY": secrets.token_hex(32),
-    "POSTGRES_PASSWORD": secrets.token_hex(32),
-    "REDIS_PASSWORD": secrets.token_hex(32)
+    "JWT_SECRET_KEY": jwt_secret,
+    "POSTGRES_PASSWORD": pg_pass,
+    "REDIS_PASSWORD": redis_pass,
+    "PGPASSWORD": pg_pass,
+    "DATABASE_URL": f"postgresql+asyncpg://matcher:{pg_pass}@db:5432/matcher",
+    "REDIS_URL": f"redis://:{redis_pass}@redis:6379"
 }
 
 out_lines = []

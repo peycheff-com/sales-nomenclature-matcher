@@ -10,7 +10,10 @@ import { formatDate } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Pagination } from "@/components/ui/pagination";
+import { QueryErrorBanner } from "@/components/ui/query-error-banner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SkeletonTable } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -106,7 +109,7 @@ export default function RequestsPage() {
       title="Запросы на сопоставление"
       description="История загрузок и результаты."
       actions={
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Select value={statusFilter} onValueChange={(val) => { setStatusFilter((val || "all") as string); setPage(1); }}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Статус" />
@@ -148,9 +151,16 @@ export default function RequestsPage() {
     >
 
       {requestsQuery.isLoading ? (
-        <div className="py-12 text-center text-sm text-muted-foreground animate-pulse">
-          Загрузка...
-        </div>
+        <SkeletonTable rows={5} columns={7} />
+      ) : requestsQuery.isError ? (
+        <QueryErrorBanner error={requestsQuery.error} onRetry={() => requestsQuery.refetch()} />
+      ) : requests.length === 0 && (statusFilter !== "all" || supplierFilter !== "__all__" || dateRange !== "all") ? (
+        <EmptyState
+          icon={FileSearch}
+          title="Ничего не найдено"
+          description="Попробуйте изменить параметры фильтрации"
+          variant="no-results"
+        />
       ) : requests.length === 0 ? (
         <EmptyState
           icon={FileSearch}

@@ -28,10 +28,13 @@ import {
   CardTitle,
   CardFooter,
 } from "@/components/ui/card";
-import { RefreshCw, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
+import { RefreshCw, CheckCircle2, XCircle, AlertCircle, HelpCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { PageLayout } from "@/components/layout/page-layout";
 import { ModelCombobox } from "@/components/ui/model-combobox";
+import { SkeletonCard } from "@/components/ui/skeleton";
+import { QueryErrorBanner } from "@/components/ui/query-error-banner";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
 export default function SettingsPage() {
   const queryClient = useQueryClient();
@@ -158,8 +161,17 @@ export default function SettingsPage() {
 
   if (settingsQuery.isLoading) {
     return (
-      <div className="text-sm text-muted-foreground p-6 animate-pulse">
-        Загрузка настроек...
+      <div className="space-y-6 max-w-4xl p-6">
+        <SkeletonCard />
+        <SkeletonCard />
+      </div>
+    );
+  }
+
+  if (settingsQuery.isError) {
+    return (
+      <div className="p-6 max-w-4xl">
+        <QueryErrorBanner error={settingsQuery.error} onRetry={() => settingsQuery.refetch()} />
       </div>
     );
   }
@@ -188,7 +200,7 @@ export default function SettingsPage() {
     >
       <form
         onSubmit={form.handleSubmit(onSubmit)}
-        className="space-y-6 max-w-4xl pb-24"
+        className="space-y-6 max-w-4xl"
       >
         <Card>
           <CardHeader>
@@ -198,7 +210,7 @@ export default function SettingsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Провайдер LLM (Ранжирование)</Label>
                 <Select
@@ -353,7 +365,15 @@ export default function SettingsPage() {
 
             <div className="grid grid-cols-2 gap-4 pt-2 border-t border-border">
               <div className="space-y-2">
-                <Label>Размерности (Dimensions) Embeddings</Label>
+                <Label className="flex items-center gap-1">
+                  Размерности (Dimensions) Embeddings
+                  <Tooltip>
+                    <TooltipTrigger render={<button type="button" className="text-muted-foreground" />}>
+                      <HelpCircle className="h-3.5 w-3.5" />
+                    </TooltipTrigger>
+                    <TooltipContent>Количество размерностей векторного представления. Зависит от выбранной модели.</TooltipContent>
+                  </Tooltip>
+                </Label>
                 <Input
                   type="number"
                   {...form.register("embedding_dimensions", {
@@ -369,7 +389,15 @@ export default function SettingsPage() {
 
             <div className="grid grid-cols-2 gap-4 pt-4 border-t border-border">
               <div className="space-y-2">
-                <Label>Количество кандидатов для Rerank (top_n)</Label>
+                <Label className="flex items-center gap-1">
+                  Количество кандидатов для Rerank (top_n)
+                  <Tooltip>
+                    <TooltipTrigger render={<button type="button" className="text-muted-foreground" />}>
+                      <HelpCircle className="h-3.5 w-3.5" />
+                    </TooltipTrigger>
+                    <TooltipContent>Сколько лучших результатов векторного поиска передать в LLM для переранжирования</TooltipContent>
+                  </Tooltip>
+                </Label>
                 <Input
                   type="number"
                   {...form.register("retrieval_top_n", { valueAsNumber: true })}
@@ -414,7 +442,7 @@ export default function SettingsPage() {
 
             {form.watch("onec.enabled") && (
               <div className="space-y-4 pt-2">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Базовый URL (вкл. базу)</Label>
                     <Input
@@ -428,7 +456,7 @@ export default function SettingsPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Имя пользователя (Логин)</Label>
                     <Input {...form.register("onec.username")} />
@@ -485,7 +513,7 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        <div className="fixed bottom-0 left-64 right-0 p-4 bg-background/80 backdrop-blur-md border-t flex justify-end gap-2 shadow-sm z-10 transition-all">
+        <div className="sticky bottom-0 -mx-4 md:-mx-6 px-4 md:px-6 py-4 bg-background/80 backdrop-blur-md border-t flex justify-end gap-2 shadow-sm z-10 transition-all">
           {isDirty && (
             <Button
               type="button"

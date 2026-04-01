@@ -2,12 +2,12 @@ name: CD
 
 on:
   push:
-    branches: [ "main" ]
+    branches:
+      - main
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    needs: [] # We run right after CI natively, but we could add needs: [test]
     
     steps:
       - uses: actions/checkout@v4
