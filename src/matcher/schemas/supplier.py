@@ -13,10 +13,12 @@ class SupplierProfile(BaseModel):
     strict_mode: bool
     is_active: bool
 
+
 class SupplierCreate(BaseModel):
     supplier_id: str = Field(..., min_length=1, max_length=200)
     supplier_name: str = Field(..., min_length=1, max_length=500)
     strict_mode: bool = False
+
 
 class SupplierUpdate(BaseModel):
     supplier_name: str | None = Field(None, max_length=500)

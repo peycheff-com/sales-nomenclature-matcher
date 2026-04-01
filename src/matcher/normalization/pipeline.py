@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import re
-import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
@@ -12,6 +10,7 @@ import yaml
 @dataclass
 class NormalizationContext:
     """Accumulated state through the normalization pipeline."""
+
     original: str
     text: str = ""
     tokens: list[str] = field(default_factory=list)
@@ -57,13 +56,13 @@ def run_pipeline(text: str, transforms: list[Transform] | None = None) -> Normal
 
 
 def default_transforms() -> list[Transform]:
-    from matcher.normalization.unicode_cleanup import unicode_cleanup
+    from matcher.normalization.brand_detector import detect_brand
     from matcher.normalization.cyrillic_latin import cyrillic_latin_normalize
     from matcher.normalization.number_extractor import extract_numbers
-    from matcher.normalization.unit_normalizer import normalize_units
-    from matcher.normalization.brand_detector import detect_brand
     from matcher.normalization.stopwords import remove_stopwords
     from matcher.normalization.tokenizer import tokenize
+    from matcher.normalization.unicode_cleanup import unicode_cleanup
+    from matcher.normalization.unit_normalizer import normalize_units
 
     return [
         unicode_cleanup,

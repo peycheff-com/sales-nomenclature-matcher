@@ -4,17 +4,18 @@ Revision ID: 0003_system_settings
 Revises: 0002_add_users
 Create Date: 2026-04-01
 """
+
 from __future__ import annotations
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 revision: str = "0003_system_settings"
 down_revision: str | None = "0002_add_users"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

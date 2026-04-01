@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class SearchCandidate:
     """A candidate product returned by hybrid search."""
+
     product_id: str
     name: str
     normalized_name: str
@@ -192,24 +193,26 @@ async def hybrid_search(
 
     candidates = []
     for row in rows:
-        candidates.append(SearchCandidate(
-            product_id=row[0],
-            name=row[1],
-            normalized_name=row[2],
-            article=row[3],
-            brand=row[4],
-            normalized_brand=row[5],
-            manufacturer_code=row[6],
-            category_id=row[7],
-            category_path=row[8],
-            unit=row[9],
-            packaging=row[10],
-            search_document=row[11],
-            lexical_score=float(row[12] or 0),
-            semantic_score=float(row[13] or 0),
-            exact_match=bool(row[14]),
-            rrf_score=float(row[15] or 0),
-            retrieval_rank=int(row[16]),
-        ))
+        candidates.append(
+            SearchCandidate(
+                product_id=row[0],
+                name=row[1],
+                normalized_name=row[2],
+                article=row[3],
+                brand=row[4],
+                normalized_brand=row[5],
+                manufacturer_code=row[6],
+                category_id=row[7],
+                category_path=row[8],
+                unit=row[9],
+                packaging=row[10],
+                search_document=row[11],
+                lexical_score=float(row[12] or 0),
+                semantic_score=float(row[13] or 0),
+                exact_match=bool(row[14]),
+                rrf_score=float(row[15] or 0),
+                retrieval_rank=int(row[16]),
+            )
+        )
 
     return candidates

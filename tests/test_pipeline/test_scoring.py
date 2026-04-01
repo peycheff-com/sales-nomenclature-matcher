@@ -1,9 +1,15 @@
 """Unit tests for scoring engine."""
+
 from __future__ import annotations
 
-from matcher.pipeline.scoring import PairFeatures, ScoringResult, compute_pair_features, score_candidate
 from matcher.pipeline.decision import decide
 from matcher.pipeline.explanations import build_reasons
+from matcher.pipeline.scoring import (
+    PairFeatures,
+    ScoringResult,
+    compute_pair_features,
+    score_candidate,
+)
 
 
 class TestScoringFormula:
@@ -21,6 +27,7 @@ class TestScoringFormula:
 
     def test_base_score_weights_sum_to_one(self):
         from matcher.pipeline.scoring import WEIGHTS
+
         total = sum(WEIGHTS.values())
         assert abs(total - 1.0) < 0.001
 

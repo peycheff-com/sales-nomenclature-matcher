@@ -18,12 +18,13 @@ async def batch_match(ctx: dict, request_id: str) -> dict:
     Uses a fresh DB session per commit window (every 50 items) to avoid stale
     connections on long-running batches.
     """
+    from matcher.api.v1.settings import load_persisted_settings
     from matcher.db.repos.match import MatchRepo
+    from matcher.indexing import embedder as embedder_mod
+    from matcher.pipeline import agent as agent_mod
+    from matcher.pipeline import reranker as reranker_mod
     from matcher.pipeline.orchestrator import match_single
     from matcher.pipeline.token_tracker import TokenTracker
-    from matcher.pipeline import agent as agent_mod, reranker as reranker_mod
-    from matcher.indexing import embedder as embedder_mod
-    from matcher.api.v1.settings import load_persisted_settings
 
     db_factory = ctx["db_factory"]
     logger.info("Starting batch_match for request %s", request_id)
@@ -85,20 +86,24 @@ async def batch_match(ctx: dict, request_id: str) -> dict:
                         normalized_text=result.normalized_text,
                         extracted_attributes=result.extracted_attributes,
                         reasons_json=result.reasons,
-                        decision_trace_json=result.decision_trace if hasattr(result, "decision_trace") else None,
+                        decision_trace_json=result.decision_trace
+                        if hasattr(result, "decision_trace")
+                        else None,
                     )
 
                     candidates_data = []
                     for alt in result.alternatives:
-                        candidates_data.append({
-                            "product_id": alt["product_id"],
-                            "lexical_score": alt.get("lexical_score"),
-                            "semantic_score": alt.get("semantic_score"),
-                            "rerank_score": alt.get("rerank_score"),
-                            "rules_score": alt.get("rules_score"),
-                            "final_score": alt.get("final_score"),
-                            "reasons": alt.get("reasons", []),
-                        })
+                        candidates_data.append(
+                            {
+                                "product_id": alt["product_id"],
+                                "lexical_score": alt.get("lexical_score"),
+                                "semantic_score": alt.get("semantic_score"),
+                                "rerank_score": alt.get("rerank_score"),
+                                "rules_score": alt.get("rules_score"),
+                                "final_score": alt.get("final_score"),
+                                "reasons": alt.get("reasons", []),
+                            }
+                        )
                     if candidates_data:
                         await repo.save_candidates(item["request_item_id"], candidates_data)
 
@@ -114,7 +119,8 @@ async def batch_match(ctx: dict, request_id: str) -> dict:
                     # Progress update every COMMIT_EVERY items
                     if processed % COMMIT_EVERY == 0:
                         await repo.update_request_status(
-                            request_id, "running",
+                            request_id,
+                            "running",
                             processed_items=processed,
                             auto_matched_items=auto_count,
                             review_needed_items=review_count,
@@ -144,7 +150,8 @@ async def batch_match(ctx: dict, request_id: str) -> dict:
         async with db_factory() as session:
             repo = MatchRepo(session)
             await repo.update_request_status(
-                request_id, "done",
+                request_id,
+                "done",
                 processed_items=processed,
                 auto_matched_items=auto_count,
                 review_needed_items=review_count,
@@ -154,7 +161,10 @@ async def batch_match(ctx: dict, request_id: str) -> dict:
             await session.commit()
         logger.info(
             "Batch match %s done: %d processed, %d tokens used (~$%.4f)",
-            request_id, processed, tracker.total_tokens, tracker.total_cost,
+            request_id,
+            processed,
+            tracker.total_tokens,
+            tracker.total_cost,
         )
 
     except Exception as e:
@@ -163,7 +173,8 @@ async def batch_match(ctx: dict, request_id: str) -> dict:
             async with db_factory() as session:
                 repo = MatchRepo(session)
                 await repo.update_request_status(
-                    request_id, "failed",
+                    request_id,
+                    "failed",
                     processed_items=processed,
                     auto_matched_items=auto_count,
                     review_needed_items=review_count,
@@ -189,7 +200,11 @@ async def catalog_import(ctx: dict, job_id: str, source_type: str, **kwargs) -> 
     if redis:
         acquired = await redis.set(lock_key, job_id, ex=3600, nx=True)
         if not acquired:
-            return {"job_id": job_id, "status": "failed", "error": "Another import is already running"}
+            return {
+                "job_id": job_id,
+                "status": "failed",
+                "error": "Another import is already running",
+            }
     try:
         return await _do_catalog_import(ctx, job_id, source_type, **kwargs)
     finally:
@@ -199,10 +214,10 @@ async def catalog_import(ctx: dict, job_id: str, source_type: str, **kwargs) -> 
 
 async def _do_catalog_import(ctx: dict, job_id: str, source_type: str, **kwargs) -> dict:
     """Inner implementation of catalog import (called under Redis lock)."""
+    from matcher.api.v1.settings import load_persisted_settings
     from matcher.db.repos.catalog import CatalogRepo
     from matcher.ingestion.file_adapter import parse_file
     from matcher.ingestion.transformer import transform_item
-    from matcher.api.v1.settings import load_persisted_settings
 
     db_factory = ctx["db_factory"]
     file_url = kwargs.get("file_url")
@@ -211,10 +226,18 @@ async def _do_catalog_import(ctx: dict, job_id: str, source_type: str, **kwargs)
 
     if source_type not in ("csv", "xlsx", "onec_api"):
         logger.warning("Unsupported source_type: %s", source_type)
-        return {"job_id": job_id, "status": "failed", "error": f"Unsupported source_type: {source_type}"}
+        return {
+            "job_id": job_id,
+            "status": "failed",
+            "error": f"Unsupported source_type: {source_type}",
+        }
 
     if source_type in ("csv", "xlsx") and not file_url and not file_path:
-        return {"job_id": job_id, "status": "failed", "error": "file_url or file_path is required for file imports"}
+        return {
+            "job_id": job_id,
+            "status": "failed",
+            "error": "file_url or file_path is required for file imports",
+        }
 
     # Validate file_url to prevent SSRF
     if file_url:
@@ -231,6 +254,7 @@ async def _do_catalog_import(ctx: dict, job_id: str, source_type: str, **kwargs)
 
     if source_type == "onec_api":
         from matcher.ingestion.onec_adapter import fetch_onec_catalog
+
         try:
             async with db_factory() as session:
                 await load_persisted_settings(session, force=True)
@@ -261,12 +285,18 @@ async def _do_catalog_import(ctx: dict, job_id: str, source_type: str, **kwargs)
             raw_items = parse_file(str(tmp_path))
             logger.info("Parsed %d items from %s", len(raw_items), file_url)
         except Exception as e:
-            if tmp_path: tmp_path.unlink(missing_ok=True)
+            if tmp_path:
+                tmp_path.unlink(missing_ok=True)
             return {"job_id": job_id, "status": "failed", "error": str(e)}
 
     try:
         if dry_run:
-            return {"job_id": job_id, "status": "done", "parsed_count": len(raw_items), "dry_run": True}
+            return {
+                "job_id": job_id,
+                "status": "done",
+                "parsed_count": len(raw_items),
+                "dry_run": True,
+            }
 
         # Transform items
         products = []
@@ -300,12 +330,12 @@ async def _do_catalog_import(ctx: dict, job_id: str, source_type: str, **kwargs)
 
 async def catalog_reindex(ctx: dict, job_id: str, **kwargs) -> dict:
     """Rebuild embeddings and search indexes."""
-    from matcher.indexing.indexer import reindex_catalog
     from matcher.api.v1.settings import load_persisted_settings
+    from matcher.indexing.indexer import reindex_catalog
 
     logger.info("Starting reindex job %s", job_id)
     db_factory = ctx.get("db_factory")
-    
+
     async with db_factory() as session:
         await load_persisted_settings(session, force=True)
     result = await reindex_catalog(
@@ -329,13 +359,14 @@ async def smart_upload(ctx: dict, request_id: str, **kwargs) -> dict:
         3. Run batch matching on the supplier items
     """
     import uuid
+
+    from matcher.api.v1.settings import load_persisted_settings
     from matcher.db.repos.catalog import CatalogRepo
     from matcher.db.repos.match import MatchRepo
+    from matcher.indexing.indexer import reindex_catalog
     from matcher.ingestion.base import RawCatalogItem
     from matcher.ingestion.transformer import transform_item
-    from matcher.indexing.indexer import reindex_catalog
     from matcher.pipeline.orchestrator import match_single
-    from matcher.api.v1.settings import load_persisted_settings
 
     db_factory = ctx["db_factory"]
     catalog_items = kwargs.get("catalog_items", [])
@@ -437,20 +468,24 @@ async def smart_upload(ctx: dict, request_id: str, **kwargs) -> dict:
                         normalized_text=result.normalized_text,
                         extracted_attributes=result.extracted_attributes,
                         reasons_json=result.reasons,
-                        decision_trace_json=result.decision_trace if hasattr(result, "decision_trace") else None,
+                        decision_trace_json=result.decision_trace
+                        if hasattr(result, "decision_trace")
+                        else None,
                     )
 
                     candidates_data = []
                     for alt in result.alternatives:
-                        candidates_data.append({
-                            "product_id": alt["product_id"],
-                            "lexical_score": alt.get("lexical_score"),
-                            "semantic_score": alt.get("semantic_score"),
-                            "rerank_score": alt.get("rerank_score"),
-                            "rules_score": alt.get("rules_score"),
-                            "final_score": alt.get("final_score"),
-                            "reasons": alt.get("reasons", []),
-                        })
+                        candidates_data.append(
+                            {
+                                "product_id": alt["product_id"],
+                                "lexical_score": alt.get("lexical_score"),
+                                "semantic_score": alt.get("semantic_score"),
+                                "rerank_score": alt.get("rerank_score"),
+                                "rules_score": alt.get("rules_score"),
+                                "final_score": alt.get("final_score"),
+                                "reasons": alt.get("reasons", []),
+                            }
+                        )
                     if candidates_data:
                         await repo.save_candidates(item["request_item_id"], candidates_data)
 
@@ -465,7 +500,8 @@ async def smart_upload(ctx: dict, request_id: str, **kwargs) -> dict:
 
                     if processed % COMMIT_EVERY == 0:
                         await repo.update_request_status(
-                            request_id, "running",
+                            request_id,
+                            "running",
                             processed_items=processed,
                             auto_matched_items=auto_count,
                             review_needed_items=review_count,
@@ -495,7 +531,8 @@ async def smart_upload(ctx: dict, request_id: str, **kwargs) -> dict:
         async with db_factory() as session:
             repo = MatchRepo(session)
             await repo.update_request_status(
-                request_id, "done",
+                request_id,
+                "done",
                 processed_items=processed,
                 auto_matched_items=auto_count,
                 review_needed_items=review_count,
@@ -505,7 +542,9 @@ async def smart_upload(ctx: dict, request_id: str, **kwargs) -> dict:
 
         logger.info(
             "Smart upload %s done: catalog=%d, matched=%d",
-            request_id, upserted, processed,
+            request_id,
+            upserted,
+            processed,
         )
 
     except Exception as e:
@@ -514,7 +553,8 @@ async def smart_upload(ctx: dict, request_id: str, **kwargs) -> dict:
             async with db_factory() as session:
                 repo = MatchRepo(session)
                 await repo.update_request_status(
-                    request_id, "failed",
+                    request_id,
+                    "failed",
                     processed_items=processed,
                     auto_matched_items=auto_count,
                     review_needed_items=review_count,
@@ -532,4 +572,3 @@ async def smart_upload(ctx: dict, request_id: str, **kwargs) -> dict:
         "catalog_errors": len(catalog_errors),
         "matched": processed,
     }
-

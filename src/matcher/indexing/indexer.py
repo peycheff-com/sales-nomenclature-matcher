@@ -55,13 +55,17 @@ async def reindex_catalog(
     try:
         # Step 1: Update tsvector for all products
         async def update_tsvectors(conn):
-            await conn.execute(text("""
+            await conn.execute(
+                text("""
                 UPDATE catalog_products
                 SET search_tsv = to_tsvector('russian', coalesce(search_document, ''))
                 WHERE search_tsv IS NULL
                    OR search_tsv != to_tsvector('russian', coalesce(search_document, ''))
-            """))
-            result = await conn.execute(text("SELECT count(*) FROM catalog_products WHERE is_active = true"))
+            """)
+            )
+            result = await conn.execute(
+                text("SELECT count(*) FROM catalog_products WHERE is_active = true")
+            )
             return result.scalar() or 0
 
         total_products = await _execute_in_transaction(update_tsvectors)
@@ -72,8 +76,10 @@ async def reindex_catalog(
         offset = 0
 
         while offset < total_products:
+
             async def embed_batch(conn):
-                result = await conn.execute(text("""
+                result = await conn.execute(
+                    text("""
                     SELECT p.product_id, p.search_document
                     FROM catalog_products p
                     LEFT JOIN catalog_embeddings e ON p.product_id = e.product_id
@@ -83,12 +89,14 @@ async def reindex_catalog(
                       AND e.product_id IS NULL
                     ORDER BY p.product_id
                     LIMIT :limit OFFSET :offset
-                """), {
-                    "model": embedding_model,
-                    "version": embedding_version,
-                    "limit": batch_size,
-                    "offset": 0,  # Always 0 since we filter out already-embedded
-                })
+                """),
+                    {
+                        "model": embedding_model,
+                        "version": embedding_version,
+                        "limit": batch_size,
+                        "offset": 0,  # Always 0 since we filter out already-embedded
+                    },
+                )
                 rows = result.fetchall()
 
                 if not rows:
@@ -102,7 +110,8 @@ async def reindex_catalog(
 
                 # Upsert embeddings
                 for pid, emb in zip(product_ids, embeddings):
-                    await conn.execute(text("""
+                    await conn.execute(
+                        text("""
                         INSERT INTO catalog_embeddings (product_id, embedding_model, embedding_version, embedding_vector)
                         VALUES (:pid, :model, :version, :vector)
                         ON CONFLICT (product_id) DO UPDATE SET
@@ -110,12 +119,14 @@ async def reindex_catalog(
                             embedding_version = EXCLUDED.embedding_version,
                             embedding_vector = EXCLUDED.embedding_vector,
                             created_at = now()
-                    """), {
-                        "pid": pid,
-                        "model": embedding_model,
-                        "version": embedding_version,
-                        "vector": str(emb),
-                    })
+                    """),
+                        {
+                            "pid": pid,
+                            "model": embedding_model,
+                            "version": embedding_version,
+                            "vector": str(emb),
+                        },
+                    )
 
                 return rows, len(rows)
 
@@ -137,21 +148,26 @@ async def reindex_catalog(
 
         async def create_version(conn):
             # Deactivate old versions
-            await conn.execute(text("""
+            await conn.execute(
+                text("""
                 UPDATE index_versions SET is_active = false WHERE is_active = true
-            """))
+            """)
+            )
             # Create new version
-            await conn.execute(text("""
+            await conn.execute(
+                text("""
                 INSERT INTO index_versions (
                     index_version_id, embedding_model, embedding_version,
                     lexical_version, rules_version, is_active, product_count
                 ) VALUES (:id, :model, :version, 'v1', 'v1', true, :count)
-            """), {
-                "id": version_id,
-                "model": embedding_model,
-                "version": embedding_version,
-                "count": total_products,
-            })
+            """),
+                {
+                    "id": version_id,
+                    "model": embedding_model,
+                    "version": embedding_version,
+                    "count": total_products,
+                },
+            )
 
         await _execute_in_transaction(create_version)
 

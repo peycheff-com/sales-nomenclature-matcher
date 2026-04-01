@@ -3,7 +3,7 @@ import secrets
 
 env_path = "/opt/1C/.env.production"
 if os.path.exists(env_path):
-    with open(env_path, "r") as f:
+    with open(env_path) as f:
         lines = f.readlines()
 else:
     lines = []
@@ -18,7 +18,7 @@ new_keys = {
     "REDIS_PASSWORD": redis_pass,
     "PGPASSWORD": pg_pass,
     "DATABASE_URL": f"postgresql+asyncpg://matcher:{pg_pass}@db:5432/matcher",
-    "REDIS_URL": f"redis://:{redis_pass}@redis:6379"
+    "REDIS_URL": f"redis://:{redis_pass}@redis:6379",
 }
 
 out_lines = []

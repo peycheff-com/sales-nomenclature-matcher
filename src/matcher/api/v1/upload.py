@@ -1,14 +1,14 @@
 import uuid
 
-from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from matcher.api.deps import get_db, get_arq_pool
+from matcher.api.deps import get_arq_pool, get_db
+from matcher.api.v1.settings import load_persisted_settings
 from matcher.auth.deps import get_current_user
 from matcher.db.models import User
 from matcher.db.repos.match import MatchRepo
-from matcher.ingestion.parser import parse_excel_upload, analyze_file_structure
-from matcher.api.v1.settings import load_persisted_settings
+from matcher.ingestion.parser import analyze_file_structure, parse_excel_upload
 from matcher.schemas.match import BatchRequestAccepted
 
 router = APIRouter(tags=["Upload"])
@@ -208,8 +208,7 @@ async def smart_upload(
     # Enqueue the smart_upload worker task with catalog items inline
     # (avoids re-reading the file in the worker)
     catalog_items_payload = [
-        {"raw_text": i["raw_text"], "unit": i.get("unit")}
-        for i in result.catalog_items
+        {"raw_text": i["raw_text"], "unit": i.get("unit")} for i in result.catalog_items
     ]
     await arq_pool.enqueue_job(
         "smart_upload",
@@ -219,4 +218,3 @@ async def smart_upload(
     )
 
     return BatchRequestAccepted(request_id=request_id, status="queued")
-

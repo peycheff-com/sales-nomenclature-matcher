@@ -4,7 +4,7 @@ import tempfile
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, Query, UploadFile, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -30,6 +30,7 @@ class CatalogStats(BaseModel):
 
 
 router = APIRouter(tags=["Catalog"])
+
 
 @router.get("/catalog/products", response_model=list[CatalogProductOut])
 async def search_catalog_products(
@@ -64,6 +65,7 @@ async def catalog_stats(
     total = await repo.count_active()
 
     from matcher.api.v1.settings import _onec_settings
+
     onec_connected = bool(_onec_settings.enabled and _onec_settings.base_url)
 
     return CatalogStats(total_products=total, onec_connected=onec_connected)
@@ -111,7 +113,10 @@ async def upload_catalog_file(
     # Read file with size limit to prevent resource exhaustion
     content = await file.read()
     if len(content) > MAX_UPLOAD_SIZE:
-        raise HTTPException(status_code=413, detail=f"File too large. Max size is {MAX_UPLOAD_SIZE // (1024*1024)} MB")
+        raise HTTPException(
+            status_code=413,
+            detail=f"File too large. Max size is {MAX_UPLOAD_SIZE // (1024 * 1024)} MB",
+        )
 
     # Validate file content matches expected type
     if source_type == "xlsx" and len(content) >= 4:

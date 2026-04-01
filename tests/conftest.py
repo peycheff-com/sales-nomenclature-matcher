@@ -1,15 +1,15 @@
 from __future__ import annotations
 
 import asyncio
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from unittest.mock import AsyncMock, MagicMock
 
 from matcher.api.deps import get_arq_pool, get_db
-from matcher.auth.security import create_access_token, hash_password
+from matcher.auth.security import create_access_token
 from matcher.config import settings
 from matcher.main import app
 
@@ -25,6 +25,7 @@ def event_loop():
 _db_available = False
 try:
     import asyncio as _aio
+
     from sqlalchemy import text as _text
     from sqlalchemy.ext.asyncio import create_async_engine as _cae
 

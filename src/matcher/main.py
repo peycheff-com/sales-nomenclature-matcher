@@ -8,22 +8,22 @@ from arq import create_pool
 from arq.connections import RedisSettings
 from fastapi import FastAPI, Response, status
 from fastapi.middleware.cors import CORSMiddleware
+from prometheus_fastapi_instrumentator import Instrumentator
 from sqlalchemy import text, update
 
+from matcher.api.error_handlers import register_error_handlers
 from matcher.api.middleware import (
     RateLimitMiddleware,
     RequestIdMiddleware,
     RequestTimeoutMiddleware,
     SecurityHeadersMiddleware,
 )
-from matcher.api.error_handlers import register_error_handlers
 from matcher.api.v1 import auth, catalog, match, metrics, review, suppliers, upload, users
 from matcher.api.v1.settings import router as settings_router
 from matcher.config import settings
 from matcher.db.engine import async_session_factory, engine
 from matcher.db.models import MatchRequest
 from matcher.logging_config import setup_logging
-from prometheus_fastapi_instrumentator import Instrumentator
 
 logger = logging.getLogger(__name__)
 
@@ -50,9 +50,7 @@ async def lifespan(app: FastAPI):
                 )
             )
             if result.rowcount:
-                logger.warning(
-                    "Reset %d stale running requests to failed", result.rowcount
-                )
+                logger.warning("Reset %d stale running requests to failed", result.rowcount)
             await session.commit()
     except Exception:
         logger.exception("Failed to reset stale requests on startup")
@@ -123,6 +121,7 @@ def create_app() -> FastAPI:
 
         # Check DB (with timeout)
         try:
+
             async def _check_db():
                 async with async_session_factory() as session:
                     await session.execute(text("SELECT 1"))

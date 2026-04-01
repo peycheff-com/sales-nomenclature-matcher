@@ -18,10 +18,10 @@ async def shutdown(ctx: dict) -> None:
 
 class WorkerSettings:
     functions = [
-        func(batch_match, timeout=1800),       # 30 min
-        func(catalog_import, timeout=1800),     # 30 min
-        func(catalog_reindex, timeout=3600),    # 60 min
-        func(smart_upload, timeout=3600),       # 60 min (catalog + reindex + match)
+        func(batch_match, timeout=1800),  # 30 min
+        func(catalog_import, timeout=1800),  # 30 min
+        func(catalog_reindex, timeout=3600),  # 60 min
+        func(smart_upload, timeout=3600),  # 60 min (catalog + reindex + match)
     ]
     redis_settings = RedisSettings.from_dsn(settings.redis_url)
     max_jobs = 10

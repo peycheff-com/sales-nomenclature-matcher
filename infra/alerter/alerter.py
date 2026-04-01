@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Health check poller with Telegram alerting."""
+
 import os
 import time
+
 import requests
 
 HEALTH_URL = os.environ.get("HEALTH_URL", "http://nginx/api/v1/health")

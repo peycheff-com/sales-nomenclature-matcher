@@ -1,4 +1,5 @@
 """Create the initial admin user."""
+
 from __future__ import annotations
 
 import asyncio

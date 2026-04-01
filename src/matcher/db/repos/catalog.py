@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import and_, or_, select, func
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,9 +19,11 @@ class CatalogRepo:
         )
         return result.scalar_one_or_none()
 
-    async def search_products(self, query: str | None = None, limit: int = 50) -> list[CatalogProduct]:
+    async def search_products(
+        self, query: str | None = None, limit: int = 50
+    ) -> list[CatalogProduct]:
         """Search products by name/article."""
-        stmt = select(CatalogProduct).where(CatalogProduct.is_active == True)
+        stmt = select(CatalogProduct).where(CatalogProduct.is_active)
         if query:
             search_term = f"%{query}%"
             stmt = stmt.where(

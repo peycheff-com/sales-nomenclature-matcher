@@ -3,14 +3,12 @@ from __future__ import annotations
 import csv
 import io
 import uuid
-from collections.abc import AsyncIterator
 from pathlib import Path
 
 import chardet
 import openpyxl
 
 from matcher.ingestion.base import RawCatalogItem
-
 
 # Standard column name mappings (Russian -> field name)
 COLUMN_MAP = {

@@ -9,7 +9,7 @@ def detect_brand(ctx: NormalizationContext) -> NormalizationContext:
     brand_map = config.get("brand_aliases", {})
 
     text_lower = ctx.text.lower()
-    tokens = text_lower.split()
+    text_lower.split()
 
     detected_brand = None
     best_match_len = 0

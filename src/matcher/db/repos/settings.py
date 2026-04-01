@@ -1,4 +1,5 @@
 """Repository for system_settings key-value table."""
+
 from __future__ import annotations
 
 from sqlalchemy import text
@@ -32,7 +33,5 @@ class SettingsRepo:
 
     async def get_all(self) -> dict[str, str | None]:
         """Return all settings as a {key: value} dict."""
-        result = await self.session.execute(
-            text("SELECT key, value FROM system_settings")
-        )
+        result = await self.session.execute(text("SELECT key, value FROM system_settings"))
         return {row[0]: row[1] for row in result.fetchall()}

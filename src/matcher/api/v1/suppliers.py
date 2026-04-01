@@ -10,10 +10,10 @@ from matcher.db.repos.supplier import SupplierRepo
 from matcher.normalization.pipeline import run_pipeline
 from matcher.schemas.supplier import (
     SupplierCreate,
-    SupplierUpdate,
     SupplierMapping,
     SupplierMappingInput,
     SupplierProfile,
+    SupplierUpdate,
 )
 
 router = APIRouter(tags=["Suppliers"])
@@ -108,6 +108,7 @@ async def create_supplier_mapping(
 
     return SupplierMapping.model_validate(mapping)
 
+
 @router.delete("/suppliers/{supplier_id}", status_code=200)
 async def delete_supplier(
     supplier_id: str,
@@ -121,6 +122,7 @@ async def delete_supplier(
     await db.commit()
     return {"ok": True}
 
+
 @router.get("/suppliers/{supplier_id}/mappings")
 async def list_supplier_mappings(
     supplier_id: str,
@@ -133,6 +135,6 @@ async def list_supplier_mappings(
     supplier = await repo.get_supplier(supplier_id)
     if not supplier:
         raise HTTPException(status_code=404, detail="Supplier not found")
-        
+
     mappings = await repo.get_supplier_mappings(supplier_id, limit=limit, offset=offset)
     return {"items": [SupplierMapping.model_validate(m) for m in mappings]}

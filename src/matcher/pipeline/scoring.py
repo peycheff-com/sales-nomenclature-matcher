@@ -8,6 +8,7 @@ from rapidfuzz import fuzz
 @dataclass
 class PairFeatures:
     """Features for a (query, candidate) pair."""
+
     # Binary
     article_exact: float = 0.0
     manufacturer_code_exact: float = 0.0
@@ -36,6 +37,7 @@ class PairFeatures:
 @dataclass
 class ScoringResult:
     """Result of the scoring formula."""
+
     base_score: float = 0.0
     bonus: float = 0.0
     penalty: float = 0.0
@@ -254,7 +256,11 @@ def score_candidate(features: PairFeatures) -> ScoringResult:
         penalty -= 0.12
     if features.unit_conflict:
         penalty -= 0.10
-    if features.brand_conflict and features.article_exact == 0.0 and features.manufacturer_code_exact == 0.0:
+    if (
+        features.brand_conflict
+        and features.article_exact == 0.0
+        and features.manufacturer_code_exact == 0.0
+    ):
         penalty -= 0.08
     result.penalty = penalty
 
@@ -263,9 +269,11 @@ def score_candidate(features: PairFeatures) -> ScoringResult:
     result.final_score = min(1.0, max(0.0, raw))
 
     # Hard gates
-    if (features.critical_number_conflict
-            and features.article_exact == 0.0
-            and features.manufacturer_code_exact == 0.0):
+    if (
+        features.critical_number_conflict
+        and features.article_exact == 0.0
+        and features.manufacturer_code_exact == 0.0
+    ):
         result.auto_match_forbidden = True
     if features.category_conflict and features.rerank_score < 0.95:
         result.auto_match_forbidden = True

@@ -1,13 +1,12 @@
 from __future__ import annotations
 
+import csv
+import io
+import re
 import uuid
 from datetime import datetime
 
-import re
-import csv
-import io
 import httpx
-
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -44,19 +43,21 @@ def _to_match_result(item_result) -> MatchResult:
 
     alternatives = []
     for alt in item_result.alternatives:
-        alternatives.append(Candidate(
-            product_id=alt["product_id"],
-            name=alt.get("name", ""),
-            article=alt.get("article"),
-            brand=alt.get("brand"),
-            retrieval_rank=alt.get("retrieval_rank", 0),
-            lexical_score=alt.get("lexical_score"),
-            semantic_score=alt.get("semantic_score"),
-            rerank_score=alt.get("rerank_score"),
-            rules_score=alt.get("rules_score"),
-            final_score=alt.get("final_score"),
-            reasons=alt.get("reasons", []),
-        ))
+        alternatives.append(
+            Candidate(
+                product_id=alt["product_id"],
+                name=alt.get("name", ""),
+                article=alt.get("article"),
+                brand=alt.get("brand"),
+                retrieval_rank=alt.get("retrieval_rank", 0),
+                lexical_score=alt.get("lexical_score"),
+                semantic_score=alt.get("semantic_score"),
+                rerank_score=alt.get("rerank_score"),
+                rules_score=alt.get("rules_score"),
+                final_score=alt.get("final_score"),
+                reasons=alt.get("reasons", []),
+            )
+        )
 
     return MatchResult(
         request_item_id=item_result.request_item_id,
@@ -92,6 +93,7 @@ async def match_sync(
     )
 
     from matcher.api.v1.settings import load_persisted_settings
+
     await load_persisted_settings(db, force=True)
 
     results = []
@@ -118,7 +120,8 @@ async def match_sync(
 
     # Update request as done
     await repo.update_request_status(
-        request_id, "done",
+        request_id,
+        "done",
         processed_items=len(results),
         auto_matched_items=auto_count,
         review_needed_items=review_count,
@@ -154,7 +157,10 @@ async def match_batch(
     )
 
     # Store items
-    items_data = [{"line_id": item.line_id, "raw_text": item.raw_text, "original_row": item.original_row} for item in body.items]
+    items_data = [
+        {"line_id": item.line_id, "raw_text": item.raw_text, "original_row": item.original_row}
+        for item in body.items
+    ]
     await repo.create_items(request_id, items_data)
     await db.commit()
 
@@ -173,37 +179,39 @@ async def preview_google_sheet(
     match = re.search(r"/d/([a-zA-Z0-9-_]+)", url)
     if not match:
         raise HTTPException(status_code=400, detail="Invalid Google Sheets URL")
-    
+
     doc_id = match.group(1)
-    
+
     gid = "0"
     gid_match = re.search(r"gid=([0-9]+)", url)
     if gid_match:
         gid = gid_match.group(1)
-        
+
     csv_url = f"https://docs.google.com/spreadsheets/d/{doc_id}/export?format=csv&gid={gid}"
-    
+
     try:
         async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
             resp = await client.get(csv_url)
             if resp.status_code == 404:
                 raise HTTPException(status_code=404, detail="Google Sheet not found.")
-            
+
             # If redirected to login, it means sheet is private
             if "ServiceLogin" in str(resp.url):
                 raise HTTPException(
-                    status_code=403, 
-                    detail="Google Sheet is private. Change sharing settings to 'Anyone with the link can view'."
+                    status_code=403,
+                    detail="Google Sheet is private. Change sharing settings to 'Anyone with the link can view'.",
                 )
-                
+
             resp.raise_for_status()
-            
+
             content = resp.text
             reader = csv.DictReader(io.StringIO(content))
             rows = list(reader)
             if not rows:
-                raise HTTPException(status_code=400, detail="Document is empty or not formatted correctly as CSV.")
-            
+                raise HTTPException(
+                    status_code=400, detail="Document is empty or not formatted correctly as CSV."
+                )
+
             return {"rows": rows}
     except httpx.RequestError as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch Google Sheet: {str(e)}")
@@ -283,21 +291,25 @@ async def get_match_request_items(
     current_user: User = Depends(get_current_user),
 ):
     repo = MatchRepo(db)
-    items, total = await repo.get_request_items(request_id, status_filter=status, page=page, page_size=page_size)
+    items, total = await repo.get_request_items(
+        request_id, status_filter=status, page=page, page_size=page_size
+    )
 
     results = []
     for item in items:
-        results.append(MatchResult(
-            request_item_id=item.request_item_id,
-            line_id=item.line_id,
-            raw_text=item.raw_text,
-            original_row=item.original_row_json,
-            normalized_text=item.normalized_text,
-            extracted_attributes=item.extracted_attributes or {},
-            status=item.status,
-            confidence=float(item.confidence) if item.confidence else None,
-            reasons=item.reasons_json if isinstance(item.reasons_json, list) else [],
-        ))
+        results.append(
+            MatchResult(
+                request_item_id=item.request_item_id,
+                line_id=item.line_id,
+                raw_text=item.raw_text,
+                original_row=item.original_row_json,
+                normalized_text=item.normalized_text,
+                extracted_attributes=item.extracted_attributes or {},
+                status=item.status,
+                confidence=float(item.confidence) if item.confidence else None,
+                reasons=item.reasons_json if isinstance(item.reasons_json, list) else [],
+            )
+        )
 
     return MatchItemsPage(page=page, page_size=page_size, total=total, items=results)
 

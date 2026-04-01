@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-from sqlalchemy import func, select, cast, Date
+from sqlalchemy import Date, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from matcher.db.models import TokenUsageLog
@@ -38,37 +38,46 @@ class TokenUsageRepo:
         totals = (await self.session.execute(totals_q)).one()
 
         # By provider
-        by_provider_q = select(
-            TokenUsageLog.provider,
-            func.sum(TokenUsageLog.total_tokens).label("total_tokens"),
-            func.sum(TokenUsageLog.estimated_cost_usd).label("cost_usd"),
-            func.count().label("calls"),
-        ).where(TokenUsageLog.created_at >= since).group_by(TokenUsageLog.provider)
+        by_provider_q = (
+            select(
+                TokenUsageLog.provider,
+                func.sum(TokenUsageLog.total_tokens).label("total_tokens"),
+                func.sum(TokenUsageLog.estimated_cost_usd).label("cost_usd"),
+                func.count().label("calls"),
+            )
+            .where(TokenUsageLog.created_at >= since)
+            .group_by(TokenUsageLog.provider)
+        )
         by_provider = (await self.session.execute(by_provider_q)).all()
 
         # By model
-        by_model_q = select(
-            TokenUsageLog.provider,
-            TokenUsageLog.model,
-            TokenUsageLog.operation,
-            func.sum(TokenUsageLog.prompt_tokens).label("prompt_tokens"),
-            func.sum(TokenUsageLog.completion_tokens).label("completion_tokens"),
-            func.sum(TokenUsageLog.total_tokens).label("total_tokens"),
-            func.sum(TokenUsageLog.estimated_cost_usd).label("cost_usd"),
-            func.count().label("calls"),
-        ).where(TokenUsageLog.created_at >= since).group_by(
-            TokenUsageLog.provider, TokenUsageLog.model, TokenUsageLog.operation
+        by_model_q = (
+            select(
+                TokenUsageLog.provider,
+                TokenUsageLog.model,
+                TokenUsageLog.operation,
+                func.sum(TokenUsageLog.prompt_tokens).label("prompt_tokens"),
+                func.sum(TokenUsageLog.completion_tokens).label("completion_tokens"),
+                func.sum(TokenUsageLog.total_tokens).label("total_tokens"),
+                func.sum(TokenUsageLog.estimated_cost_usd).label("cost_usd"),
+                func.count().label("calls"),
+            )
+            .where(TokenUsageLog.created_at >= since)
+            .group_by(TokenUsageLog.provider, TokenUsageLog.model, TokenUsageLog.operation)
         )
         by_model = (await self.session.execute(by_model_q)).all()
 
         # Daily breakdown (last N days)
-        daily_q = select(
-            cast(TokenUsageLog.created_at, Date).label("date"),
-            func.sum(TokenUsageLog.total_tokens).label("total_tokens"),
-            func.sum(TokenUsageLog.estimated_cost_usd).label("cost_usd"),
-        ).where(TokenUsageLog.created_at >= since).group_by(
-            cast(TokenUsageLog.created_at, Date)
-        ).order_by(cast(TokenUsageLog.created_at, Date))
+        daily_q = (
+            select(
+                cast(TokenUsageLog.created_at, Date).label("date"),
+                func.sum(TokenUsageLog.total_tokens).label("total_tokens"),
+                func.sum(TokenUsageLog.estimated_cost_usd).label("cost_usd"),
+            )
+            .where(TokenUsageLog.created_at >= since)
+            .group_by(cast(TokenUsageLog.created_at, Date))
+            .order_by(cast(TokenUsageLog.created_at, Date))
+        )
         daily = (await self.session.execute(daily_q)).all()
 
         return {

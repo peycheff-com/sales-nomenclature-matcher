@@ -4,14 +4,15 @@ Revision ID: 3c05211437ee
 Revises:
 Create Date: 2026-03-30 20:12:25.560644
 """
-from typing import Sequence, Union
+
+from collections.abc import Sequence
 
 from alembic import op
 
 revision: str = "3c05211437ee"
-down_revision: Union[str, None] = None
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = None
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 DDL_UP = """\
 create extension if not exists vector;

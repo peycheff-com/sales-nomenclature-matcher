@@ -1,5 +1,3 @@
-import re
-
 from matcher.normalization.pipeline import run_pipeline
 from matcher.pipeline.features import extract_features
 

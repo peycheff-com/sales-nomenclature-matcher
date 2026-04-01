@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Callable
+from collections.abc import Callable
 
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
@@ -83,6 +83,7 @@ def _validate_csrf(request: Request) -> None:
     if origin:
         # Origin header present — verify it matches our host
         from urllib.parse import urlparse
+
         parsed = urlparse(origin)
         origin_host = parsed.netloc
         if origin_host == host or origin_host.split(":")[0] == host.split(":")[0]:
@@ -90,6 +91,7 @@ def _validate_csrf(request: Request) -> None:
 
     if referer:
         from urllib.parse import urlparse
+
         parsed = urlparse(referer)
         referer_host = parsed.netloc
         if referer_host == host or referer_host.split(":")[0] == host.split(":")[0]:

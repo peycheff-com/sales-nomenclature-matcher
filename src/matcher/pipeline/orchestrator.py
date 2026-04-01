@@ -1,22 +1,25 @@
 from __future__ import annotations
 
 import logging
-import re
 import uuid
 from dataclasses import dataclass, field
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from matcher.db.repos.alias import AliasRepo
-from matcher.indexing.search import SearchCandidate, hybrid_search
+from matcher.indexing.search import hybrid_search
 from matcher.normalization.pipeline import run_pipeline
+from matcher.pipeline.agent import resolve_agentically
 from matcher.pipeline.decision import decide
 from matcher.pipeline.explanations import build_reasons
 from matcher.pipeline.features import extract_features, extract_numbers_from_text
 from matcher.pipeline.overrides import check_supplier_override
 from matcher.pipeline.reranker import rerank_candidates
-from matcher.pipeline.scoring import compute_attribute_overlap, compute_pair_features, score_candidate
-from matcher.pipeline.agent import resolve_agentically
+from matcher.pipeline.scoring import (
+    compute_attribute_overlap,
+    compute_pair_features,
+    score_candidate,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +27,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class MatchItemResult:
     """Result for a single matched line."""
+
     request_item_id: str
     line_id: str | None
     raw_text: str
@@ -144,7 +148,9 @@ async def match_single(
             "unit": features.unit,
             "numbers": features.numbers,
         }
-        pair_features.attribute_overlap_score = compute_attribute_overlap(query_attrs, candidate_attrs)
+        pair_features.attribute_overlap_score = compute_attribute_overlap(
+            query_attrs, candidate_attrs
+        )
         scoring_result = score_candidate(pair_features)
         decision = decide(
             scoring_result,
@@ -154,14 +160,16 @@ async def match_single(
         )
         reasons = build_reasons(pair_features, scoring_result.short_circuit)
 
-        scored_candidates.append({
-            "candidate": c,
-            "rerank_result": rr,
-            "scoring": scoring_result,
-            "decision": decision,
-            "reasons": reasons,
-            "pair_features": pair_features,
-        })
+        scored_candidates.append(
+            {
+                "candidate": c,
+                "rerank_result": rr,
+                "scoring": scoring_result,
+                "decision": decision,
+                "reasons": reasons,
+                "pair_features": pair_features,
+            }
+        )
 
     # Sort by final score descending
     scored_candidates.sort(key=lambda x: x["scoring"].final_score, reverse=True)
@@ -182,26 +190,33 @@ async def match_single(
     alternatives = []
     for sc in scored_candidates[:5]:
         c = sc["candidate"]
-        alternatives.append({
-            "product_id": c.product_id,
-            "name": c.name,
-            "article": c.article,
-            "brand": c.brand,
-            "retrieval_rank": c.retrieval_rank,
-            "lexical_score": c.lexical_score,
-            "semantic_score": c.semantic_score,
-            "rerank_score": sc["rerank_result"].rerank_score,
-            "rules_score": sc["scoring"].bonus + sc["scoring"].penalty,
-            "final_score": sc["scoring"].final_score,
-            "reasons": sc["reasons"],
-        })
+        alternatives.append(
+            {
+                "product_id": c.product_id,
+                "name": c.name,
+                "article": c.article,
+                "brand": c.brand,
+                "retrieval_rank": c.retrieval_rank,
+                "lexical_score": c.lexical_score,
+                "semantic_score": c.semantic_score,
+                "rerank_score": sc["rerank_result"].rerank_score,
+                "rules_score": sc["scoring"].bonus + sc["scoring"].penalty,
+                "final_score": sc["scoring"].final_score,
+                "reasons": sc["reasons"],
+            }
+        )
 
     result_status = best_decision.status
     result_confidence = best_decision.confidence
     result_reasons = best["reasons"].copy()
-    
+
     # Trigger Agentic RAG loop if not confident and settings allow it
-    if result_status != "auto_match" and settings.agentic_resolution_enabled and settings.active_llm_api_key and settings.active_llm_api_key != "none":
+    if (
+        result_status != "auto_match"
+        and settings.agentic_resolution_enabled
+        and settings.active_llm_api_key
+        and settings.active_llm_api_key != "none"
+    ):
         agent_decision = await resolve_agentically(raw_text, scored_candidates[:5], session)
         if agent_decision:
             new_status = agent_decision.get("status")
@@ -209,7 +224,7 @@ async def match_single(
                 # Override the result to auto match
                 result_status = "auto_match"
                 result_confidence = 0.99
-                
+
                 # Fetch the product from DB if available (or use existing)
                 pid = agent_decision.get("product_id")
                 # Look for it in alternatives
@@ -225,7 +240,7 @@ async def match_single(
                 else:
                     # Agent hallucinated or found something via catalog search not in top 5
                     best_candidate_dict["product_id"] = pid
-                    
+
             result_reasons = [f"Agent Resolution: {agent_decision.get('reasoning')}"]
 
     return MatchItemResult(

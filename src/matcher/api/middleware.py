@@ -49,14 +49,21 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if request.url.path in _RATE_LIMIT_EXEMPT:
             return await call_next(request)
 
-        client_ip = request.headers.get(
-            "X-Forwarded-For", request.client.host if request.client else "unknown"
-        ).split(",")[0].strip()
+        client_ip = (
+            request.headers.get(
+                "X-Forwarded-For", request.client.host if request.client else "unknown"
+            )
+            .split(",")[0]
+            .strip()
+        )
 
         if api_rate_limiter.is_blocked(client_ip):
             return JSONResponse(
                 status_code=429,
-                content={"error": "Too Many Requests", "detail": "Rate limit exceeded. Try again later."},
+                content={
+                    "error": "Too Many Requests",
+                    "detail": "Rate limit exceeded. Try again later.",
+                },
             )
         api_rate_limiter.record_attempt(client_ip)
         return await call_next(request)
@@ -73,7 +80,7 @@ class RequestTimeoutMiddleware(BaseHTTPMiddleware):
                 call_next(request),
                 timeout=settings.request_timeout_seconds,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning(
                 "Request timeout (%ds): %s %s",
                 settings.request_timeout_seconds,

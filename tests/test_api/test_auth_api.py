@@ -1,11 +1,12 @@
 """Tests for auth API endpoints."""
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from matcher.auth.security import create_access_token, hash_password
+from matcher.auth.security import hash_password
 from matcher.db.models import User
 
 

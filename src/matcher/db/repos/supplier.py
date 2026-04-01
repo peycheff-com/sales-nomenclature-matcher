@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import and_, select, delete
+from sqlalchemy import and_, delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from matcher.db.models import SupplierMapping, SupplierProfile
@@ -26,7 +26,9 @@ class SupplierRepo:
         )
         return result.scalar_one_or_none()
 
-    async def create_supplier(self, supplier_id: str, name: str, strict_mode: bool = False) -> SupplierProfile:
+    async def create_supplier(
+        self, supplier_id: str, name: str, strict_mode: bool = False
+    ) -> SupplierProfile:
         supplier = SupplierProfile(
             supplier_id=supplier_id,
             supplier_name=name,

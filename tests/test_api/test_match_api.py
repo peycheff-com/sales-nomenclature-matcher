@@ -2,6 +2,7 @@
 
 Requires PostgreSQL with sample catalog.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -41,7 +42,9 @@ def _mock_embed(*args, **kwargs):
 @pytest.fixture(scope="module")
 def client():
     from starlette.testclient import TestClient
+
     from matcher.main import app
+
     with TestClient(app) as c:
         yield c
 
@@ -56,11 +59,10 @@ class TestHealthEndpoint:
 class TestMatchEndpoint:
     def test_match_single_item(self, client):
         with patch("matcher.indexing.search.embed_single", side_effect=_mock_embed):
-            resp = client.post("/api/v1/match", json={
-                "items": [
-                    {"line_id": "1", "raw_text": "насос grundfoss 25-40"}
-                ]
-            })
+            resp = client.post(
+                "/api/v1/match",
+                json={"items": [{"line_id": "1", "raw_text": "насос grundfoss 25-40"}]},
+            )
 
         assert resp.status_code == 200
         data = resp.json()
@@ -75,13 +77,16 @@ class TestMatchEndpoint:
 
     def test_match_multiple_items(self, client):
         with patch("matcher.indexing.search.embed_single", side_effect=_mock_embed):
-            resp = client.post("/api/v1/match", json={
-                "items": [
-                    {"line_id": "1", "raw_text": "кабель ввг 3х2,5"},
-                    {"line_id": "2", "raw_text": "насос grundfoss 25-40"},
-                    {"line_id": "3", "raw_text": "пена монтажная зимняя 750 мл"},
-                ]
-            })
+            resp = client.post(
+                "/api/v1/match",
+                json={
+                    "items": [
+                        {"line_id": "1", "raw_text": "кабель ввг 3х2,5"},
+                        {"line_id": "2", "raw_text": "насос grundfoss 25-40"},
+                        {"line_id": "3", "raw_text": "пена монтажная зимняя 750 мл"},
+                    ]
+                },
+            )
 
         assert resp.status_code == 200
         data = resp.json()
@@ -93,22 +98,21 @@ class TestMatchEndpoint:
 
     def test_match_with_supplier(self, client):
         with patch("matcher.indexing.search.embed_single", side_effect=_mock_embed):
-            resp = client.post("/api/v1/match", json={
-                "supplier_id": "supplier_001",
-                "items": [
-                    {"raw_text": "штукатурка кнауф 30 кг"}
-                ]
-            })
+            resp = client.post(
+                "/api/v1/match",
+                json={
+                    "supplier_id": "supplier_001",
+                    "items": [{"raw_text": "штукатурка кнауф 30 кг"}],
+                },
+            )
 
         assert resp.status_code == 200
 
     def test_match_returns_reasons(self, client):
         with patch("matcher.indexing.search.embed_single", side_effect=_mock_embed):
-            resp = client.post("/api/v1/match", json={
-                "items": [
-                    {"raw_text": "насос grundfoss 25-40"}
-                ]
-            })
+            resp = client.post(
+                "/api/v1/match", json={"items": [{"raw_text": "насос grundfoss 25-40"}]}
+            )
 
         data = resp.json()
         result = data["results"][0]
@@ -118,11 +122,9 @@ class TestMatchEndpoint:
 
     def test_match_returns_alternatives(self, client):
         with patch("matcher.indexing.search.embed_single", side_effect=_mock_embed):
-            resp = client.post("/api/v1/match", json={
-                "items": [
-                    {"raw_text": "насос grundfoss 25-40"}
-                ]
-            })
+            resp = client.post(
+                "/api/v1/match", json={"items": [{"raw_text": "насос grundfoss 25-40"}]}
+            )
 
         data = resp.json()
         result = data["results"][0]

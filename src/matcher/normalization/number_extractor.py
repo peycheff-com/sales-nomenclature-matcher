@@ -19,11 +19,11 @@ def extract_numbers(ctx: NormalizationContext) -> NormalizationContext:
             ctx.dimensions = [d.replace(",", ".") for d in dims]
 
     # Normalize comma decimals to dot
-    text = re.sub(r'(\d),(\d)', r'\1.\2', text)
+    text = re.sub(r"(\d),(\d)", r"\1.\2", text)
 
     # Extract all numbers
     numbers = []
-    for m in re.finditer(r'\d+(?:\.\d+)?', text):
+    for m in re.finditer(r"\d+(?:\.\d+)?", text):
         try:
             numbers.append(float(m.group()))
         except ValueError:

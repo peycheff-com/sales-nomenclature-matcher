@@ -17,6 +17,7 @@ class ReviewResult(BaseModel):
     ok: bool
     request_item_id: str
 
+
 class BatchReviewItem(BaseModel):
     request_item_id: str
     final_decision: Literal["accepted", "corrected", "rejected"]
@@ -25,10 +26,11 @@ class BatchReviewItem(BaseModel):
     create_alias: bool = False
     create_supplier_mapping: bool = False
 
+
 class BatchReviewInput(BaseModel):
     items: list[BatchReviewItem]
+
 
 class BatchReviewResult(BaseModel):
     ok: bool
     processed_count: int
-

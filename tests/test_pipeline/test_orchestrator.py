@@ -2,6 +2,7 @@
 
 Requires PostgreSQL with sample catalog imported.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -63,7 +64,9 @@ class TestOrchestrator:
         assert result.status in ("auto_match", "review_needed", "no_match")
         assert result.confidence >= 0.0
         assert result.best_candidate is not None
-        assert "grundfos" in result.best_candidate.get("name", "").lower() or result.best_candidate.get("product_id")
+        assert "grundfos" in result.best_candidate.get(
+            "name", ""
+        ).lower() or result.best_candidate.get("product_id")
         assert len(result.reasons) > 0
         assert len(result.alternatives) > 0
 

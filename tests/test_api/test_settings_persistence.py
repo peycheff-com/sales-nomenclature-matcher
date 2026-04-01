@@ -1,4 +1,5 @@
 """Tests for settings persistence via SettingsRepo."""
+
 from __future__ import annotations
 
 import json
@@ -6,7 +7,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from matcher.auth.security import create_access_token
 from matcher.db.models import User
 from matcher.db.repos.settings import SettingsRepo
 
@@ -71,7 +71,9 @@ class TestSettingsPersistenceEndpoints:
     """Test that PUT /settings persists and GET /settings loads from DB."""
 
     @pytest.mark.asyncio
-    async def test_update_settings_persists_to_db(self, async_client, auth_headers, mock_db_session):
+    async def test_update_settings_persists_to_db(
+        self, async_client, auth_headers, mock_db_session
+    ):
         mock_user = User(
             user_id="u1",
             username="test_admin",
@@ -82,7 +84,6 @@ class TestSettingsPersistenceEndpoints:
 
         # Mock SettingsRepo.upsert to track calls
         upsert_calls = []
-        original_upsert = SettingsRepo.upsert
 
         async def mock_upsert(self, key, value):
             upsert_calls.append((key, value))
@@ -128,13 +129,15 @@ class TestSettingsPersistenceEndpoints:
             "review_threshold": "0.55",
             "retrieval_top_n": "30",
             "rerank_top_n": "8",
-            "onec": json.dumps({
-                "base_url": "http://1c.local",
-                "username": "admin",
-                "password": "secret",
-                "catalog_endpoint": "/hs/catalog/v1/nomenclature",
-                "enabled": True,
-            }),
+            "onec": json.dumps(
+                {
+                    "base_url": "http://1c.local",
+                    "username": "admin",
+                    "password": "secret",
+                    "catalog_endpoint": "/hs/catalog/v1/nomenclature",
+                    "enabled": True,
+                }
+            ),
         }
 
         with (

@@ -13,9 +13,9 @@ Usage:
     # Full (requires running DB + Redis + seeded catalog):
     python -m pytest tests/test_e2e_qwen_openrouter.py -v
 """
+
 from __future__ import annotations
 
-import asyncio
 import json
 import os
 import sys
@@ -58,6 +58,7 @@ def _make_client() -> AsyncOpenAI:
 
 # ── Test 1: Raw connectivity ────────────────────────────────────────────────
 
+
 @skip_no_key
 @pytest.mark.asyncio
 async def test_01_raw_connectivity():
@@ -86,6 +87,7 @@ async def test_01_raw_connectivity():
 
 
 # ── Test 2: Structured JSON output ──────────────────────────────────────────
+
 
 @skip_no_key
 @pytest.mark.asyncio
@@ -131,6 +133,7 @@ async def test_02_structured_json_rerank():
     if "<think>" in content:
         # Strip thinking block and get the actual output after it
         import re
+
         content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
 
     # Handle markdown code blocks
@@ -154,12 +157,11 @@ async def test_02_structured_json_rerank():
     # Index 0 (exact Bosch GBH 2-26) should rank highest
     top_idx = scores[0]["index"]
     print(f"  [json_rerank] top candidate index={top_idx}, score={scores[0]['score']}")
-    assert top_idx == 0, (
-        f"Expected Bosch GBH 2-26 (index 0) to rank first, got index {top_idx}"
-    )
+    assert top_idx == 0, f"Expected Bosch GBH 2-26 (index 0) to rank first, got index {top_idx}"
 
 
 # ── Test 3: Reranker module integration ──────────────────────────────────────
+
 
 @skip_no_key
 @pytest.mark.asyncio
@@ -177,8 +179,8 @@ async def test_03_reranker_integration():
         settings.llm_provider = "openrouter"
         settings.llm_rerank_model = ""  # force fallback to llm_model
 
-        from matcher.pipeline.reranker import _llm_rerank
         from matcher.indexing.search import SearchCandidate
+        from matcher.pipeline.reranker import _llm_rerank
 
         # Build mock candidates
         mock_candidates = [
@@ -251,9 +253,7 @@ async def test_03_reranker_integration():
         assert top.candidate.product_id == "prod_001", (
             f"Expected prod_001 as top, got {top.candidate.product_id}"
         )
-        assert top.rerank_score > 0.5, (
-            f"Expected high rerank score, got {top.rerank_score}"
-        )
+        assert top.rerank_score > 0.5, f"Expected high rerank score, got {top.rerank_score}"
 
     finally:
         # Restore
@@ -263,6 +263,7 @@ async def test_03_reranker_integration():
 
 
 # ── Test 4: Usage / cost check ───────────────────────────────────────────────
+
 
 @skip_no_key
 @pytest.mark.asyncio
@@ -286,8 +287,10 @@ async def test_04_free_tier_verification():
     # OpenRouter returns usage info
     usage = response.usage
     if usage:
-        print(f"  [free_tier] prompt_tokens={usage.prompt_tokens}, "
-              f"completion_tokens={usage.completion_tokens}")
+        print(
+            f"  [free_tier] prompt_tokens={usage.prompt_tokens}, "
+            f"completion_tokens={usage.completion_tokens}"
+        )
 
     # Verify the model name looks right (OpenRouter may append :free)
     assert "qwen" in model_used.lower(), f"Unexpected model: {model_used}"

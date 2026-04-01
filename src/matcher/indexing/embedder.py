@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Sequence
+from collections.abc import Sequence
 
 import httpx
 from openai import AsyncOpenAI
@@ -35,7 +35,9 @@ def _get_client() -> AsyncOpenAI:
         api_key = settings.active_embedding_api_key
         base_url = settings.active_embedding_base_url
 
-        if settings.embedding_provider != "local" and (not api_key or api_key in ("sk-your-key-here", "your-key-here")):
+        if settings.embedding_provider != "local" and (
+            not api_key or api_key in ("sk-your-key-here", "your-key-here")
+        ):
             raise RuntimeError(
                 f"No API key configured for embedding provider '{settings.embedding_provider}'. "
                 "Configure it in Settings -> AI Gateway."
@@ -104,19 +106,20 @@ async def embed_texts(
                 for j, item in enumerate(response.data):
                     all_embeddings[i + j] = item.embedding
                 # Token tracking: capture usage if available
-                if hasattr(response, 'usage') and response.usage and _token_tracker:
+                if hasattr(response, "usage") and response.usage and _token_tracker:
                     _token_tracker.record(
                         operation="embed",
                         provider=settings.embedding_provider,
                         model=model,
-                        prompt_tokens=getattr(response.usage, 'prompt_tokens', 0) or getattr(response.usage, 'total_tokens', 0),
-                        total_tokens=getattr(response.usage, 'total_tokens', 0),
+                        prompt_tokens=getattr(response.usage, "prompt_tokens", 0)
+                        or getattr(response.usage, "total_tokens", 0),
+                        total_tokens=getattr(response.usage, "total_tokens", 0),
                     )
                 break
             except Exception as e:
                 if attempt == max_retries - 1:
                     raise
-                wait = 2 ** attempt
+                wait = 2**attempt
                 logger.warning(
                     f"Embedding batch {i // batch_size} failed (attempt {attempt + 1}): {e}. "
                     f"Retrying in {wait}s"
@@ -147,7 +150,9 @@ async def _embed_texts_google(
 
     api_key = settings.active_embedding_api_key
     if not api_key or api_key in ("your-key-here", ""):
-        raise RuntimeError("No API key configured for Google. Configure it in Settings -> AI Gateway.")
+        raise RuntimeError(
+            "No API key configured for Google. Configure it in Settings -> AI Gateway."
+        )
 
     # Google's model names often don't have the 'models/' prefix when supplied in configs
     model_name = model if model.startswith("models/") else f"models/{model}"
@@ -159,16 +164,13 @@ async def _embed_texts_google(
     async with httpx.AsyncClient() as client:
         # Avoid creating batches larger than API limits (often 100 for gemini embeddings)
         batch_size = min(batch_size, 100)
-        
+
         for i in range(0, len(texts), batch_size):
             batch = texts[i : i + batch_size]
 
             requests = []
             for text in batch:
-                req = {
-                    "model": model_name,
-                    "content": {"parts": [{"text": text}]}
-                }
+                req = {"model": model_name, "content": {"parts": [{"text": text}]}}
                 if dimensions:
                     req["outputDimensionality"] = dimensions
                 requests.append(req)
@@ -187,7 +189,7 @@ async def _embed_texts_google(
                 except Exception as e:
                     if attempt == max_retries - 1:
                         raise
-                    wait = 2 ** attempt
+                    wait = 2**attempt
                     logger.warning(
                         f"Google Embedding batch {i // batch_size} failed (attempt {attempt + 1}): {e}. "
                         f"Retrying in {wait}s"

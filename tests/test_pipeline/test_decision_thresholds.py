@@ -1,5 +1,5 @@
-from matcher.pipeline.scoring import ScoringResult, PairFeatures
 from matcher.pipeline.decision import decide
+from matcher.pipeline.scoring import PairFeatures, ScoringResult
 
 
 def test_decide_uses_custom_thresholds():

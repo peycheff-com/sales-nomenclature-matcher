@@ -23,6 +23,7 @@ def set_token_tracker(tracker: TokenTracker | None) -> None:
 @dataclass
 class RerankResult:
     """A reranked candidate with its rerank score."""
+
     candidate: SearchCandidate
     rerank_score: float
 
@@ -52,7 +53,9 @@ async def rerank_candidates(
     provider_id = settings.rerank_provider
     provider = settings.providers_registry.get(provider_id)
     if not provider:
-        logger.warning(f"Rerank provider '{provider_id}' not found in registry. Falling back to lexical.")
+        logger.warning(
+            f"Rerank provider '{provider_id}' not found in registry. Falling back to lexical."
+        )
         return _fallback_rerank(candidates, top_n)
 
     try:
@@ -84,26 +87,24 @@ async def _local_rerank(
 
     # Load globally scoped to avoid reloading
     global _local_scorer
-    if '_local_scorer' not in globals() or _local_scorer is None:
+    if "_local_scorer" not in globals() or _local_scorer is None:
         model_name = settings.llm_rerank_model or "BAAI/bge-reranker-v2-m3"
         logger.info(f"Loading local CrossEncoder model: {model_name}")
         _local_scorer = CrossEncoder(model_name)
 
     documents = [_candidate_to_document(c) for c in candidates]
     pairs = [[query, doc] for doc in documents]
-    
+
     # Predict returns array of logits/scores
     scores = _local_scorer.predict(pairs)
-    
+
     results = []
     for i, score in enumerate(scores):
-        results.append(RerankResult(
-            candidate=candidates[i],
-            rerank_score=float(score)
-        ))
-    
+        results.append(RerankResult(candidate=candidates[i], rerank_score=float(score)))
+
     results.sort(key=lambda r: r.rerank_score, reverse=True)
     return results[:top_n]
+
 
 async def _http_rerank(
     query: str,
@@ -114,35 +115,27 @@ async def _http_rerank(
 ) -> list[RerankResult]:
     """Rerank using standardized Cohere-like or DashScope HTTP APIs."""
     import httpx
-    
+
     documents = [_candidate_to_document(c) for c in candidates]
     model = settings.llm_rerank_model or "rerank-multilingual-v3.0"
     base_url = provider_config.get("base_url", "").rstrip("/")
     api_key = provider_config.get("api_key", "")
-    
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
-    }
+
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
 
     if provider_id == "dashscope":
         endpoint = f"{base_url}/services/aigc/text-rerank/text-rerank"
         payload = {
             "model": model or "gte-rerank",
             "input": {"query": query, "documents": documents},
-            "parameters": {"top_n": top_n}
+            "parameters": {"top_n": top_n},
         }
     else:
         # Standard format (Cohere, Together, Jina)
         endpoint = f"{base_url}/rerank" if not base_url.endswith("/rerank") else base_url
         if provider_id == "jina":
             model = model or "jina-reranker-v2-base-multilingual"
-        payload = {
-            "model": model,
-            "query": query,
-            "documents": documents,
-            "top_n": top_n
-        }
+        payload = {"model": model, "query": query, "documents": documents, "top_n": top_n}
 
     async with httpx.AsyncClient() as client:
         resp = await client.post(endpoint, json=payload, headers=headers, timeout=30.0)
@@ -153,17 +146,19 @@ async def _http_rerank(
     if provider_id == "dashscope":
         items = data.get("output", {}).get("results", [])
         for item in items:
-            results.append(RerankResult(
-                candidate=candidates[item["index"]],
-                rerank_score=float(item["relevance_score"])
-            ))
+            results.append(
+                RerankResult(
+                    candidate=candidates[item["index"]], rerank_score=float(item["relevance_score"])
+                )
+            )
     else:
         items = data.get("results", [])
         for item in items:
-            results.append(RerankResult(
-                candidate=candidates[item["index"]],
-                rerank_score=float(item["relevance_score"])
-            ))
+            results.append(
+                RerankResult(
+                    candidate=candidates[item["index"]], rerank_score=float(item["relevance_score"])
+                )
+            )
 
     return results
 
@@ -179,7 +174,7 @@ async def _llm_rerank(
     Works with any OpenAI-compatible provider including OpenRouter.
     """
     # Only rerank top candidates to limit cost/latency
-    to_rerank = candidates[:min(len(candidates), top_n * 2)]
+    to_rerank = candidates[: min(len(candidates), top_n * 2)]
 
     model = settings.llm_rerank_model or settings.llm_model
 
@@ -224,7 +219,7 @@ async def _llm_rerank(
     )
 
     # Token tracking
-    if hasattr(response, 'usage') and response.usage and _token_tracker:
+    if hasattr(response, "usage") and response.usage and _token_tracker:
         _token_tracker.record(
             operation="llm_rerank",
             provider=settings.llm_provider,
@@ -251,10 +246,12 @@ async def _llm_rerank(
         idx = item.get("index", -1)
         score = float(item.get("score", 0))
         if 0 <= idx < len(to_rerank):
-            results.append(RerankResult(
-                candidate=to_rerank[idx],
-                rerank_score=score,
-            ))
+            results.append(
+                RerankResult(
+                    candidate=to_rerank[idx],
+                    rerank_score=score,
+                )
+            )
 
     # Sort by score descending, take top_n
     results.sort(key=lambda r: r.rerank_score, reverse=True)
@@ -280,7 +277,4 @@ def _fallback_rerank(
 ) -> list[RerankResult]:
     """Fallback: use RRF score as rerank proxy."""
     sorted_candidates = sorted(candidates, key=lambda c: c.rrf_score, reverse=True)
-    return [
-        RerankResult(candidate=c, rerank_score=c.rrf_score)
-        for c in sorted_candidates[:top_n]
-    ]
+    return [RerankResult(candidate=c, rerank_score=c.rrf_score) for c in sorted_candidates[:top_n]]

@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
-from typing import AsyncIterator, Protocol
+from typing import Protocol
 
 
 @dataclass
 class RawCatalogItem:
     """Raw item from any ingestion source before transformation."""
+
     product_id: str | None = None
     onec_ref: str | None = None
     code: str | None = None

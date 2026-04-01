@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import pytest
-
-from matcher.normalization.pipeline import NormalizationContext, run_pipeline
+from matcher.normalization.pipeline import run_pipeline
 
 
 class TestUnicodeCleanup:

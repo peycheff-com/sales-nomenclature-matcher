@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -25,17 +25,19 @@ def _default_providers() -> dict[str, ProviderConfig]:
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    _INSECURE_JWT_SECRETS: frozenset[str] = frozenset({
-        "change-me-in-production",
-        "dev-only-not-for-production",
-        "secret",
-        "changeme",
-        "CHANGE_ME",
-        "CHANGE_ME_USE_openssl_rand_hex_32",
-    })
+    _INSECURE_JWT_SECRETS: frozenset[str] = frozenset(
+        {
+            "change-me-in-production",
+            "dev-only-not-for-production",
+            "secret",
+            "changeme",
+            "CHANGE_ME",
+            "CHANGE_ME_USE_openssl_rand_hex_32",
+        }
+    )
 
     @model_validator(mode="after")
-    def _check_jwt_secret(self) -> "Settings":
+    def _check_jwt_secret(self) -> Settings:
         is_debug = self.log_level.upper() == "DEBUG"
         secret = self.jwt_secret_key
         if secret in self._INSECURE_JWT_SECRETS or len(secret) < 32:
@@ -50,16 +52,13 @@ class Settings(BaseSettings):
         return self
 
     @model_validator(mode="after")
-    def _check_cors_credentials(self) -> "Settings":
+    def _check_cors_credentials(self) -> Settings:
         """Prevent wildcard CORS with credentials outside of debug mode."""
-        if (
-            "*" in self.cors_origins
-            and self.log_level.upper() != "DEBUG"
-        ):
+        if "*" in self.cors_origins and self.log_level.upper() != "DEBUG":
             raise ValueError(
                 "CORS_ORIGINS contains '*' which is unsafe with allow_credentials=True. "
                 "Set explicit origins in CORS_ORIGINS for production, "
-                'e.g. CORS_ORIGINS=\'["https://your-domain.com"]\'. '
+                "e.g. CORS_ORIGINS='[\"https://your-domain.com\"]'. "
                 "Set LOG_LEVEL=DEBUG to bypass this check for local development."
             )
         return self
@@ -74,14 +73,49 @@ class Settings(BaseSettings):
 
     # Dynamic Provider Registry
     providers_registry: dict[str, dict[str, str]] = {
-        "local": {"id": "local", "name": "Local Pipeline (OSS)", "api_key": "none", "base_url": "http://localhost:11434/v1"},
-        "openai": {"id": "openai", "name": "OpenAI", "api_key": "", "base_url": "https://api.openai.com/v1"},
-        "openrouter": {"id": "openrouter", "name": "OpenRouter", "api_key": "", "base_url": "https://openrouter.ai/api/v1"},
-        "together": {"id": "together", "name": "Together AI", "api_key": "", "base_url": "https://api.together.xyz/v1"},
-        "dashscope": {"id": "dashscope", "name": "Alibaba DashScope", "api_key": "", "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1"},
-        "jina": {"id": "jina", "name": "Jina AI", "api_key": "", "base_url": "https://api.jina.ai/v1"},
+        "local": {
+            "id": "local",
+            "name": "Local Pipeline (OSS)",
+            "api_key": "none",
+            "base_url": "http://localhost:11434/v1",
+        },
+        "openai": {
+            "id": "openai",
+            "name": "OpenAI",
+            "api_key": "",
+            "base_url": "https://api.openai.com/v1",
+        },
+        "openrouter": {
+            "id": "openrouter",
+            "name": "OpenRouter",
+            "api_key": "",
+            "base_url": "https://openrouter.ai/api/v1",
+        },
+        "together": {
+            "id": "together",
+            "name": "Together AI",
+            "api_key": "",
+            "base_url": "https://api.together.xyz/v1",
+        },
+        "dashscope": {
+            "id": "dashscope",
+            "name": "Alibaba DashScope",
+            "api_key": "",
+            "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        },
+        "jina": {
+            "id": "jina",
+            "name": "Jina AI",
+            "api_key": "",
+            "base_url": "https://api.jina.ai/v1",
+        },
         "google": {"id": "google", "name": "Google Gemini", "api_key": "", "base_url": ""},
-        "cohere": {"id": "cohere", "name": "Cohere", "api_key": "", "base_url": "https://api.cohere.com/v1"},
+        "cohere": {
+            "id": "cohere",
+            "name": "Cohere",
+            "api_key": "",
+            "base_url": "https://api.cohere.com/v1",
+        },
     }
 
     # JWT auth

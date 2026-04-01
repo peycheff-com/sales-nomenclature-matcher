@@ -1,7 +1,6 @@
 import io
 import json
 import logging
-import uuid
 from dataclasses import dataclass, field
 
 import pandas as pd
@@ -131,15 +130,15 @@ async def _analyze_structure_via_llm(raw_rows: list[list]) -> dict | None:
     """
     llm_key = settings.active_llm_api_key
     if not llm_key or llm_key in ("", "sk-your-key-here", "your-key-here", "none"):
-        raise ValueError(
-            "Умный анализ файла включен, но API ключ LLM провайдера не настроен."
-        )
+        raise ValueError("Умный анализ файла включен, но API ключ LLM провайдера не настроен.")
 
     client, model, extra_body = _make_llm_client()
 
     # Build column letters for context (A, B, C, …)
     max_cols = max(len(r) for r in raw_rows) if raw_rows else 0
-    col_letters = [chr(ord("A") + i) if i < 26 else f"A{chr(ord('A') + i - 26)}" for i in range(max_cols)]
+    col_letters = [
+        chr(ord("A") + i) if i < 26 else f"A{chr(ord('A') + i - 26)}" for i in range(max_cols)
+    ]
 
     # Format as a grid with column letters
     grid_lines: list[str] = []
@@ -252,7 +251,9 @@ def _extract_region_items(
         return []
 
     # Use first row as header
-    new_headers = [str(v).strip() if pd.notna(v) else f"col_{i}" for i, v in enumerate(region.iloc[0])]
+    new_headers = [
+        str(v).strip() if pd.notna(v) else f"col_{i}" for i, v in enumerate(region.iloc[0])
+    ]
     region.columns = new_headers
     region = region.iloc[1:]  # Drop header row
     region = region.dropna(how="all")
@@ -334,9 +335,7 @@ async def analyze_file_structure(file_contents: bytes) -> FileAnalysisResult:
             header_row = int(table_spec["header_row"]) - 1  # Convert to 0-based
             name_col = _col_letter_to_index(table_spec["name_col"])
             unit_col = (
-                _col_letter_to_index(table_spec["unit_col"])
-                if table_spec.get("unit_col")
-                else None
+                _col_letter_to_index(table_spec["unit_col"]) if table_spec.get("unit_col") else None
             )
 
             items = _extract_region_items(
@@ -397,7 +396,9 @@ async def parse_excel_upload(file_contents: bytes, use_ai: bool = False) -> list
     if use_ai:
         llm_key = settings.active_llm_api_key
         if not llm_key or llm_key in ("", "sk-your-key-here", "your-key-here", "none"):
-            raise ValueError("Умный поиск включен, но API ключ LLM провайдера не настроен в настройках.")
+            raise ValueError(
+                "Умный поиск включен, но API ключ LLM провайдера не настроен в настройках."
+            )
         # Let the LLM judge first what the column is
         target_col = await _identify_column_via_llm(df)
 
@@ -425,7 +426,7 @@ async def parse_excel_upload(file_contents: bytes, use_ai: bool = False) -> list
             if len(sample) == 0:
                 continue
 
-            is_num = sample.str.match(r'^-?\d+(?:[\.,]\d+)?$')
+            is_num = sample.str.match(r"^-?\d+(?:[\.,]\d+)?$")
             str_rows = sample[~is_num]
 
             txt_ratio = len(str_rows) / len(sample)
@@ -442,10 +443,6 @@ async def parse_excel_upload(file_contents: bytes, use_ai: bool = False) -> list
     for idx, row in df.iterrows():
         raw_text = str(row[target_col]).strip()
         if raw_text and len(raw_text) > 1 and raw_text.lower() not in ["nan", "none"]:
-            items.append({
-                "line_id": str(idx),
-                "raw_text": raw_text,
-                "original_row": row.to_dict()
-            })
+            items.append({"line_id": str(idx), "raw_text": raw_text, "original_row": row.to_dict()})
 
     return items

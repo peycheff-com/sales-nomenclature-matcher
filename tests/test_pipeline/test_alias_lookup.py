@@ -1,4 +1,5 @@
 """Unit tests for AliasRepo used in the matching pipeline."""
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock
@@ -49,7 +50,9 @@ class TestAliasRepo:
         alias2 = _make_alias("prod_002", "насос grundfos")
         alias3 = _make_alias("prod_001", "насос grundfos")  # duplicate product_id
         mock_session.execute.return_value = MagicMock(
-            scalars=MagicMock(return_value=MagicMock(all=MagicMock(return_value=[alias1, alias2, alias3])))
+            scalars=MagicMock(
+                return_value=MagicMock(all=MagicMock(return_value=[alias1, alias2, alias3]))
+            )
         )
         repo = AliasRepo(mock_session)
         result = await repo.find_product_ids_by_text("насос grundfos")

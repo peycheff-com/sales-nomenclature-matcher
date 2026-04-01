@@ -6,10 +6,11 @@ And: UPDATE catalog_products SET search_tsv = to_tsvector('russian', coalesce(se
 
 Skip if DB is not available.
 """
+
 from __future__ import annotations
 
 import asyncio
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import pytest
 

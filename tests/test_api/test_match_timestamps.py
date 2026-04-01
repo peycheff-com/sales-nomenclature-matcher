@@ -1,7 +1,8 @@
 """Tests that MatchRepo produces timezone-aware datetimes (B1)."""
+
 from __future__ import annotations
 
-from datetime import timezone
+from datetime import UTC
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -37,7 +38,7 @@ async def test_update_request_status_running_uses_aware_datetime():
     assert "started_at" in params, "started_at should be in the UPDATE params"
     started_at = params["started_at"]
     assert started_at.tzinfo is not None, "started_at must be timezone-aware"
-    assert started_at.tzinfo == timezone.utc
+    assert started_at.tzinfo == UTC
 
 
 @pytest.mark.asyncio
@@ -57,7 +58,7 @@ async def test_update_request_status_done_uses_aware_datetime():
     assert "finished_at" in params, "finished_at should be in the UPDATE params"
     finished_at = params["finished_at"]
     assert finished_at.tzinfo is not None, "finished_at must be timezone-aware"
-    assert finished_at.tzinfo == timezone.utc
+    assert finished_at.tzinfo == UTC
 
 
 @pytest.mark.asyncio
@@ -77,4 +78,4 @@ async def test_update_item_review_uses_aware_datetime():
     assert "reviewed_at" in params, "reviewed_at should be in the UPDATE params"
     reviewed_at = params["reviewed_at"]
     assert reviewed_at.tzinfo is not None, "reviewed_at must be timezone-aware"
-    assert reviewed_at.tzinfo == timezone.utc
+    assert reviewed_at.tzinfo == UTC

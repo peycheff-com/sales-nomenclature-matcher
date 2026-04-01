@@ -4,16 +4,17 @@ Revision ID: 0002_add_users
 Revises: 3c05211437ee
 Create Date: 2026-03-31
 """
+
 from __future__ import annotations
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
 
 revision: str = "0002_add_users"
 down_revision: str | None = "3c05211437ee"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 DDL_UP = """
 CREATE TABLE users (

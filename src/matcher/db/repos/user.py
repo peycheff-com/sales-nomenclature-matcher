@@ -13,21 +13,15 @@ class UserRepo:
         self.session = session
 
     async def get_by_username(self, username: str) -> User | None:
-        result = await self.session.execute(
-            select(User).where(User.username == username)
-        )
+        result = await self.session.execute(select(User).where(User.username == username))
         return result.scalar_one_or_none()
 
     async def get_by_id(self, user_id: str) -> User | None:
-        result = await self.session.execute(
-            select(User).where(User.user_id == user_id)
-        )
+        result = await self.session.execute(select(User).where(User.user_id == user_id))
         return result.scalar_one_or_none()
 
     async def list_users(self) -> list[User]:
-        result = await self.session.execute(
-            select(User).order_by(User.username)
-        )
+        result = await self.session.execute(select(User).order_by(User.username))
         return list(result.scalars().all())
 
     async def create_user(

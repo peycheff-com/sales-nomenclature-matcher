@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import and_, delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -64,7 +64,7 @@ class MatchRepo:
         count_stmt = select(func.count()).select_from(MatchRequest)
         if conditions:
             count_stmt = count_stmt.where(and_(*conditions))
-            
+
         total = (await self.session.execute(count_stmt)).scalar() or 0
 
         offset = (page - 1) * limit
@@ -82,19 +82,15 @@ class MatchRepo:
         )
         return result.scalar_one_or_none()
 
-    async def update_request_status(
-        self, request_id: str, status: str, **counters: object
-    ) -> None:
+    async def update_request_status(self, request_id: str, status: str, **counters: object) -> None:
         values: dict = {"status": status}
         if status == "running":
-            values["started_at"] = datetime.now(timezone.utc)
+            values["started_at"] = datetime.now(UTC)
         elif status in ("done", "failed"):
-            values["finished_at"] = datetime.now(timezone.utc)
+            values["finished_at"] = datetime.now(UTC)
         values.update(counters)
         await self.session.execute(
-            update(MatchRequest)
-            .where(MatchRequest.request_id == request_id)
-            .values(**values)
+            update(MatchRequest).where(MatchRequest.request_id == request_id).values(**values)
         )
 
     async def delete_request(self, request_id: str) -> bool:
@@ -104,21 +100,15 @@ class MatchRepo:
             MatchRequestItem.request_id == request_id
         )
         await self.session.execute(
-            delete(MatchCandidate).where(
-                MatchCandidate.request_item_id.in_(item_ids_stmt)
-            )
+            delete(MatchCandidate).where(MatchCandidate.request_item_id.in_(item_ids_stmt))
         )
         # Delete items
         await self.session.execute(
-            delete(MatchRequestItem).where(
-                MatchRequestItem.request_id == request_id
-            )
+            delete(MatchRequestItem).where(MatchRequestItem.request_id == request_id)
         )
         # Delete request
         result = await self.session.execute(
-            delete(MatchRequest).where(
-                MatchRequest.request_id == request_id
-            )
+            delete(MatchRequest).where(MatchRequest.request_id == request_id)
         )
         return result.rowcount > 0
 
@@ -126,9 +116,7 @@ class MatchRepo:
     # Match request items
     # ------------------------------------------------------------------
 
-    async def create_items(
-        self, request_id: str, items: list[dict]
-    ) -> list[MatchRequestItem]:
+    async def create_items(self, request_id: str, items: list[dict]) -> list[MatchRequestItem]:
         result: list[MatchRequestItem] = []
         for item in items:
             obj = MatchRequestItem(
@@ -155,11 +143,7 @@ class MatchRepo:
         if status_filter:
             conditions.append(MatchRequestItem.status == status_filter)
 
-        count_stmt = (
-            select(func.count())
-            .select_from(MatchRequestItem)
-            .where(and_(*conditions))
-        )
+        count_stmt = select(func.count()).select_from(MatchRequestItem).where(and_(*conditions))
         total = (await self.session.execute(count_stmt)).scalar() or 0
 
         offset = (page - 1) * page_size
@@ -175,9 +159,7 @@ class MatchRepo:
 
     async def get_item(self, request_item_id: str) -> MatchRequestItem | None:
         result = await self.session.execute(
-            select(MatchRequestItem).where(
-                MatchRequestItem.request_item_id == request_item_id
-            )
+            select(MatchRequestItem).where(MatchRequestItem.request_item_id == request_item_id)
         )
         return result.scalar_one_or_none()
 
@@ -230,9 +212,7 @@ class MatchRepo:
     # Candidates
     # ------------------------------------------------------------------
 
-    async def save_candidates(
-        self, request_item_id: str, candidates: list[dict]
-    ) -> None:
+    async def save_candidates(self, request_item_id: str, candidates: list[dict]) -> None:
         for i, c in enumerate(candidates):
             obj = MatchCandidate(
                 candidate_id=f"cand_{uuid.uuid4().hex[:12]}",
@@ -308,7 +288,7 @@ class MatchRepo:
                 final_decision=decision,
                 final_product_id=final_product_id,
                 reviewed_by=reviewed_by,
-                reviewed_at=datetime.now(timezone.utc),
+                reviewed_at=datetime.now(UTC),
             )
         )
 

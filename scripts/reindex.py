@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """CLI script to reindex the catalog (embed + update search vectors)."""
+
 from __future__ import annotations
 
 import argparse

@@ -1,4 +1,5 @@
 """Tests that per-item errors in batch_match are recorded in the database."""
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch

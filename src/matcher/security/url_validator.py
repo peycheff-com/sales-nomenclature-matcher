@@ -1,22 +1,22 @@
 """URL validation utilities to prevent SSRF attacks."""
+
 from __future__ import annotations
 
 import ipaddress
 import socket
 from urllib.parse import urlparse
 
-
 # Blocked IP ranges: loopback, link-local, private, metadata endpoints
 _BLOCKED_NETWORKS = [
-    ipaddress.ip_network("127.0.0.0/8"),       # Loopback
-    ipaddress.ip_network("10.0.0.0/8"),         # Private
-    ipaddress.ip_network("172.16.0.0/12"),      # Private
-    ipaddress.ip_network("192.168.0.0/16"),     # Private
-    ipaddress.ip_network("169.254.0.0/16"),     # Link-local / cloud metadata
-    ipaddress.ip_network("0.0.0.0/8"),          # "This" network
-    ipaddress.ip_network("::1/128"),            # IPv6 loopback
-    ipaddress.ip_network("fc00::/7"),           # IPv6 unique local
-    ipaddress.ip_network("fe80::/10"),          # IPv6 link-local
+    ipaddress.ip_network("127.0.0.0/8"),  # Loopback
+    ipaddress.ip_network("10.0.0.0/8"),  # Private
+    ipaddress.ip_network("172.16.0.0/12"),  # Private
+    ipaddress.ip_network("192.168.0.0/16"),  # Private
+    ipaddress.ip_network("169.254.0.0/16"),  # Link-local / cloud metadata
+    ipaddress.ip_network("0.0.0.0/8"),  # "This" network
+    ipaddress.ip_network("::1/128"),  # IPv6 loopback
+    ipaddress.ip_network("fc00::/7"),  # IPv6 unique local
+    ipaddress.ip_network("fe80::/10"),  # IPv6 link-local
 ]
 
 # Allowed URL schemes
@@ -25,6 +25,7 @@ _ALLOWED_SCHEMES = {"http", "https"}
 
 class SSRFError(ValueError):
     """Raised when a URL targets a blocked network or uses a forbidden scheme."""
+
     pass
 
 
@@ -50,8 +51,7 @@ def validate_url_safe(url: str, *, allow_http: bool = False) -> str:
     allowed = _ALLOWED_SCHEMES if allow_http else {"https"}
     if parsed.scheme not in allowed:
         raise SSRFError(
-            f"URL scheme '{parsed.scheme}' is not allowed. "
-            f"Allowed: {', '.join(sorted(allowed))}"
+            f"URL scheme '{parsed.scheme}' is not allowed. Allowed: {', '.join(sorted(allowed))}"
         )
 
     # Hostname check
@@ -78,8 +78,6 @@ def validate_url_safe(url: str, *, allow_http: bool = False) -> str:
 
         for network in _BLOCKED_NETWORKS:
             if ip in network:
-                raise SSRFError(
-                    f"URL resolves to blocked address {ip} (network {network})"
-                )
+                raise SSRFError(f"URL resolves to blocked address {ip} (network {network})")
 
     return url

@@ -16,7 +16,7 @@ def extract_numbers_from_text(text: str) -> list[float]:
     if not text:
         return []
     nums = []
-    for m in re.finditer(r'\d+(?:\.\d+)?', text):
+    for m in re.finditer(r"\d+(?:\.\d+)?", text):
         try:
             nums.append(float(m.group()))
         except ValueError:

@@ -7,6 +7,7 @@ Usage:
     tracker.record("llm_rerank", "openrouter", "gpt-4o-mini", prompt_tokens=1200, completion_tokens=300)
     await tracker.flush(session)  # Persist all accumulated records to DB
 """
+
 from __future__ import annotations
 
 import logging
@@ -54,6 +55,7 @@ class _TokenRecord:
 @dataclass
 class TokenTracker:
     """Accumulates token usage records and flushes them to the database."""
+
     request_id: str | None = None
     _records: list[_TokenRecord] = field(default_factory=list)
 
@@ -70,16 +72,18 @@ class TokenTracker:
         total = total_tokens if total_tokens is not None else prompt_tokens + completion_tokens
         cost = _estimate_cost(model, prompt_tokens, completion_tokens)
 
-        self._records.append(_TokenRecord(
-            operation=operation,
-            provider=provider,
-            model=model,
-            prompt_tokens=prompt_tokens,
-            completion_tokens=completion_tokens,
-            total_tokens=total,
-            estimated_cost_usd=cost,
-            created_at=datetime.utcnow(),
-        ))
+        self._records.append(
+            _TokenRecord(
+                operation=operation,
+                provider=provider,
+                model=model,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                total_tokens=total,
+                estimated_cost_usd=cost,
+                created_at=datetime.utcnow(),
+            )
+        )
 
     async def flush(self, session: AsyncSession) -> None:
         """Persist all accumulated records to the token_usage_log table."""
@@ -130,5 +134,7 @@ def _estimate_cost(model: str, prompt_tokens: int, completion_tokens: int) -> De
     if not pricing:
         pricing = DEFAULT_COST
 
-    cost = (prompt_tokens * pricing["prompt"] + completion_tokens * pricing["completion"]) / 1_000_000
+    cost = (
+        prompt_tokens * pricing["prompt"] + completion_tokens * pricing["completion"]
+    ) / 1_000_000
     return Decimal(str(round(cost, 6)))

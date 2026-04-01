@@ -1,9 +1,9 @@
 """Settings API -- runtime configuration for models, 1C, thresholds."""
+
 from __future__ import annotations
 
 import json
 import logging
-from typing import Any
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
@@ -24,6 +24,7 @@ router = APIRouter(tags=["Settings"])
 
 # ── Schemas ──────────────────────────────────────────────────────────────────
 
+
 class OneCConnectionSettings(BaseModel):
     base_url: str = ""
     username: str = ""
@@ -37,6 +38,7 @@ class ProviderConfigResponse(BaseModel):
     name: str
     api_key_set: bool
     base_url: str
+
 
 class SettingsResponse(BaseModel):
     # Provider
@@ -64,6 +66,7 @@ class ProviderConfigInput(BaseModel):
     api_key: str | None = None
     base_url: str | None = None
 
+
 class SettingsUpdateInput(BaseModel):
     llm_provider: str | None = None
     embedding_provider: str | None = None
@@ -81,7 +84,7 @@ class SettingsUpdateInput(BaseModel):
     onec: OneCConnectionSettings | None = None
 
     @model_validator(mode="after")
-    def _validate_thresholds(self) -> "SettingsUpdateInput":
+    def _validate_thresholds(self) -> SettingsUpdateInput:
         if self.auto_match_threshold is not None and not (0.0 <= self.auto_match_threshold <= 1.0):
             raise ValueError("auto_match_threshold must be between 0.0 and 1.0")
         if self.review_threshold is not None and not (0.0 <= self.review_threshold <= 1.0):
@@ -157,7 +160,14 @@ async def load_persisted_settings(db: AsyncSession, force: bool = False) -> None
     if "embedding_dimensions" in stored and stored["embedding_dimensions"] is not None:
         settings.embedding_dimensions = int(stored["embedding_dimensions"])
 
-    for k in ("llm_provider", "embedding_provider", "rerank_provider", "llm_model", "llm_rerank_model", "embedding_model"):
+    for k in (
+        "llm_provider",
+        "embedding_provider",
+        "rerank_provider",
+        "llm_model",
+        "llm_rerank_model",
+        "embedding_model",
+    ):
         if k in stored and stored[k] is not None:
             setattr(settings, k, stored[k])
 
@@ -189,19 +199,29 @@ async def _persist_settings(db: AsyncSession) -> None:
     await repo.upsert("review_threshold", str(settings.review_threshold))
     await repo.upsert("retrieval_top_n", str(settings.retrieval_top_n))
     await repo.upsert("rerank_top_n", str(settings.rerank_top_n))
-    await repo.upsert("agentic_resolution_enabled", str(settings.agentic_resolution_enabled).lower())
+    await repo.upsert(
+        "agentic_resolution_enabled", str(settings.agentic_resolution_enabled).lower()
+    )
     await repo.upsert("embedding_dimensions", str(settings.embedding_dimensions))
     await repo.upsert("onec", _onec_settings.model_dump_json())
 
     await repo.upsert("providers_registry", json.dumps(settings.providers_registry))
 
-    for k in ("llm_provider", "embedding_provider", "rerank_provider", "llm_model", "llm_rerank_model", "embedding_model"):
+    for k in (
+        "llm_provider",
+        "embedding_provider",
+        "rerank_provider",
+        "llm_model",
+        "llm_rerank_model",
+        "embedding_model",
+    ):
         val = getattr(settings, k)
         if val is not None:
             await repo.upsert(k, str(val))
 
 
 # ── Endpoints ────────────────────────────────────────────────────────────────
+
 
 @router.get("/settings", response_model=SettingsResponse)
 async def get_settings(
@@ -216,8 +236,12 @@ async def get_settings(
             ProviderConfigResponse(
                 id=pid,
                 name=pdata.get("name", pid),
-                api_key_set=bool(pdata.get("api_key") and pdata.get("api_key") not in ("none", "", "your-key-here", "sk-your-key-here")),
-                base_url=pdata.get("base_url", "")
+                api_key_set=bool(
+                    pdata.get("api_key")
+                    and pdata.get("api_key")
+                    not in ("none", "", "your-key-here", "sk-your-key-here")
+                ),
+                base_url=pdata.get("base_url", ""),
             )
         )
 
@@ -260,7 +284,7 @@ async def update_settings(
         settings.embedding_provider = body.embedding_provider
     if body.rerank_provider is not None:
         settings.rerank_provider = body.rerank_provider
-        
+
     if body.providers_registry is not None:
         for p in body.providers_registry:
             if p.id in settings.providers_registry:
@@ -299,6 +323,7 @@ async def update_settings(
     # Reset cached embedding client when provider/key changes
     if body.embedding_provider or body.providers_registry:
         from matcher.indexing.embedder import reset_client
+
         reset_client()
 
     logger.info("Settings updated by %s", current_user.username)
@@ -312,11 +337,11 @@ async def list_models(
 ) -> OpenRouterModelsResponse:
     """Fetch available models dynamically from the specified provider."""
     target_provider = provider_id or "openrouter"
-    
+
     # Defaults
     base_url = "https://openrouter.ai/api/v1"
     api_key = getattr(settings, "OPENROUTER_API_KEY", "")
-    
+
     if target_provider == "together":
         base_url = "https://api.together.xyz/v1"
         api_key = getattr(settings, "TOGETHER_API_KEY", "")
@@ -336,7 +361,7 @@ async def list_models(
 
     url = f"{base_url.rstrip('/')}/models"
     headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
-    
+
     try:
         async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.get(url, headers=headers)
@@ -350,23 +375,23 @@ async def list_models(
 
     models: list[OpenRouterModel] = []
     items = data.get("data", [])
-    
+
     for m in items:
         m_id = m.get("id")
         if not m_id:
             continue
-            
+
         m_name = m.get("name", m_id)
         m_type = m.get("type", None)
         ctx = m.get("context_length", 0)
-        
+
         # OpenRouter modality checking
         arch = m.get("architecture", {})
         if arch:
             modality = arch.get("modality", "")
             if modality and "text" not in modality:
                 continue
-                
+
         # Heuristics for type if missing
         if not m_type:
             lower_id = m_id.lower()
@@ -375,16 +400,11 @@ async def list_models(
             elif "rerank" in lower_id or "ranker" in lower_id or "bge-" in lower_id:
                 m_type = "rerank"
             elif "jina-" in lower_id and "v2" in lower_id:
-                m_type = "embedding" # simple heuristic
+                m_type = "embedding"  # simple heuristic
             else:
                 m_type = "chat"
-                
-        models.append(OpenRouterModel(
-            id=m_id,
-            name=m_name,
-            context_length=ctx,
-            type=m_type
-        ))
+
+        models.append(OpenRouterModel(id=m_id, name=m_name, context_length=ctx, type=m_type))
 
     models.sort(key=lambda x: x.context_length, reverse=True)
     return OpenRouterModelsResponse(models=models)
@@ -433,10 +453,37 @@ async def test_onec_connection(
 
 _FALLBACK_MODELS = [
     OpenRouterModel(id="openai/gpt-4o", name="OpenAI GPT-4o", context_length=128000, type="chat"),
-    OpenRouterModel(id="openai/gpt-4o-mini", name="OpenAI GPT-4o-mini", context_length=128000, type="chat"),
-    OpenRouterModel(id="anthropic/claude-3.5-sonnet", name="Anthropic Claude 3.5 Sonnet", context_length=200000, type="chat"),
-    OpenRouterModel(id="anthropic/claude-3-haiku", name="Anthropic Claude 3 Haiku", context_length=200000, type="chat"),
-    OpenRouterModel(id="google/gemini-1.5-pro", name="Google Gemini 1.5 Pro", context_length=2000000, type="chat"),
-    OpenRouterModel(id="google/gemini-1.5-flash", name="Google Gemini 1.5 Flash", context_length=1000000, type="chat"),
-    OpenRouterModel(id="meta-llama/llama-3.1-70b-instruct", name="Meta Llama 3.1 70B", context_length=131072, type="chat"),
+    OpenRouterModel(
+        id="openai/gpt-4o-mini", name="OpenAI GPT-4o-mini", context_length=128000, type="chat"
+    ),
+    OpenRouterModel(
+        id="anthropic/claude-3.5-sonnet",
+        name="Anthropic Claude 3.5 Sonnet",
+        context_length=200000,
+        type="chat",
+    ),
+    OpenRouterModel(
+        id="anthropic/claude-3-haiku",
+        name="Anthropic Claude 3 Haiku",
+        context_length=200000,
+        type="chat",
+    ),
+    OpenRouterModel(
+        id="google/gemini-1.5-pro",
+        name="Google Gemini 1.5 Pro",
+        context_length=2000000,
+        type="chat",
+    ),
+    OpenRouterModel(
+        id="google/gemini-1.5-flash",
+        name="Google Gemini 1.5 Flash",
+        context_length=1000000,
+        type="chat",
+    ),
+    OpenRouterModel(
+        id="meta-llama/llama-3.1-70b-instruct",
+        name="Meta Llama 3.1 70B",
+        context_length=131072,
+        type="chat",
+    ),
 ]

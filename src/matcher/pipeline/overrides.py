@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 @dataclass
 class OverrideResult:
     """Result of supplier override lookup."""
+
     product_id: str
     mapping_type: str
     confidence: float

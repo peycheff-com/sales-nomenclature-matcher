@@ -2,23 +2,32 @@ from __future__ import annotations
 
 import re
 
-from matcher.normalization.pipeline import NormalizationContext, load_config
+from matcher.normalization.pipeline import NormalizationContext
 
 # Confusable pairs: Latin char -> Cyrillic equivalent
 _LATIN_TO_CYR = {
-    'a': 'а', 'c': 'с', 'e': 'е', 'o': 'о', 'p': 'р',
-    'x': 'х', 'y': 'у', 'k': 'к', 'h': 'н', 't': 'т',
-    'b': 'в', 'm': 'м',
+    "a": "а",
+    "c": "с",
+    "e": "е",
+    "o": "о",
+    "p": "р",
+    "x": "х",
+    "y": "у",
+    "k": "к",
+    "h": "н",
+    "t": "т",
+    "b": "в",
+    "m": "м",
 }
 _CYR_TO_LATIN = {v: k for k, v in _LATIN_TO_CYR.items()}
 
 
 def _is_cyrillic(ch: str) -> bool:
-    return '\u0400' <= ch <= '\u04ff'
+    return "\u0400" <= ch <= "\u04ff"
 
 
 def _is_latin(ch: str) -> bool:
-    return ('a' <= ch <= 'z') or ('A' <= ch <= 'Z')
+    return ("a" <= ch <= "z") or ("A" <= ch <= "Z")
 
 
 def _normalize_token(token: str) -> str:
@@ -41,7 +50,7 @@ def _normalize_token(token: str) -> str:
 def cyrillic_latin_normalize(ctx: NormalizationContext) -> NormalizationContext:
     """Normalize mixed Cyrillic/Latin tokens to single script."""
     # Normalize x/х multiplier signs to standard 'x'
-    text = re.sub(r'(?<=\d)\s*[хХxX×]\s*(?=\d)', 'x', ctx.text)
+    text = re.sub(r"(?<=\d)\s*[хХxX×]\s*(?=\d)", "x", ctx.text)
 
     # Process each token for mixed-script normalization
     parts = text.split()

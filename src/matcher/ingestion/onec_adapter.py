@@ -11,11 +11,12 @@ Typical catalog resource:
 Authentication: HTTP Basic Auth with a 1C user that has the
     "УдаленныйДоступOData" role assigned.
 """
+
 from __future__ import annotations
 
 import logging
-from typing import Any, AsyncIterator
-from urllib.parse import urlencode, urljoin
+from collections.abc import AsyncIterator
+from typing import Any
 
 import httpx
 
@@ -149,17 +150,15 @@ class OneCODataClient:
 
         # Parse OData EDMX metadata (defusedxml prevents XXE attacks)
         root = ET.fromstring(resp.text)
-        ns = {
-            "edmx": "http://schemas.microsoft.com/ado/2007/06/edmx",
-            "edm": "http://schemas.microsoft.com/ado/2008/09/edm",
-        }
         fields = []
         # Find the entity type matching our resource
-        entity_name = self.resource.replace("Catalog_", "Catalog_") + "Type"
+        self.resource.replace("Catalog_", "Catalog_") + "Type"
         for entity_type in root.iter("{http://schemas.microsoft.com/ado/2008/09/edm}EntityType"):
             name = entity_type.get("Name", "")
             if self.resource.split("_")[-1] in name:
-                for prop in entity_type.findall("{http://schemas.microsoft.com/ado/2008/09/edm}Property"):
+                for prop in entity_type.findall(
+                    "{http://schemas.microsoft.com/ado/2008/09/edm}Property"
+                ):
                     fields.append(prop.get("Name", ""))
                 break
         return fields
@@ -321,7 +320,9 @@ def _get_field(row: dict[str, Any], aliases: list[str]) -> Any:
     return None
 
 
-def _resolve_ref_field(row: dict[str, Any], key_field: str, desc_field: str | None = None) -> str | None:
+def _resolve_ref_field(
+    row: dict[str, Any], key_field: str, desc_field: str | None = None
+) -> str | None:
     """Resolve a 1C reference field.
 
     In OData responses, reference fields can appear as:
@@ -420,7 +421,9 @@ def map_onec_odata_item(
 _ALL_KNOWN_FIELDS: set[str] = set()
 for aliases in FIELD_ALIASES.values():
     _ALL_KNOWN_FIELDS.update(aliases)
-_ALL_KNOWN_FIELDS.update({"DeletionMark", "IsFolder", "DataVersion", "Predefined", "PredefinedDataName"})
+_ALL_KNOWN_FIELDS.update(
+    {"DeletionMark", "IsFolder", "DataVersion", "Predefined", "PredefinedDataName"}
+)
 
 
 # ── Convenience function (backwards compatible) ─────────────────────────────
@@ -441,6 +444,7 @@ async def fetch_onec_catalog(
     """
     if base_url is None:
         from matcher.api.v1.settings import _onec_settings
+
         if not _onec_settings.enabled or not _onec_settings.base_url:
             raise ValueError("1C connection is not enabled. Configure in Settings → 1C.")
         base_url = _onec_settings.base_url

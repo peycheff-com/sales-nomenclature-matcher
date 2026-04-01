@@ -96,8 +96,7 @@ class MetricsRepo:
             latency_conditions.append(MatchRequest.supplier_id == supplier_id)
         latency_stmt = select(
             func.avg(
-                func.extract("epoch", MatchRequest.finished_at - MatchRequest.started_at)
-                * 1000
+                func.extract("epoch", MatchRequest.finished_at - MatchRequest.started_at) * 1000
             )
         ).where(and_(*latency_conditions))
         avg_latency = (await self.session.execute(latency_stmt)).scalar()
@@ -113,9 +112,7 @@ class MetricsRepo:
             "review_acceptance_rate": (
                 round(review_acceptance, 4) if review_acceptance is not None else None
             ),
-            "avg_latency_ms": (
-                round(float(avg_latency), 1) if avg_latency else None
-            ),
+            "avg_latency_ms": (round(float(avg_latency), 1) if avg_latency else None),
         }
 
     async def save_quality_report(self, report: dict) -> QualityReport:

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """CLI script to import catalog from CSV/XLSX file."""
+
 from __future__ import annotations
 
 import argparse
@@ -36,7 +37,7 @@ async def main(file_path: str, dry_run: bool = False) -> None:
         print("Dry run — not writing to database")
         for item in transformed[:5]:
             print(f"  {item['product_id']}: {item['name']} -> {item['normalized_name']}")
-            if item.get('normalized_brand'):
+            if item.get("normalized_brand"):
                 print(f"    brand: {item['normalized_brand']}")
         return
 
@@ -74,7 +75,7 @@ async def main(file_path: str, dry_run: bool = False) -> None:
                         source_hash = EXCLUDED.source_hash,
                         updated_at = now()
                 """),
-                {**item, "attributes_json": str(item["attributes_json"])}
+                {**item, "attributes_json": str(item["attributes_json"])},
             )
     await engine.dispose()
     print(f"Imported {len(transformed)} items to database")

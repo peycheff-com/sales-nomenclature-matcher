@@ -42,12 +42,16 @@ def transform_item(raw: RawCatalogItem) -> dict:
     search_document = " | ".join(search_parts)
 
     # Source hash for idempotent imports
-    hash_input = json.dumps({
-        "name": raw.name,
-        "article": raw.article,
-        "brand": raw.brand,
-        "code": raw.code,
-    }, sort_keys=True, ensure_ascii=False)
+    hash_input = json.dumps(
+        {
+            "name": raw.name,
+            "article": raw.article,
+            "brand": raw.brand,
+            "code": raw.code,
+        },
+        sort_keys=True,
+        ensure_ascii=False,
+    )
     source_hash = hashlib.sha256(hash_input.encode()).hexdigest()[:16]
 
     return {
