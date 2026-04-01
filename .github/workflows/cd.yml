@@ -34,6 +34,18 @@ jobs:
           target: "/opt/1C"
           rm: false
 
+      - name: Run database migrations
+        if: steps.check.outputs.skip != 'true'
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DO_HOST }}
+          username: root
+          key: ${{ secrets.DO_SSH_KEY }}
+          script: |
+            cd /opt/1C
+            docker compose -f docker-compose.prod.yml --env-file .env.production up -d db redis
+            docker compose -f docker-compose.prod.yml --env-file .env.production run --rm api alembic upgrade head
+
       - name: Execute Docker Deployment
         if: steps.check.outputs.skip != 'true'
         uses: appleboy/ssh-action@v1.0.3
