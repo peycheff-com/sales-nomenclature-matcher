@@ -39,3 +39,7 @@ export async function reindexCatalog(): Promise<{ job_id: string }> {
 export async function deleteCatalogProduct(productId: string): Promise<void> {
   return api.delete(`catalog/products/${productId}`).json();
 }
+
+export async function deleteAllCatalogProducts(): Promise<void> {
+  return api.delete(`catalog/products`).json();
+}

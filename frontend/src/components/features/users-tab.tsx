@@ -55,7 +55,6 @@ import { Label } from "@/components/ui/label";
 import { SkeletonTable } from "@/components/ui/skeleton";
 import { QueryErrorBanner } from "@/components/ui/query-error-banner";
 import { EmptyState } from "@/components/ui/empty-state";
-import { PageLayout } from "@/components/layout/page-layout";
 
 const ROLE_LABELS: Record<string, string> = {
   admin: "Администратор",
@@ -78,7 +77,7 @@ function generatePassword(): string {
   return result;
 }
 
-export default function UsersPage() {
+export function UsersTab() {
   const queryClient = useQueryClient();
 
   // State for create dialog
@@ -310,11 +309,14 @@ export default function UsersPage() {
   );
 
   return (
-    <PageLayout
-      title="Пользователи"
-      description="Создание, редактирование и управление учётными записями."
-      actions={pageActions}
-    >
+    <div className="space-y-4">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-lg font-medium">Пользователи</h2>
+          <p className="text-sm text-muted-foreground">Создание, редактирование и управление учётными записями.</p>
+        </div>
+        {pageActions}
+      </div>
       {usersQuery.isError && (
         <QueryErrorBanner
           error={usersQuery.error}
@@ -600,6 +602,6 @@ export default function UsersPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </PageLayout>
+    </div>
   );
 }

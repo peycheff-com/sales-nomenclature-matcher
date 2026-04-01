@@ -51,7 +51,8 @@ export interface SupplierMapping {
 }
 
 export async function listSupplierMappings(supplierId: string, limit: number = 50): Promise<SupplierMapping[]> {
-  return api.get(`suppliers/${supplierId}/mappings`, { searchParams: { limit } }).json<SupplierMapping[]>();
+  const res = await api.get(`suppliers/${supplierId}/mappings`, { searchParams: { limit } }).json<{ items: SupplierMapping[] }>();
+  return res.items;
 }
 
 // Ensure legacy list endpoint is wrapped:

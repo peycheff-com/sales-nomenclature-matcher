@@ -32,9 +32,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
 import { QueryErrorBanner } from "@/components/ui/query-error-banner";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
-import { PageLayout } from "@/components/layout/page-layout";
 
-export default function AdminPage() {
+export function MetricsTab() {
   const [supplierFilter, setSupplierFilter] = useState<string>("__all__");
   const [categoryFilter, setCategoryFilter] = useState<string>("");
   const [tokenDays, setTokenDays] = useState<number>(30);
@@ -79,10 +78,11 @@ export default function AdminPage() {
   const allUsers = usersQuery.data?.items ?? [];
 
   return (
-    <PageLayout
-      title="Администрирование"
-      description="Управление системой, метрики качества и интеграции."
-    >
+    <div className="space-y-4">
+      <div className="flex flex-col gap-1 mb-4">
+        <h2 className="text-lg font-medium">Метрики и Администрирование</h2>
+        <p className="text-sm text-muted-foreground">Управление системой, метрики качества и интеграции.</p>
+      </div>
 
       <Tabs defaultValue="metrics" className="w-full">
         <TabsList className="mb-4">
@@ -627,19 +627,8 @@ export default function AdminPage() {
               </CardContent>
             </Card>
           </div>
-
-          <Card>
-            <CardContent className="pt-6">
-              <Link to="/users">
-                <Button>
-                  Управление пользователями
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
         </TabsContent>
       </Tabs>
-    </PageLayout>
+    </div>
   );
 }

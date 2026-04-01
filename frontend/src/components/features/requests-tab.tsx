@@ -33,7 +33,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { PageLayout } from "@/components/layout/page-layout";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 
@@ -42,7 +41,7 @@ const PAGE_SIZE = 20;
 type SortField = "created_at" | "status" | "total_items";
 type SortDir = "asc" | "desc";
 
-export default function RequestsPage() {
+export function RequestsTab() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
@@ -213,10 +212,8 @@ export default function RequestsPage() {
   const hasFiltersApplied = statusFilter !== "all" || supplierFilter !== "__all__" || dateRange !== "all" || debouncedSearchQuery.trim() !== "";
 
   return (
-    <PageLayout
-      title="Запросы на сопоставление"
-      description="История загрузок и результаты."
-      actions={
+    <div className="space-y-4">
+      <div className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-2">
           {/* GAP-3.2: Search by request ID */}
           <div className="relative">
@@ -269,8 +266,7 @@ export default function RequestsPage() {
             </SelectContent>
           </Select>
         </div>
-      }
-    >
+      </div>
 
       {/* GAP-3.4: Bulk actions bar */}
       {selectedIds.size > 0 && (
@@ -521,7 +517,7 @@ export default function RequestsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </PageLayout>
+    </div>
   );
 }
 

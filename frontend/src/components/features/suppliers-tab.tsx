@@ -48,7 +48,6 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { PageLayout } from "@/components/layout/page-layout";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SkeletonTable } from "@/components/ui/skeleton";
 import { QueryErrorBanner } from "@/components/ui/query-error-banner";
@@ -57,7 +56,7 @@ import { useDebouncedValue } from "@/hooks/use-debounced-value";
 
 const SUPPLIER_ID_PATTERN = /^[a-zA-Z0-9_]*$/;
 
-export default function SuppliersPage() {
+export function SuppliersTab() {
   const queryClient = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newSupplierId, setNewSupplierId] = useState("");
@@ -181,10 +180,13 @@ export default function SuppliersPage() {
   const suppliers = suppliersQuery.data?.items ?? [];
 
   return (
-    <PageLayout
-      title="Управление поставщиками"
-      description="Настройка профилей контрагентов."
-      actions={
+    <div className="space-y-4">
+      <div className="flex items-center justify-between mb-2">
+        <div>
+          <h2 className="text-lg font-medium">Управление поставщиками</h2>
+          <p className="text-sm text-muted-foreground">Настройка профилей контрагентов.</p>
+        </div>
+        <div>
         <Dialog open={isCreateOpen} onOpenChange={handleCreateDialogChange}>
           <DialogTrigger className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground shadow hover:bg-primary/90 h-9 px-4 py-2">
             <Plus className="mr-2 h-4 w-4" />
@@ -245,8 +247,8 @@ export default function SuppliersPage() {
             </form>
           </DialogContent>
         </Dialog>
-      }
-    >
+        </div>
+      </div>
 
       {suppliersQuery.isError && (
         <QueryErrorBanner
@@ -480,7 +482,7 @@ export default function SuppliersPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </PageLayout>
+    </div>
   );
 }
 

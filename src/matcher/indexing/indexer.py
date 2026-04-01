@@ -75,6 +75,10 @@ async def reindex_catalog(
         embedded_count = 0
         offset = 0
 
+        if settings.embedding_provider == "none":
+            logger.info("Skipping embedding generation (embedding_provider=none)")
+            offset = total_products
+
         while offset < total_products:
 
             async def embed_batch(conn):

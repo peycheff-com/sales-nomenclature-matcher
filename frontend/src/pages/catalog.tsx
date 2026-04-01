@@ -12,6 +12,7 @@ import {
   reindexCatalog,
   uploadCatalogFile,
   deleteCatalogProduct,
+  deleteAllCatalogProducts,
 } from "@/api/catalog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -144,6 +145,22 @@ export default function CatalogPage() {
     },
     onError: () => {
       toast.error("Ошибка при удалении товара");
+    },
+  });
+
+  const [deleteAllOpen, setDeleteAllOpen] = useState(false);
+  const deleteAllMutation = useMutation({
+    mutationFn: deleteAllCatalogProducts,
+    onSuccess: () => {
+      toast.success("Каталог полностью очищен");
+      setDeleteAllOpen(false);
+      setExpandedProduct(null);
+      setSelectedIds(new Set());
+      queryClient.invalidateQueries({ queryKey: ["catalog-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["catalog-search"] });
+    },
+    onError: () => {
+      toast.error("Ошибка при очистке каталога");
     },
   });
 
@@ -342,6 +359,18 @@ export default function CatalogPage() {
                   )}
                   Обновить индекс поиска
                 </Button>
+                
+                <div className="pt-2 border-t mt-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full justify-start text-xs text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                    onClick={() => setDeleteAllOpen(true)}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Очистить весь каталог
+                  </Button>
+                </div>
 
                 {/* GAP-5.5: Import progress indicator */}
                 {importStatus && (
@@ -697,6 +726,48 @@ export default function CatalogPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* GAP-5.11: Delete All confirmation dialog */}
+      <AlertDialog open={deleteAllOpen} onOpenChange={(open) => !open && setDeleteAllOpen(false)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-red-500" />
+              Очистить весь каталог?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              <div className="space-y-3">
+                <p>
+                  Вы собираетесь удалить <strong>все товары</strong> из базового каталога.
+                </p>
+                <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 p-3">
+                  <AlertTriangle className="h-4 w-4 text-red-600 mt-0.5 shrink-0" />
+                  <p className="text-xs text-red-800">
+                    Это действие необратимо. Все товары, связанные с ними алиасы и векторы поиска будут навсегда удалены из базы данных системы.
+                  </p>
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteAllMutation.isPending}>Отмена</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700 text-white"
+              onClick={() => deleteAllMutation.mutate()}
+              disabled={deleteAllMutation.isPending}
+            >
+              {deleteAllMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Удаление...
+                </>
+              ) : (
+                "Подтвердить очистку"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* GAP-5.9: File upload confirmation dialog */}
       <AlertDialog open={fileConfirmOpen} onOpenChange={(open) => !open && handleFileCancel()}>

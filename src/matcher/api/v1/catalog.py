@@ -166,3 +166,14 @@ async def delete_catalog_product(
         raise HTTPException(status_code=404, detail="Product not found")
     await db.commit()
     return None
+
+@router.delete("/catalog/products", status_code=204)
+async def delete_all_catalog_products(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role("admin", "operator")),
+):
+    """Delete ALL catalog products."""
+    repo = CatalogRepo(db)
+    await repo.delete_all_products()
+    await db.commit()
+    return None

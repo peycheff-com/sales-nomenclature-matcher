@@ -144,3 +144,9 @@ class CatalogRepo:
             await self.session.flush()
             return True
         return False
+
+    async def delete_all_products(self) -> int:
+        """Deletes ALL products by truncating the table, which cascades."""
+        from sqlalchemy import text
+        result = await self.session.execute(text("TRUNCATE TABLE catalog_products CASCADE"))
+        return 1
