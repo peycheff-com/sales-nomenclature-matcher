@@ -1,0 +1,543 @@
+openapi: 3.1.0
+info:
+  title: Sales Nomenclature Matcher API
+  version: 1.0.0
+  description: API for product matching against internal 1C catalog.
+
+servers:
+  - url: https://matcher.internal/api/v1
+
+tags:
+  - name: Health
+  - name: Catalog
+  - name: Matching
+  - name: Review
+  - name: Suppliers
+  - name: Metrics
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Service health check
+      responses:
+        "200":
+          description: OK
+
+  /catalog/import:
+    post:
+      tags: [Catalog]
+      summary: Trigger catalog import from 1C or uploaded source
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sourceType]
+              properties:
+                sourceType:
+                  type: string
+                  enum: [onec_api, csv, xlsx]
+                sourceVersion:
+                  type: string
+                fileUrl:
+                  type: string
+                dryRun:
+                  type: boolean
+                  default: false
+      responses:
+        "202":
+          description: Import queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobAccepted"
+
+  /catalog/reindex:
+    post:
+      tags: [Catalog]
+      summary: Trigger catalog reindex
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                embeddingModel:
+                  type: string
+                embeddingVersion:
+                  type: string
+                lexicalVersion:
+                  type: string
+                rulesVersion:
+                  type: string
+      responses:
+        "202":
+          description: Reindex queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobAccepted"
+
+  /match:
+    post:
+      tags: [Matching]
+      summary: Synchronous match for small input
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MatchRequestInput"
+      responses:
+        "200":
+          description: Matching completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MatchResponse"
+
+  /match/batch:
+    post:
+      tags: [Matching]
+      summary: Async batch match
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MatchRequestInput"
+      responses:
+        "202":
+          description: Batch matching queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BatchRequestAccepted"
+
+  /match/requests/{requestId}:
+    get:
+      tags: [Matching]
+      summary: Get request status and results
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Request details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MatchRequestDetails"
+
+  /match/requests/{requestId}/items:
+    get:
+      tags: [Matching]
+      summary: Get paginated request items
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [auto_match, review_needed, no_match]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        "200":
+          description: Items page
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  page:
+                    type: integer
+                  pageSize:
+                    type: integer
+                  total:
+                    type: integer
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/MatchResult"
+
+  /match/items/{requestItemId}/candidates:
+    get:
+      tags: [Matching]
+      summary: Get candidate list for one item
+      parameters:
+        - name: requestItemId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Candidate list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  requestItemId:
+                    type: string
+                  candidates:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Candidate"
+
+  /review/items/{requestItemId}:
+    post:
+      tags: [Review]
+      summary: Accept, correct, or reject a match result
+      parameters:
+        - name: requestItemId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [finalDecision]
+              properties:
+                finalDecision:
+                  type: string
+                  enum: [accepted, corrected, rejected]
+                finalProductId:
+                  type: string
+                comment:
+                  type: string
+                createAlias:
+                  type: boolean
+                  default: false
+                createSupplierMapping:
+                  type: boolean
+                  default: false
+      responses:
+        "200":
+          description: Review saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  requestItemId:
+                    type: string
+
+  /suppliers:
+    get:
+      tags: [Suppliers]
+      summary: List suppliers
+      responses:
+        "200":
+          description: Supplier list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/SupplierProfile"
+
+  /suppliers/{supplierId}/mappings:
+    post:
+      tags: [Suppliers]
+      summary: Create supplier-specific mapping
+      parameters:
+        - name: supplierId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [productId]
+              properties:
+                supplierSku:
+                  type: string
+                supplierArticle:
+                  type: string
+                supplierRawText:
+                  type: string
+                productId:
+                  type: string
+                mappingType:
+                  type: string
+                  enum: [exact, approved, manual, learned]
+                  default: approved
+                confidence:
+                  type: number
+      responses:
+        "201":
+          description: Mapping created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SupplierMapping"
+
+  /metrics/quality:
+    get:
+      tags: [Metrics]
+      summary: Get latest quality metrics
+      parameters:
+        - name: supplierId
+          in: query
+          schema:
+            type: string
+        - name: categoryId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Quality metrics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QualityMetrics"
+
+components:
+  schemas:
+    JobAccepted:
+      type: object
+      properties:
+        jobId:
+          type: string
+        status:
+          type: string
+          example: queued
+
+    BatchRequestAccepted:
+      type: object
+      properties:
+        requestId:
+          type: string
+        status:
+          type: string
+          example: queued
+
+    MatchRequestInput:
+      type: object
+      required: [items]
+      properties:
+        supplierId:
+          type: string
+        sourceType:
+          type: string
+          enum: [api, ui, file]
+          default: api
+        submittedBy:
+          type: string
+        items:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [rawText]
+            properties:
+              lineId:
+                type: string
+              rawText:
+                type: string
+              hints:
+                type: object
+                additionalProperties: true
+
+    MatchResponse:
+      type: object
+      properties:
+        requestId:
+          type: string
+        status:
+          type: string
+          enum: [done]
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/MatchResult"
+
+    MatchRequestDetails:
+      type: object
+      properties:
+        requestId:
+          type: string
+        supplierId:
+          type: string
+        status:
+          type: string
+          enum: [queued, running, done, failed]
+        totalItems:
+          type: integer
+        processedItems:
+          type: integer
+        autoMatchedItems:
+          type: integer
+        reviewNeededItems:
+          type: integer
+        noMatchItems:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        startedAt:
+          type: string
+          format: date-time
+        finishedAt:
+          type: string
+          format: date-time
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/MatchResult"
+
+    MatchResult:
+      type: object
+      properties:
+        requestItemId:
+          type: string
+        lineId:
+          type: string
+        rawText:
+          type: string
+        normalizedText:
+          type: string
+        extractedAttributes:
+          type: object
+          additionalProperties: true
+        status:
+          type: string
+          enum: [auto_match, review_needed, no_match]
+        confidence:
+          type: number
+        bestCandidate:
+          $ref: "#/components/schemas/ProductRef"
+        alternatives:
+          type: array
+          items:
+            $ref: "#/components/schemas/Candidate"
+        reasons:
+          type: array
+          items:
+            type: string
+
+    Candidate:
+      type: object
+      properties:
+        productId:
+          type: string
+        name:
+          type: string
+        article:
+          type: string
+        brand:
+          type: string
+        retrievalRank:
+          type: integer
+        lexicalScore:
+          type: number
+        semanticScore:
+          type: number
+        rerankScore:
+          type: number
+        rulesScore:
+          type: number
+        finalScore:
+          type: number
+        reasons:
+          type: array
+          items:
+            type: string
+
+    ProductRef:
+      type: object
+      properties:
+        productId:
+          type: string
+        name:
+          type: string
+        article:
+          type: string
+        brand:
+          type: string
+        categoryPath:
+          type: string
+
+    SupplierProfile:
+      type: object
+      properties:
+        supplierId:
+          type: string
+        supplierName:
+          type: string
+        strictMode:
+          type: boolean
+        isActive:
+          type: boolean
+
+    SupplierMapping:
+      type: object
+      properties:
+        mappingId:
+          type: string
+        supplierId:
+          type: string
+        supplierSku:
+          type: string
+        supplierArticle:
+          type: string
+        supplierRawText:
+          type: string
+        productId:
+          type: string
+        mappingType:
+          type: string
+        confidence:
+          type: number
+
+    QualityMetrics:
+      type: object
+      properties:
+        totalCases:
+          type: integer
+        top1Accuracy:
+          type: number
+        top3Recall:
+          type: number
+        precisionAt1:
+          type: number
+        autoMatchFalsePositiveRate:
+          type: number
+        reviewAcceptanceRate:
+          type: number
+        avgLatencyMs:
+          type: number

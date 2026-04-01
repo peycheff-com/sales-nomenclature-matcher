@@ -1,0 +1,108 @@
+import { useCallback, useState } from "react";
+import { Download } from "lucide-react";
+import Papa from "papaparse";
+import * as XLSX from "xlsx";
+import { getMatchItems } from "@/api/match";
+import type { MatchResult } from "@/api/types";
+import { STATUS_LABELS } from "@/lib/constants";
+import { formatConfidence } from "@/lib/format";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+interface ExportButtonProps {
+  requestId: string;
+  totalItems: number;
+}
+
+export default function ExportButton({ requestId, totalItems }: ExportButtonProps) {
+  const [exporting, setExporting] = useState(false);
+
+  const fetchAll = useCallback(async (): Promise<MatchResult[]> => {
+    const allItems: MatchResult[] = [];
+    let page = 1;
+    const pageSize = 100;
+    while (allItems.length < totalItems) {
+      const resp = await getMatchItems(requestId, { page, page_size: pageSize });
+      allItems.push(...resp.items);
+      if (resp.items.length < pageSize) break;
+      page++;
+    }
+    return allItems;
+  }, [requestId, totalItems]);
+
+  function toRows(items: MatchResult[]) {
+    return items.map((item) => ({
+      "Строка": item.line_id ?? "",
+      "Исходный текст": item.raw_text,
+      "Нормализованный": item.normalized_text ?? "",
+      "Статус": STATUS_LABELS[item.status] ?? item.status,
+      "Уверенность": formatConfidence(item.confidence),
+      "Найденный товар": item.best_candidate?.name ?? "",
+      "Артикул": item.best_candidate?.article ?? "",
+      "Бренд": item.best_candidate?.brand ?? "",
+      "ID товара": item.best_candidate?.product_id ?? "",
+      "Причины": item.reasons.join("; "),
+    }));
+  }
+
+  async function handleExportCSV() {
+    setExporting(true);
+    try {
+      const items = await fetchAll();
+      const rows = toRows(items);
+      const csv = Papa.unparse(rows);
+      downloadFile(csv, `results-${requestId}.csv`, "text/csv");
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function handleExportXLSX() {
+    setExporting(true);
+    try {
+      const items = await fetchAll();
+      const rows = toRows(items);
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Результаты");
+      XLSX.writeFile(wb, `results-${requestId}.xlsx`);
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        disabled={exporting}
+        className="inline-flex items-center justify-center rounded-lg border border-input bg-background px-2.5 py-1.5 text-sm font-medium transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
+      >
+        <Download className="mr-1.5 h-4 w-4" />
+        {exporting ? "Экспорт..." : "Экспорт"}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent>
+        <DropdownMenuItem onClick={handleExportCSV}>
+          Скачать CSV
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={handleExportXLSX}>
+          Скачать XLSX
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function downloadFile(content: string, filename: string, mimeType: string) {
+  const blob = new Blob(["\uFEFF" + content], { type: `${mimeType};charset=utf-8` });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}

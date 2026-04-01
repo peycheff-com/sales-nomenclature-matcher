@@ -1,0 +1,2428 @@
+{
+  "version": "1.0",
+  "description": "Golden set of client-style product queries for matching evaluation",
+  "total_queries": 302,
+  "difficulty_counts": {
+    "hard": 54,
+    "easy": 111,
+    "medium": 137
+  },
+  "queries": [
+    {
+      "query_id": "Q0001",
+      "raw_query": "труба 32",
+      "expected_product_hint": "Труба ПП 32",
+      "category": "Трубы и фитинги",
+      "difficulty": "hard",
+      "notes": "Слишком общий запрос, нет типа трубы"
+    },
+    {
+      "query_id": "Q0002",
+      "raw_query": "трубы ПП 32мм 2м",
+      "expected_product_hint": "Труба ПП 32 мм 2.0 м",
+      "category": "Трубы и фитинги",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0003",
+      "raw_query": "труба полипропиленовая 32",
+      "expected_product_hint": "Труба ПП 32",
+      "category": "Трубы и фитинги",
+      "difficulty": "medium",
+      "notes": "Полное слово вместо аббревиатуры"
+    },
+    {
+      "query_id": "Q0004",
+      "raw_query": "Труба ПП Valtec d32 SDR11",
+      "expected_product_hint": "Труба ПП 32 мм",
+      "category": "Трубы и фитинги",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0005",
+      "raw_query": "труба ппр 25 рехау",
+      "expected_product_hint": "Труба ПП 25 мм Rehau",
+      "category": "Трубы и фитинги",
+      "difficulty": "medium",
+      "notes": "ППР вместо ПП, кириллица бренда"
+    },
+    {
+      "query_id": "Q0006",
+      "raw_query": "труба Рехау 20мм",
+      "expected_product_hint": "Труба ПП 20 мм Rehau",
+      "category": "Трубы и фитинги",
+      "difficulty": "medium",
+      "notes": "Бренд кириллицей, нет типа"
+    },
+    {
+      "query_id": "Q0007",
+      "raw_query": "т. мет/пл 16 Valtec 50м",
+      "expected_product_hint": "Труба МП 16 мм 50 м Valtec",
+      "category": "Трубы и фитинги",
+      "difficulty": "hard",
+      "notes": "Сокращение т., мет/пл"
+    },
+    {
+      "query_id": "Q0008",
+      "raw_query": "металлопласт 20 валтек",
+      "expected_product_hint": "Труба МП 20 мм Valtec",
+      "category": "Трубы и фитинги",
+      "difficulty": "medium",
+      "notes": "Кириллица бренда, разговорное название"
+    },
+    {
+      "query_id": "Q0009",
+      "raw_query": "труба стальная ВГП 25",
+      "expected_product_hint": "Труба Ст ВГП 25 мм",
+      "category": "Трубы и фитинги",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0010",
+      "raw_query": "труба медная 15мм",
+      "expected_product_hint": "Труба Мед 15 мм",
+      "category": "Трубы и фитинги",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0011",
+      "raw_query": "тр ПНД 32 бухта 100м",
+      "expected_product_hint": "Труба ПНД 32 мм 100 м",
+      "category": "Трубы и фитинги",
+      "difficulty": "medium",
+      "notes": "Сокращение 'тр'"
+    },
+    {
+      "query_id": "Q0012",
+      "raw_query": "трубка медн 12",
+      "expected_product_hint": "Труба Мед 12 мм",
+      "category": "Трубы и фитинги",
+      "difficulty": "medium",
+      "notes": "Уменьшительное 'трубка', усечённое 'медн'"
+    },
+    {
+      "query_id": "Q0013",
+      "raw_query": "Tr PPR 25 Rehau",
+      "expected_product_hint": "Труба ПП 25 мм Rehau",
+      "category": "Трубы и фитинги",
+      "difficulty": "hard",
+      "notes": "Транслит + латиница"
+    },
+    {
+      "query_id": "Q0014",
+      "raw_query": "ПВХ 110 труба канализ",
+      "expected_product_hint": "Труба ПВХ 110 мм",
+      "category": "Трубы и фитинги",
+      "difficulty": "medium",
+      "notes": "Обратный порядок, усечение"
+    },
+    {
+      "query_id": "Q0015",
+      "raw_query": "муфта пп 32",
+      "expected_product_hint": "Муфта ПП 32 мм",
+      "category": "Трубы и фитинги",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0016",
+      "raw_query": "угольник полипропилен 25 90гр",
+      "expected_product_hint": "Угольник 90° ПП 25 мм",
+      "category": "Трубы и фитинги",
+      "difficulty": "medium",
+      "notes": "'90гр' вместо '90°'"
+    },
+    {
+      "query_id": "Q0017",
+      "raw_query": "тройник ПП 32мм",
+      "expected_product_hint": "Тройник ПП 32 мм",
+      "category": "Трубы и фитинги",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0018",
+      "raw_query": "кран шар. 1/2 валтек",
+      "expected_product_hint": "Кран шаровой Valtec 1/2",
+      "category": "Трубы и фитинги",
+      "difficulty": "medium",
+      "notes": "Сокращение 'шар.', бренд кириллицей"
+    },
+    {
+      "query_id": "Q0019",
+      "raw_query": "Труба ПП 50мм FV-Plast 3 метра",
+      "expected_product_hint": "Труба ПП 50 мм 3.0 м",
+      "category": "Трубы и фитинги",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0020",
+      "raw_query": "заглушка ПВХ d110",
+      "expected_product_hint": "Заглушка ПВХ 110 мм",
+      "category": "Трубы и фитинги",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0021",
+      "raw_query": "кабель ВВГнг 3х2.5",
+      "expected_product_hint": "Кабель ВВГнг(А)-LS 3х2.5",
+      "category": "Кабели и провода",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0022",
+      "raw_query": "ВВГнг(А)-LS 3*2,5 бухта 100м",
+      "expected_product_hint": "Кабель ВВГнг(А)-LS 3х2.5 100м",
+      "category": "Кабели и провода",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0023",
+      "raw_query": "ВВГ 3 2.5",
+      "expected_product_hint": "Кабель ВВГнг(А)-LS 3х2.5",
+      "category": "Кабели и провода",
+      "difficulty": "medium",
+      "notes": "Без нг, пробел вместо 'х'"
+    },
+    {
+      "query_id": "Q0024",
+      "raw_query": "к-ль ввг 3х1.5",
+      "expected_product_hint": "Кабель ВВГнг(А)-LS 3х1.5",
+      "category": "Кабели и провода",
+      "difficulty": "hard",
+      "notes": "Сокращение 'к-ль'"
+    },
+    {
+      "query_id": "Q0025",
+      "raw_query": "кабель ввгнг 5x4",
+      "expected_product_hint": "Кабель ВВГнг(А)-LS 5х4",
+      "category": "Кабели и провода",
+      "difficulty": "medium",
+      "notes": "Латинская 'x' вместо кириллической 'х'"
+    },
+    {
+      "query_id": "Q0026",
+      "raw_query": "NYM 3x2.5 Nexans",
+      "expected_product_hint": "Кабель NYM 3х2.5 Nexans",
+      "category": "Кабели и провода",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0027",
+      "raw_query": "ним 3х2.5",
+      "expected_product_hint": "Кабель NYM 3х2.5",
+      "category": "Кабели и провода",
+      "difficulty": "hard",
+      "notes": "Кириллическая транслитерация 'ним'"
+    },
+    {
+      "query_id": "Q0028",
+      "raw_query": "провод ПВС 3*1.5",
+      "expected_product_hint": "Кабель ПВС 3х1.5",
+      "category": "Кабели и провода",
+      "difficulty": "easy",
+      "notes": "'провод' вместо 'кабель', '*' вместо 'х'"
+    },
+    {
+      "query_id": "Q0029",
+      "raw_query": "пвс 2х2.5 белый 100м",
+      "expected_product_hint": "Кабель ПВС 2х2.5",
+      "category": "Кабели и провода",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0030",
+      "raw_query": "кг 3х4 50м",
+      "expected_product_hint": "Кабель КГ 3х4",
+      "category": "Кабели и провода",
+      "difficulty": "medium",
+      "notes": "Только аббревиатура, можно спутать с 'кг' (килограмм)"
+    },
+    {
+      "query_id": "Q0031",
+      "raw_query": "шввп 2*0.75",
+      "expected_product_hint": "Кабель ШВВП 2х0.75",
+      "category": "Кабели и провода",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0032",
+      "raw_query": "кабел ВВГ 4x6 кольчугино",
+      "expected_product_hint": "Кабель ВВГнг(А)-LS 4х6 Кольчугино",
+      "category": "Кабели и провода",
+      "difficulty": "medium",
+      "notes": "Опечатка 'кабел'"
+    },
+    {
+      "query_id": "Q0033",
+      "raw_query": "СИП 4х16",
+      "expected_product_hint": "Кабель СИП-4 4х16",
+      "category": "Кабели и провода",
+      "difficulty": "medium",
+      "notes": "Без тире и номера"
+    },
+    {
+      "query_id": "Q0034",
+      "raw_query": "сип-4 2*25 самонесущий",
+      "expected_product_hint": "Кабель СИП-4 2х25",
+      "category": "Кабели и провода",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0035",
+      "raw_query": "АВВГ 3х10 100м",
+      "expected_product_hint": "Кабель АВВГ 3х10",
+      "category": "Кабели и провода",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0036",
+      "raw_query": "кабель силовой 3 жилы 2.5 квадрат",
+      "expected_product_hint": "Кабель ВВГнг(А)-LS 3х2.5",
+      "category": "Кабели и провода",
+      "difficulty": "hard",
+      "notes": "Описательное, нет марки"
+    },
+    {
+      "query_id": "Q0037",
+      "raw_query": "аллюминевый кабель 4х10",
+      "expected_product_hint": "Кабель АВВГ 4х10",
+      "category": "Кабели и провода",
+      "difficulty": "hard",
+      "notes": "Опечатка 'аллюминевый'"
+    },
+    {
+      "query_id": "Q0038",
+      "raw_query": "роквул лайт баттс 50мм",
+      "expected_product_hint": "Утеплитель Rockwool Лайт Баттс 50 мм",
+      "category": "Утеплители",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0039",
+      "raw_query": "rockwool 100мм",
+      "expected_product_hint": "Утеплитель Rockwool 100 мм",
+      "category": "Утеплители",
+      "difficulty": "medium",
+      "notes": "Нет линейки"
+    },
+    {
+      "query_id": "Q0040",
+      "raw_query": "роквул 100 мм плиты",
+      "expected_product_hint": "Утеплитель Rockwool 100 мм",
+      "category": "Утеплители",
+      "difficulty": "medium",
+      "notes": "Кириллица бренда"
+    },
+    {
+      "query_id": "Q0041",
+      "raw_query": "рок вул лайтбатс скандик 50",
+      "expected_product_hint": "Утеплитель Rockwool Лайт Баттс Скандик 50 мм",
+      "category": "Утеплители",
+      "difficulty": "hard",
+      "notes": "Пробел в бренде, слитное написание линейки"
+    },
+    {
+      "query_id": "Q0042",
+      "raw_query": "изовер тёплый дом 100",
+      "expected_product_hint": "Утеплитель Isover Тёплый Дом 100 мм",
+      "category": "Утеплители",
+      "difficulty": "easy",
+      "notes": "Кириллица бренда"
+    },
+    {
+      "query_id": "Q0043",
+      "raw_query": "isover профи рулон 50мм",
+      "expected_product_hint": "Утеплитель Isover Профи 50 мм",
+      "category": "Утеплители",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0044",
+      "raw_query": "утеплитель минвата 50",
+      "expected_product_hint": "Утеплитель 50 мм",
+      "category": "Утеплители",
+      "difficulty": "hard",
+      "notes": "Общий запрос без бренда"
+    },
+    {
+      "query_id": "Q0045",
+      "raw_query": "пеноплекс комфорт 50мм",
+      "expected_product_hint": "Утеплитель Пеноплэкс Комфорт 50 мм",
+      "category": "Утеплители",
+      "difficulty": "easy",
+      "notes": "'пеноплекс' vs 'пеноплэкс'"
+    },
+    {
+      "query_id": "Q0046",
+      "raw_query": "Пеноплэкс 30 мм стена",
+      "expected_product_hint": "Утеплитель Пеноплэкс Стена",
+      "category": "Утеплители",
+      "difficulty": "medium",
+      "notes": "Слово 'стена' — имя линейки или контекст?"
+    },
+    {
+      "query_id": "Q0047",
+      "raw_query": "технониколь роклайт 50",
+      "expected_product_hint": "Утеплитель ТехноНИКОЛЬ Роклайт 50 мм",
+      "category": "Утеплители",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0048",
+      "raw_query": "техноникль 100мм утеплитель",
+      "expected_product_hint": "Утеплитель ТехноНИКОЛЬ 100 мм",
+      "category": "Утеплители",
+      "difficulty": "medium",
+      "notes": "Опечатка в бренде"
+    },
+    {
+      "query_id": "Q0049",
+      "raw_query": "пенополистирол экструдированный 50мм",
+      "expected_product_hint": "Утеплитель Пеноплэкс 50 мм",
+      "category": "Утеплители",
+      "difficulty": "hard",
+      "notes": "Описание материала вместо бренда"
+    },
+    {
+      "query_id": "Q0050",
+      "raw_query": "УРСА Терра 50",
+      "expected_product_hint": "Утеплитель URSA Terra 50 мм",
+      "category": "Утеплители",
+      "difficulty": "medium",
+      "notes": "Кириллица бренда+линейки"
+    },
+    {
+      "query_id": "Q0051",
+      "raw_query": "стекловата 100мм рулон",
+      "expected_product_hint": "Утеплитель Isover 100 мм",
+      "category": "Утеплители",
+      "difficulty": "hard",
+      "notes": "Материал без бренда"
+    },
+    {
+      "query_id": "Q0052",
+      "raw_query": "ТехноРуф Н 100 ТехноНИКОЛЬ",
+      "expected_product_hint": "Утеплитель ТехноНИКОЛЬ Техноруф Н 100 мм",
+      "category": "Утеплители",
+      "difficulty": "easy",
+      "notes": "Линейка перед брендом"
+    },
+    {
+      "query_id": "Q0053",
+      "raw_query": "болт М8x40 оцинк",
+      "expected_product_hint": "Болт М8x40 DIN 933 оцинк.",
+      "category": "Крепёж",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0054",
+      "raw_query": "болты м8 40мм",
+      "expected_product_hint": "Болт М8x40",
+      "category": "Крепёж",
+      "difficulty": "medium",
+      "notes": "Множественное число, пробел между размерами"
+    },
+    {
+      "query_id": "Q0055",
+      "raw_query": "болт 8*40 DIN933",
+      "expected_product_hint": "Болт М8x40 DIN 933",
+      "category": "Крепёж",
+      "difficulty": "medium",
+      "notes": "Без 'М', '*' вместо 'x'"
+    },
+    {
+      "query_id": "Q0056",
+      "raw_query": "гайка М10 цинк",
+      "expected_product_hint": "Гайка М10 DIN 934 оцинк.",
+      "category": "Крепёж",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0057",
+      "raw_query": "гайки м8 оцинкованные 100шт",
+      "expected_product_hint": "Гайка М8 DIN 934 оцинк. уп.100шт",
+      "category": "Крепёж",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0058",
+      "raw_query": "шайба 12",
+      "expected_product_hint": "Шайба М12 DIN 125A оцинк.",
+      "category": "Крепёж",
+      "difficulty": "medium",
+      "notes": "Без 'М'"
+    },
+    {
+      "query_id": "Q0059",
+      "raw_query": "саморез 4.2х75 по дереву",
+      "expected_product_hint": "Саморез по дереву 75 мм",
+      "category": "Крепёж",
+      "difficulty": "medium",
+      "notes": "Указан диаметр шурупа"
+    },
+    {
+      "query_id": "Q0060",
+      "raw_query": "саморезы чёрные 55мм",
+      "expected_product_hint": "Саморез по дереву 55 мм чёрн.",
+      "category": "Крепёж",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0061",
+      "raw_query": "с/рез 35 чёрн 500шт",
+      "expected_product_hint": "Саморез по дереву 35 мм уп.500шт",
+      "category": "Крепёж",
+      "difficulty": "hard",
+      "notes": "Сокращение 'с/рез'"
+    },
+    {
+      "query_id": "Q0062",
+      "raw_query": "сам-з по мет 25",
+      "expected_product_hint": "Саморез по металлу 25 мм",
+      "category": "Крепёж",
+      "difficulty": "hard",
+      "notes": "Сокращение 'сам-з', 'мет'"
+    },
+    {
+      "query_id": "Q0063",
+      "raw_query": "анкер 10х80 Hilti",
+      "expected_product_hint": "Анкер клиновой 10x80 Hilti",
+      "category": "Крепёж",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0064",
+      "raw_query": "анкер хилти 10*80",
+      "expected_product_hint": "Анкер клиновой 10x80 Hilti",
+      "category": "Крепёж",
+      "difficulty": "medium",
+      "notes": "Бренд кириллицей"
+    },
+    {
+      "query_id": "Q0065",
+      "raw_query": "Fischer анкер клиновой 12x100",
+      "expected_product_hint": "Анкер клиновой 12x100 Fischer",
+      "category": "Крепёж",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0066",
+      "raw_query": "дюбель гвоздь 6*40 200шт",
+      "expected_product_hint": "Дюбель-гвоздь 6x40 уп.200шт",
+      "category": "Крепёж",
+      "difficulty": "medium",
+      "notes": "Без тире в названии"
+    },
+    {
+      "query_id": "Q0067",
+      "raw_query": "дюбель-гв. 8x80",
+      "expected_product_hint": "Дюбель-гвоздь 8x80",
+      "category": "Крепёж",
+      "difficulty": "medium",
+      "notes": "Сокращение 'гв.'"
+    },
+    {
+      "query_id": "Q0068",
+      "raw_query": "шуруп 5х50 универс оцинк 200шт",
+      "expected_product_hint": "Шуруп универс. 5x50 оцинк. уп.200шт",
+      "category": "Крепёж",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0069",
+      "raw_query": "шпилька М12 1м резьбовая",
+      "expected_product_hint": "Шпилька резьбовая М12x1000 DIN 975",
+      "category": "Крепёж",
+      "difficulty": "medium",
+      "notes": "'1м' вместо '1000мм'"
+    },
+    {
+      "query_id": "Q0070",
+      "raw_query": "крепёж метизы болт 10 60 цинк",
+      "expected_product_hint": "Болт М10x60 DIN 933 оцинк.",
+      "category": "Крепёж",
+      "difficulty": "hard",
+      "notes": "Лишние слова, неструктурированный запрос"
+    },
+    {
+      "query_id": "Q0071",
+      "raw_query": "краска Dulux белая 10л",
+      "expected_product_hint": "Краска Dulux Trade Diamond белая 10 л",
+      "category": "Краски и лаки",
+      "difficulty": "medium",
+      "notes": "Нет линейки"
+    },
+    {
+      "query_id": "Q0072",
+      "raw_query": "дюлакс трейд даймонд бел 10 литров",
+      "expected_product_hint": "Краска Dulux Trade Diamond белая 10 л",
+      "category": "Краски и лаки",
+      "difficulty": "medium",
+      "notes": "Кириллица бренда+линейки"
+    },
+    {
+      "query_id": "Q0073",
+      "raw_query": "краска интерьерная белая 5л",
+      "expected_product_hint": "Краска интерьерная белая 5 л",
+      "category": "Краски и лаки",
+      "difficulty": "hard",
+      "notes": "Без бренда"
+    },
+    {
+      "query_id": "Q0074",
+      "raw_query": "тиккурила евро пауэр 7 белая 9л",
+      "expected_product_hint": "Краска Tikkurila Euro Power 7 белая 9 л",
+      "category": "Краски и лаки",
+      "difficulty": "medium",
+      "notes": "Кириллица бренда"
+    },
+    {
+      "query_id": "Q0075",
+      "raw_query": "Tikkurila Euro 7 бел 2.7",
+      "expected_product_hint": "Краска Tikkurila Euro Power 7 белая 2.7 л",
+      "category": "Краски и лаки",
+      "difficulty": "medium",
+      "notes": "Неполное название линейки"
+    },
+    {
+      "query_id": "Q0076",
+      "raw_query": "tikurila ultra classic 2.7л",
+      "expected_product_hint": "Краска Tikkurila Ultra Classic 2.7 л",
+      "category": "Краски и лаки",
+      "difficulty": "medium",
+      "notes": "Опечатка в бренде"
+    },
+    {
+      "query_id": "Q0077",
+      "raw_query": "каппарол ампиболин 10л база1",
+      "expected_product_hint": "Краска Caparol Amphibolin база 1 10 л",
+      "category": "Краски и лаки",
+      "difficulty": "hard",
+      "notes": "Опечатка 'каппарол'"
+    },
+    {
+      "query_id": "Q0078",
+      "raw_query": "текс профи белая 9 литр",
+      "expected_product_hint": "Краска Текс Профи белая 9 л",
+      "category": "Краски и лаки",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0079",
+      "raw_query": "кр-ка фасадная текс универсал 14л",
+      "expected_product_hint": "Краска Текс Универсал 14 л",
+      "category": "Краски и лаки",
+      "difficulty": "medium",
+      "notes": "Сокращение 'кр-ка'"
+    },
+    {
+      "query_id": "Q0080",
+      "raw_query": "хаммерайт молотковая серебро 2.5л",
+      "expected_product_hint": "Краска Hammerite Молотковая серебристая 2.5 л",
+      "category": "Краски и лаки",
+      "difficulty": "easy",
+      "notes": "Кириллица бренда, 'серебро' vs 'серебристая'"
+    },
+    {
+      "query_id": "Q0081",
+      "raw_query": "Hammerite по металлу чёрная 0.75",
+      "expected_product_hint": "Краска Hammerite чёрная 0.75 л",
+      "category": "Краски и лаки",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0082",
+      "raw_query": "лак паркетный Текс глянц 2.7",
+      "expected_product_hint": "Лак Текс Профи бесцветный глянц. 2.7 л",
+      "category": "Краски и лаки",
+      "difficulty": "medium",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0083",
+      "raw_query": "лак тиккурила уника супер 0.9л",
+      "expected_product_hint": "Лак Tikkurila Unica Super 0.9 л",
+      "category": "Краски и лаки",
+      "difficulty": "medium",
+      "notes": "Кириллица бренда+линейки"
+    },
+    {
+      "query_id": "Q0084",
+      "raw_query": "альпина латекс 7 бел 10л",
+      "expected_product_hint": "Краска Alpina Premiumlatex 7 белая 10 л",
+      "category": "Краски и лаки",
+      "difficulty": "medium",
+      "notes": "Кириллица бренда, 'латекс 7' вместо 'Premiumlatex 7'"
+    },
+    {
+      "query_id": "Q0085",
+      "raw_query": "лакра интерьер 6л белая",
+      "expected_product_hint": "Краска ЛАКРА Интерьер белая 6 л",
+      "category": "Краски и лаки",
+      "difficulty": "easy",
+      "notes": "Обратный порядок: объём перед цветом"
+    },
+    {
+      "query_id": "Q0086",
+      "raw_query": "насос grundfos ups 25-40",
+      "expected_product_hint": "Насос Grundfos UPS 25-40 180",
+      "category": "Насосы",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0087",
+      "raw_query": "грундфос упс 25-60",
+      "expected_product_hint": "Насос Grundfos UPS 25-60 180",
+      "category": "Насосы",
+      "difficulty": "medium",
+      "notes": "Кириллица бренда и модели"
+    },
+    {
+      "query_id": "Q0088",
+      "raw_query": "grundfoss UPS 25-40 180",
+      "expected_product_hint": "Насос Grundfos UPS 25-40 180",
+      "category": "Насосы",
+      "difficulty": "medium",
+      "notes": "Опечатка в бренде (двойная s)"
+    },
+    {
+      "query_id": "Q0089",
+      "raw_query": "грундфосс 25-40",
+      "expected_product_hint": "Насос Grundfos UPS 25-40 180",
+      "category": "Насосы",
+      "difficulty": "hard",
+      "notes": "Двойная опечатка в бренде, нет модели"
+    },
+    {
+      "query_id": "Q0090",
+      "raw_query": "циркуляционный насос 25-60",
+      "expected_product_hint": "Насос циркуляционный UPS 25-60",
+      "category": "Насосы",
+      "difficulty": "hard",
+      "notes": "Без бренда, обратный порядок"
+    },
+    {
+      "query_id": "Q0091",
+      "raw_query": "насос Grundfos ALPHA2 25-40",
+      "expected_product_hint": "Насос Grundfos ALPHA2 25-40 180",
+      "category": "Насосы",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0092",
+      "raw_query": "Grundfos MAGNA3 32-80",
+      "expected_product_hint": "Насос Grundfos MAGNA3 32-80",
+      "category": "Насосы",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0093",
+      "raw_query": "вило стар рс 25/4",
+      "expected_product_hint": "Насос Wilo Star-RS 25/4",
+      "category": "Насосы",
+      "difficulty": "medium",
+      "notes": "Кириллица бренда+модели"
+    },
+    {
+      "query_id": "Q0094",
+      "raw_query": "Wilo Yonos 25/1-6",
+      "expected_product_hint": "Насос Wilo Yonos PICO 25/1-6",
+      "category": "Насосы",
+      "difficulty": "medium",
+      "notes": "Неполное название модели"
+    },
+    {
+      "query_id": "Q0095",
+      "raw_query": "дренажный насос grundfos",
+      "expected_product_hint": "Насос дренажный Grundfos UNILIFT",
+      "category": "Насосы",
+      "difficulty": "hard",
+      "notes": "Без модели, общий тип"
+    },
+    {
+      "query_id": "Q0096",
+      "raw_query": "насос дренаж Вихрь 750",
+      "expected_product_hint": "Насос дренажный Вихрь ДН 750",
+      "category": "Насосы",
+      "difficulty": "medium",
+      "notes": "Сокращение 'дренаж'"
+    },
+    {
+      "query_id": "Q0097",
+      "raw_query": "джилекс водомёт 55/50",
+      "expected_product_hint": "Насос скважинный Джилекс Водомёт 55/50",
+      "category": "Насосы",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0098",
+      "raw_query": "Grundfos SQ 3-55 скважинный",
+      "expected_product_hint": "Насос скважинный Grundfos SQ 3-55",
+      "category": "Насосы",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0099",
+      "raw_query": "DAB Nova 300",
+      "expected_product_hint": "Насос дренажный DAB Nova 300 M-A",
+      "category": "Насосы",
+      "difficulty": "medium",
+      "notes": "Неполная модель"
+    },
+    {
+      "query_id": "Q0100",
+      "raw_query": "нсос циркул грюндфос",
+      "expected_product_hint": "Насос циркуляционный Grundfos",
+      "category": "Насосы",
+      "difficulty": "hard",
+      "notes": "Опечатка 'нсос', сокращение 'циркул'"
+    },
+    {
+      "query_id": "Q0101",
+      "raw_query": "Wilo Drain TMR 32/8",
+      "expected_product_hint": "Насос дренажный Wilo Drain TMR 32/8",
+      "category": "Насосы",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0102",
+      "raw_query": "перфоратор Bosch GBH 2-26",
+      "expected_product_hint": "Перфоратор Bosch GBH 2-26 DRE",
+      "category": "Инструмент",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0103",
+      "raw_query": "бош перфоратор GBH 2-26 DRE",
+      "expected_product_hint": "Перфоратор Bosch GBH 2-26 DRE",
+      "category": "Инструмент",
+      "difficulty": "easy",
+      "notes": "Кириллица бренда"
+    },
+    {
+      "query_id": "Q0104",
+      "raw_query": "перф. бош 2-26",
+      "expected_product_hint": "Перфоратор Bosch GBH 2-26 DRE",
+      "category": "Инструмент",
+      "difficulty": "hard",
+      "notes": "Сокращение 'перф.', без серии GBH"
+    },
+    {
+      "query_id": "Q0105",
+      "raw_query": "Makita HR2470 перфоратор",
+      "expected_product_hint": "Перфоратор Makita HR2470",
+      "category": "Инструмент",
+      "difficulty": "easy",
+      "notes": "Обратный порядок"
+    },
+    {
+      "query_id": "Q0106",
+      "raw_query": "макита хр2470",
+      "expected_product_hint": "Перфоратор Makita HR2470",
+      "category": "Инструмент",
+      "difficulty": "hard",
+      "notes": "Кириллица бренда и модели"
+    },
+    {
+      "query_id": "Q0107",
+      "raw_query": "перфоратор хилти TE 60",
+      "expected_product_hint": "Перфоратор Hilti TE 60-ATC-AVR",
+      "category": "Инструмент",
+      "difficulty": "medium",
+      "notes": "Неполная модель"
+    },
+    {
+      "query_id": "Q0108",
+      "raw_query": "Hilti TE2-A22 акк",
+      "expected_product_hint": "Перфоратор акк. Hilti TE 2-A22",
+      "category": "Инструмент",
+      "difficulty": "medium",
+      "notes": "Без пробела в модели"
+    },
+    {
+      "query_id": "Q0109",
+      "raw_query": "болгарка 125 бош",
+      "expected_product_hint": "Болгарка Bosch 125 мм",
+      "category": "Инструмент",
+      "difficulty": "medium",
+      "notes": "Общий запрос"
+    },
+    {
+      "query_id": "Q0110",
+      "raw_query": "УШМ Bosch GWS 22-230",
+      "expected_product_hint": "Болгарка Bosch GWS 22-230 JH",
+      "category": "Инструмент",
+      "difficulty": "easy",
+      "notes": "УШМ вместо 'болгарка'"
+    },
+    {
+      "query_id": "Q0111",
+      "raw_query": "болгарка макита 125мм",
+      "expected_product_hint": "Болгарка Makita GA5030 720 Вт 125 мм",
+      "category": "Инструмент",
+      "difficulty": "medium",
+      "notes": "Кириллица бренда"
+    },
+    {
+      "query_id": "Q0112",
+      "raw_query": "шуруповёрт Bosch 18V",
+      "expected_product_hint": "Шуруповёрт акк. Bosch GSR 180-LI 18В",
+      "category": "Инструмент",
+      "difficulty": "hard",
+      "notes": "Нет модели, 'V' вместо 'В'"
+    },
+    {
+      "query_id": "Q0113",
+      "raw_query": "шурик Макита 18 вольт",
+      "expected_product_hint": "Шуруповёрт акк. Makita DHP484Z 18В",
+      "category": "Инструмент",
+      "difficulty": "hard",
+      "notes": "'шурик' — жаргон"
+    },
+    {
+      "query_id": "Q0114",
+      "raw_query": "DeWalt перфоратор D25133",
+      "expected_product_hint": "Перфоратор DeWalt D25133K",
+      "category": "Инструмент",
+      "difficulty": "easy",
+      "notes": "Неполная модель (без K)"
+    },
+    {
+      "query_id": "Q0115",
+      "raw_query": "дрель ударная бош 600вт",
+      "expected_product_hint": "Дрель ударная Bosch GSB 13 RE 600 Вт",
+      "category": "Инструмент",
+      "difficulty": "medium",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0116",
+      "raw_query": "пила дисковая Bosch 190мм",
+      "expected_product_hint": "Пила дисковая Bosch GKS 190 1400 Вт 190 мм",
+      "category": "Инструмент",
+      "difficulty": "medium",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0117",
+      "raw_query": "лобзик бош GST 150",
+      "expected_product_hint": "Лобзик Bosch GST 150 BCE",
+      "category": "Инструмент",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0118",
+      "raw_query": "ЗУБР перфоратор 900Вт",
+      "expected_product_hint": "Перфоратор ЗУБР ЗП-30-900 К",
+      "category": "Инструмент",
+      "difficulty": "medium",
+      "notes": "Без модели, только мощность"
+    },
+    {
+      "query_id": "Q0119",
+      "raw_query": "интерскол перфоратор 900",
+      "expected_product_hint": "Перфоратор Интерскол П-30/900ЭР",
+      "category": "Инструмент",
+      "difficulty": "medium",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0120",
+      "raw_query": "metabo угловая шлифмашина 900вт 125",
+      "expected_product_hint": "Болгарка Metabo W 9-125 Quick",
+      "category": "Инструмент",
+      "difficulty": "medium",
+      "notes": "'угловая шлифмашина' вместо 'УШМ/болгарка'"
+    },
+    {
+      "query_id": "Q0121",
+      "raw_query": "смеситель Grohe для раковины",
+      "expected_product_hint": "Смеситель Grohe Eurosmart",
+      "category": "Сантехника",
+      "difficulty": "medium",
+      "notes": "Без модели"
+    },
+    {
+      "query_id": "Q0122",
+      "raw_query": "гроэ евросмарт 33265002",
+      "expected_product_hint": "Смеситель Grohe Eurosmart 33265002",
+      "category": "Сантехника",
+      "difficulty": "easy",
+      "notes": "Кириллица бренда+линейки, точный артикул"
+    },
+    {
+      "query_id": "Q0123",
+      "raw_query": "grohe bau edge ванна",
+      "expected_product_hint": "Смеситель Grohe BauEdge для ванны",
+      "category": "Сантехника",
+      "difficulty": "medium",
+      "notes": "'ванна' вместо 'для ванны'"
+    },
+    {
+      "query_id": "Q0124",
+      "raw_query": "хансгрое фокус 100",
+      "expected_product_hint": "Смеситель Hansgrohe Focus 100",
+      "category": "Сантехника",
+      "difficulty": "medium",
+      "notes": "Кириллица бренда"
+    },
+    {
+      "query_id": "Q0125",
+      "raw_query": "смеситель IDDIS для раковины хром",
+      "expected_product_hint": "Смеситель IDDIS Edifice",
+      "category": "Сантехника",
+      "difficulty": "medium",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0126",
+      "raw_query": "унитаз Roca Gap",
+      "expected_product_hint": "Унитаз Roca The Gap",
+      "category": "Сантехника",
+      "difficulty": "medium",
+      "notes": "Без 'The'"
+    },
+    {
+      "query_id": "Q0127",
+      "raw_query": "рока зе гэп унитаз",
+      "expected_product_hint": "Унитаз Roca The Gap",
+      "category": "Сантехника",
+      "difficulty": "medium",
+      "notes": "Кириллица бренда"
+    },
+    {
+      "query_id": "Q0128",
+      "raw_query": "унитаз церсанит сити ню",
+      "expected_product_hint": "Унитаз Cersanit City New",
+      "category": "Сантехника",
+      "difficulty": "medium",
+      "notes": "Кириллица бренда+линейки"
+    },
+    {
+      "query_id": "Q0129",
+      "raw_query": "раковина 60 см Roca",
+      "expected_product_hint": "Раковина Roca The Gap 60 см",
+      "category": "Сантехника",
+      "difficulty": "medium",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0130",
+      "raw_query": "кран шаровой Valtec 1/2 вн",
+      "expected_product_hint": "Кран шаровой ВН Valtec 1/2",
+      "category": "Сантехника",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0131",
+      "raw_query": "валтек кран 3/4 ВВ никель",
+      "expected_product_hint": "Кран шаровой ВВ Valtec 3/4",
+      "category": "Сантехника",
+      "difficulty": "easy",
+      "notes": "Кириллица бренда"
+    },
+    {
+      "query_id": "Q0132",
+      "raw_query": "Danfoss RA-N 15 клапан",
+      "expected_product_hint": "Клапан радиаторный Danfoss RA-N 15",
+      "category": "Сантехника",
+      "difficulty": "easy",
+      "notes": "Обратный порядок"
+    },
+    {
+      "query_id": "Q0133",
+      "raw_query": "данфосс термоголовка",
+      "expected_product_hint": "Термоголовка Danfoss RA 2994",
+      "category": "Сантехника",
+      "difficulty": "medium",
+      "notes": "Кириллица бренда, без модели"
+    },
+    {
+      "query_id": "Q0134",
+      "raw_query": "данфос клапан рад. 1/2",
+      "expected_product_hint": "Клапан радиаторный Danfoss RA-N 15",
+      "category": "Сантехника",
+      "difficulty": "medium",
+      "notes": "Опечатка бренда, сокращение 'рад.'"
+    },
+    {
+      "query_id": "Q0135",
+      "raw_query": "ванна стальная 170х70 Roca",
+      "expected_product_hint": "Ванна стальная Roca Line 170x70",
+      "category": "Сантехника",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0136",
+      "raw_query": "калдевей ванна 180*80",
+      "expected_product_hint": "Ванна Kaldewei Saniform Plus 180x80",
+      "category": "Сантехника",
+      "difficulty": "medium",
+      "notes": "Кириллица бренда, '*' вместо 'x'"
+    },
+    {
+      "query_id": "Q0137",
+      "raw_query": "душевой набор хансгрое хром",
+      "expected_product_hint": "Душевой набор Hansgrohe Croma Select S",
+      "category": "Сантехника",
+      "difficulty": "hard",
+      "notes": "Общий запрос"
+    },
+    {
+      "query_id": "Q0138",
+      "raw_query": "густавсберг унитаз наутик",
+      "expected_product_hint": "Унитаз Gustavsberg Nautic",
+      "category": "Сантехника",
+      "difficulty": "medium",
+      "notes": "Кириллица бренда"
+    },
+    {
+      "query_id": "Q0139",
+      "raw_query": "автомат ABB 16A",
+      "expected_product_hint": "Автомат 1P ABB SH201L C16А",
+      "category": "Электрика",
+      "difficulty": "medium",
+      "notes": "Без серии и кол-ва полюсов"
+    },
+    {
+      "query_id": "Q0140",
+      "raw_query": "автомат АББ C16 1P",
+      "expected_product_hint": "Автомат 1P ABB SH201L C16А",
+      "category": "Электрика",
+      "difficulty": "easy",
+      "notes": "Кириллица бренда"
+    },
+    {
+      "query_id": "Q0141",
+      "raw_query": "ABB SH201L C16",
+      "expected_product_hint": "Автомат 1P ABB SH201L C16А",
+      "category": "Электрика",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0142",
+      "raw_query": "авт. выкл. шнайдер 25А 3Р",
+      "expected_product_hint": "Автомат 3P Schneider Electric Easy9 C25А",
+      "category": "Электрика",
+      "difficulty": "medium",
+      "notes": "Сокращения"
+    },
+    {
+      "query_id": "Q0143",
+      "raw_query": "Schneider Easy9 C25 3P",
+      "expected_product_hint": "Автомат 3P Schneider Electric Easy9 C25А",
+      "category": "Электрика",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0144",
+      "raw_query": "ИЕК ВА 47-29 С16 1P",
+      "expected_product_hint": "Автомат 1P IEK ВА 47-29 C16А",
+      "category": "Электрика",
+      "difficulty": "easy",
+      "notes": "Кириллица бренда"
+    },
+    {
+      "query_id": "Q0145",
+      "raw_query": "автомат 3п 32А",
+      "expected_product_hint": "Автомат 3P 32А",
+      "category": "Электрика",
+      "difficulty": "hard",
+      "notes": "Без бренда"
+    },
+    {
+      "query_id": "Q0146",
+      "raw_query": "УЗО ABB 40А 30мА 2P",
+      "expected_product_hint": "УЗО 2P ABB FH202 40А 30мА",
+      "category": "Электрика",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0147",
+      "raw_query": "узо абб 40 ампер 30 миллиампер",
+      "expected_product_hint": "УЗО 2P ABB FH202 40А 30мА",
+      "category": "Электрика",
+      "difficulty": "medium",
+      "notes": "Кириллица бренда, слова вместо единиц"
+    },
+    {
+      "query_id": "Q0148",
+      "raw_query": "узо 25А 30мА iek",
+      "expected_product_hint": "УЗО 2P IEK ВД1-63 25А 30мА",
+      "category": "Электрика",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0149",
+      "raw_query": "диф автомат ABB 16A 30мА",
+      "expected_product_hint": "Дифавтомат ABB DSH941R C16А 30мА",
+      "category": "Электрика",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0150",
+      "raw_query": "дифавтомат шнайдер 25а 30ма",
+      "expected_product_hint": "Дифавтомат Schneider Electric АВДТ34 C25А 30мА",
+      "category": "Электрика",
+      "difficulty": "easy",
+      "notes": "Кириллица бренда"
+    },
+    {
+      "query_id": "Q0151",
+      "raw_query": "АВДТ 32 IEK С16 30мА",
+      "expected_product_hint": "Дифавтомат IEK АВДТ32 C16А 30мА",
+      "category": "Электрика",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0152",
+      "raw_query": "розетка Schneider Sedna белая",
+      "expected_product_hint": "Розетка с/з Schneider Electric Sedna белая",
+      "category": "Электрика",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0153",
+      "raw_query": "розетка шнайдер седна с заземл бел",
+      "expected_product_hint": "Розетка с/з Schneider Electric Sedna белая",
+      "category": "Электрика",
+      "difficulty": "medium",
+      "notes": "Кириллица, сокращения"
+    },
+    {
+      "query_id": "Q0154",
+      "raw_query": "розетка двойная легранд",
+      "expected_product_hint": "Розетка двойная с/з Legrand",
+      "category": "Электрика",
+      "difficulty": "medium",
+      "notes": "Кириллица бренда, нет серии"
+    },
+    {
+      "query_id": "Q0155",
+      "raw_query": "Legrand Etika выключатель 2кл белый",
+      "expected_product_hint": "Выключатель двухклавишный Legrand Etika белый",
+      "category": "Электрика",
+      "difficulty": "easy",
+      "notes": "'2кл' вместо 'двухклавишный'"
+    },
+    {
+      "query_id": "Q0156",
+      "raw_query": "выкл 1 кл IEK праймер бел",
+      "expected_product_hint": "Выключатель одноклавишный IEK Праймер белый",
+      "category": "Электрика",
+      "difficulty": "medium",
+      "notes": "Сокращения"
+    },
+    {
+      "query_id": "Q0157",
+      "raw_query": "рамка 3-мест legrand valena бел",
+      "expected_product_hint": "Рамка 3-местная Legrand Valena Life белая",
+      "category": "Электрика",
+      "difficulty": "medium",
+      "notes": "Неполное название серии"
+    },
+    {
+      "query_id": "Q0158",
+      "raw_query": "рамка на 5 мест шнайдер",
+      "expected_product_hint": "Рамка 5-местная Schneider Electric Sedna",
+      "category": "Электрика",
+      "difficulty": "medium",
+      "notes": "Описательное"
+    },
+    {
+      "query_id": "Q0159",
+      "raw_query": "розетки с крышкой для ванной шнайдер",
+      "expected_product_hint": "Розетка с/з с крышкой Schneider Electric Sedna",
+      "category": "Электрика",
+      "difficulty": "hard",
+      "notes": "Множественное число, контекст 'для ванной'"
+    },
+    {
+      "query_id": "Q0160",
+      "raw_query": "ротбанд 30 кг",
+      "expected_product_hint": "Штукатурка Knauf Ротбанд 30 кг",
+      "category": "Сухие смеси",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0161",
+      "raw_query": "30 кг ротбанд",
+      "expected_product_hint": "Штукатурка Knauf Ротбанд 30 кг",
+      "category": "Сухие смеси",
+      "difficulty": "medium",
+      "notes": "Обратный порядок"
+    },
+    {
+      "query_id": "Q0162",
+      "raw_query": "штукатурка Кнауф ротбанд 30кг",
+      "expected_product_hint": "Штукатурка Knauf Ротбанд 30 кг",
+      "category": "Сухие смеси",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0163",
+      "raw_query": "кнауф ротбант 30",
+      "expected_product_hint": "Штукатурка Knauf Ротбанд 30 кг",
+      "category": "Сухие смеси",
+      "difficulty": "medium",
+      "notes": "Опечатка 'ротбант'"
+    },
+    {
+      "query_id": "Q0164",
+      "raw_query": "Knauf Rotband 30kg",
+      "expected_product_hint": "Штукатурка Knauf Ротбанд 30 кг",
+      "category": "Сухие смеси",
+      "difficulty": "medium",
+      "notes": "Латиница названия"
+    },
+    {
+      "query_id": "Q0165",
+      "raw_query": "штукатурка гипсовая 30 кг",
+      "expected_product_hint": "Штукатурка гипсовая 30 кг",
+      "category": "Сухие смеси",
+      "difficulty": "hard",
+      "notes": "Без бренда"
+    },
+    {
+      "query_id": "Q0166",
+      "raw_query": "шпаклёвка knauf fugen 25",
+      "expected_product_hint": "Шпаклёвка Knauf Фуген 25 кг",
+      "category": "Сухие смеси",
+      "difficulty": "medium",
+      "notes": "Латиница названия"
+    },
+    {
+      "query_id": "Q0167",
+      "raw_query": "кнауф фуген 25кг",
+      "expected_product_hint": "Шпаклёвка Knauf Фуген 25 кг",
+      "category": "Сухие смеси",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0168",
+      "raw_query": "церезит CM11 25кг",
+      "expected_product_hint": "Плиточный клей Ceresit CM 11 Plus 25 кг",
+      "category": "Сухие смеси",
+      "difficulty": "medium",
+      "notes": "Без пробела в коде, без Plus"
+    },
+    {
+      "query_id": "Q0169",
+      "raw_query": "ceresit cm 14 extra 25",
+      "expected_product_hint": "Плиточный клей Ceresit CM 14 Extra 25 кг",
+      "category": "Сухие смеси",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0170",
+      "raw_query": "плит клей церезит 25 кг",
+      "expected_product_hint": "Плиточный клей Ceresit 25 кг",
+      "category": "Сухие смеси",
+      "difficulty": "medium",
+      "notes": "Сокращение 'плит клей'"
+    },
+    {
+      "query_id": "Q0171",
+      "raw_query": "затирка церезит 33 серая 5кг",
+      "expected_product_hint": "Затирка Ceresit CE 33 5 кг",
+      "category": "Сухие смеси",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0172",
+      "raw_query": "ветонит ЛР+ 25 кг",
+      "expected_product_hint": "Шпаклёвка Weber.Vetonit LR+ 25 кг",
+      "category": "Сухие смеси",
+      "difficulty": "easy",
+      "notes": "Неполный бренд"
+    },
+    {
+      "query_id": "Q0173",
+      "raw_query": "шпаклёвка weber vetonit lr 20кг",
+      "expected_product_hint": "Шпаклёвка Weber.Vetonit LR+ 20 кг",
+      "category": "Сухие смеси",
+      "difficulty": "medium",
+      "notes": "Без + и без точки в бренде"
+    },
+    {
+      "query_id": "Q0174",
+      "raw_query": "наливной пол бергауф 25кг",
+      "expected_product_hint": "Наливной пол Bergauf Praktik 25 кг",
+      "category": "Сухие смеси",
+      "difficulty": "medium",
+      "notes": "Кириллица бренда, нет линейки"
+    },
+    {
+      "query_id": "Q0175",
+      "raw_query": "бергауф керамик 25",
+      "expected_product_hint": "Плиточный клей Bergauf Keramik 25 кг",
+      "category": "Сухие смеси",
+      "difficulty": "easy",
+      "notes": "Кириллица бренда"
+    },
+    {
+      "query_id": "Q0176",
+      "raw_query": "плитонит В+ 25кг клей",
+      "expected_product_hint": "Плиточный клей Plitonit В+ 25 кг",
+      "category": "Сухие смеси",
+      "difficulty": "easy",
+      "notes": "Слово 'клей' в конце"
+    },
+    {
+      "query_id": "Q0177",
+      "raw_query": "волма слой 30 кг штукат",
+      "expected_product_hint": "Штукатурка Волма Слой 30 кг",
+      "category": "Сухие смеси",
+      "difficulty": "easy",
+      "notes": "Сокращение 'штукат'"
+    },
+    {
+      "query_id": "Q0178",
+      "raw_query": "волма финиш 25кг шпаклевка",
+      "expected_product_hint": "Шпаклёвка Волма Финиш 25 кг",
+      "category": "Сухие смеси",
+      "difficulty": "easy",
+      "notes": "'шпаклевка' без ё"
+    },
+    {
+      "query_id": "Q0179",
+      "raw_query": "литокол литофлекс к80 25кг",
+      "expected_product_hint": "Плиточный клей Литокол Litoflex K80 25 кг",
+      "category": "Сухие смеси",
+      "difficulty": "medium",
+      "notes": "Кириллица бренда, 'к80' строчная"
+    },
+    {
+      "query_id": "Q0180",
+      "raw_query": "цемент М500 50кг",
+      "expected_product_hint": "Цемент М500 50 кг",
+      "category": "Сухие смеси",
+      "difficulty": "medium",
+      "notes": "Без бренда"
+    },
+    {
+      "query_id": "Q0181",
+      "raw_query": "холцим 500 25 кг",
+      "expected_product_hint": "Цемент Holcim М500 Д0 25 кг",
+      "category": "Сухие смеси",
+      "difficulty": "medium",
+      "notes": "Кириллица бренда, без М/Д"
+    },
+    {
+      "query_id": "Q0182",
+      "raw_query": "евроцемент м400 50кг",
+      "expected_product_hint": "Цемент Евроцемент М400 Д20 50 кг",
+      "category": "Сухие смеси",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0183",
+      "raw_query": "сухая смесь штукатурка 25кг",
+      "expected_product_hint": "Штукатурка 25 кг",
+      "category": "Сухие смеси",
+      "difficulty": "hard",
+      "notes": "Общий запрос"
+    },
+    {
+      "query_id": "Q0184",
+      "raw_query": "основит мастпликс клей 25",
+      "expected_product_hint": "Плиточный клей Основит Мастпликс AC12 25 кг",
+      "category": "Сухие смеси",
+      "difficulty": "medium",
+      "notes": "Без кода линейки"
+    },
+    {
+      "query_id": "Q0185",
+      "raw_query": "груд. упс 25-40 + кр. ш. 1/2 валтек",
+      "expected_product_hint": "Насос Grundfos UPS 25-40 + Кран Valtec 1/2",
+      "category": "Насосы",
+      "difficulty": "hard",
+      "notes": "Два продукта в одном запросе, крайнее сокращение"
+    },
+    {
+      "query_id": "Q0186",
+      "raw_query": "100м ввгнг 3*2.5 + 100м пвс 3*1.5",
+      "expected_product_hint": "Кабель ВВГнг 3х2.5 + ПВС 3х1.5",
+      "category": "Кабели и провода",
+      "difficulty": "hard",
+      "notes": "Два продукта в одном запросе"
+    },
+    {
+      "query_id": "Q0187",
+      "raw_query": "труба 32 полипроп Rehau 2м 10шт",
+      "expected_product_hint": "Труба ПП 32 мм 2.0 м Rehau",
+      "category": "Трубы и фитинги",
+      "difficulty": "medium",
+      "notes": "Указано количество"
+    },
+    {
+      "query_id": "Q0188",
+      "raw_query": "набор крепежа болты гайки шайбы М8",
+      "expected_product_hint": "Болт/Гайка/Шайба М8",
+      "category": "Крепёж",
+      "difficulty": "hard",
+      "notes": "Набор из нескольких позиций"
+    },
+    {
+      "query_id": "Q0189",
+      "raw_query": "электрика розетка + выключ шнайдер седна бел",
+      "expected_product_hint": "Розетка + Выключатель Schneider Sedna белая",
+      "category": "Электрика",
+      "difficulty": "hard",
+      "notes": "Два продукта"
+    },
+    {
+      "query_id": "Q0190",
+      "raw_query": "штукатурка кнауф ротбанд 5 мешков по 30кг",
+      "expected_product_hint": "Штукатурка Knauf Ротбанд 30 кг",
+      "category": "Сухие смеси",
+      "difficulty": "medium",
+      "notes": "Количество в запросе"
+    },
+    {
+      "query_id": "Q0191",
+      "raw_query": "перфаратор бош",
+      "expected_product_hint": "Перфоратор Bosch",
+      "category": "Инструмент",
+      "difficulty": "hard",
+      "notes": "Опечатка 'перфаратор'"
+    },
+    {
+      "query_id": "Q0192",
+      "raw_query": "шлакоблок",
+      "expected_product_hint": "",
+      "category": "",
+      "difficulty": "hard",
+      "notes": "Товар отсутствует в каталоге"
+    },
+    {
+      "query_id": "Q0193",
+      "raw_query": "минплита 50мм для кровли",
+      "expected_product_hint": "Утеплитель Rockwool Руф Баттс 50 мм",
+      "category": "Утеплители",
+      "difficulty": "hard",
+      "notes": "'минплита' — разговорное для минераловатной плиты"
+    },
+    {
+      "query_id": "Q0194",
+      "raw_query": "подводка для воды 1/2 гибкая",
+      "expected_product_hint": "",
+      "category": "Сантехника",
+      "difficulty": "hard",
+      "notes": "Продукт может отсутствовать"
+    },
+    {
+      "query_id": "Q0195",
+      "raw_query": "провд 2х1.5 белый",
+      "expected_product_hint": "Кабель ПВС 2х1.5",
+      "category": "Кабели и провода",
+      "difficulty": "hard",
+      "notes": "Опечатка 'провд'"
+    },
+    {
+      "query_id": "Q0196",
+      "raw_query": "лампа светодиод е27 10вт",
+      "expected_product_hint": "",
+      "category": "Электрика",
+      "difficulty": "hard",
+      "notes": "Продукт может отсутствовать"
+    },
+    {
+      "query_id": "Q0197",
+      "raw_query": "герметик силикон бел 280мл",
+      "expected_product_hint": "",
+      "category": "Краски и лаки",
+      "difficulty": "hard",
+      "notes": "Продукт может отсутствовать"
+    },
+    {
+      "query_id": "Q0198",
+      "raw_query": "тр PE-Xa 16 Rehau 100м",
+      "expected_product_hint": "Труба PE-Xa 16 мм 100 м Rehau",
+      "category": "Трубы и фитинги",
+      "difficulty": "medium",
+      "notes": "Сокращение 'тр', латинская марка"
+    },
+    {
+      "query_id": "Q0199",
+      "raw_query": "гофра нерж 20 Лавита",
+      "expected_product_hint": "Труба гофр. нерж. 20 мм Lavita",
+      "category": "Трубы и фитинги",
+      "difficulty": "medium",
+      "notes": "'гофра' разговорное, кириллица бренда"
+    },
+    {
+      "query_id": "Q0200",
+      "raw_query": "трубка ХПВХ 32",
+      "expected_product_hint": "Труба ХПВХ 32 мм",
+      "category": "Трубы и фитинги",
+      "difficulty": "medium",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0201",
+      "raw_query": "переход ПП 32-25 Valtec",
+      "expected_product_hint": "Переход ПП 32-25 мм Valtec",
+      "category": "Трубы и фитинги",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0202",
+      "raw_query": "тройник канализационный 110/50",
+      "expected_product_hint": "Тройник ПВХ 110/50",
+      "category": "Трубы и фитинги",
+      "difficulty": "medium",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0203",
+      "raw_query": "PE труба водопроводная 32",
+      "expected_product_hint": "Труба ПНД 32 мм",
+      "category": "Трубы и фитинги",
+      "difficulty": "hard",
+      "notes": "Латинская марка материала"
+    },
+    {
+      "query_id": "Q0204",
+      "raw_query": "крышка муфта пп25",
+      "expected_product_hint": "Заглушка ПП 25 мм",
+      "category": "Трубы и фитинги",
+      "difficulty": "hard",
+      "notes": "'крышка' вместо 'заглушка'"
+    },
+    {
+      "query_id": "Q0205",
+      "raw_query": "стальная оцинк труба dn25 6м",
+      "expected_product_hint": "Труба Ст ВГП 25 мм 6.0 м",
+      "category": "Трубы и фитинги",
+      "difficulty": "medium",
+      "notes": "DN вместо диаметра, 'оцинк'"
+    },
+    {
+      "query_id": "Q0206",
+      "raw_query": "Uponor Aqua Pipe 16",
+      "expected_product_hint": "Труба PE-Xa 16 мм Uponor",
+      "category": "Трубы и фитинги",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0207",
+      "raw_query": "муфта 25 мп Henco",
+      "expected_product_hint": "Муфта МП 25 мм Henco",
+      "category": "Трубы и фитинги",
+      "difficulty": "medium",
+      "notes": "'мп' аббревиатура металлопластик"
+    },
+    {
+      "query_id": "Q0208",
+      "raw_query": "кабель 5х10 ввгнг кольчугино",
+      "expected_product_hint": "Кабель ВВГнг(А)-LS 5х10 Кольчугино",
+      "category": "Кабели и провода",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0209",
+      "raw_query": "NYM-J 5x6 100м",
+      "expected_product_hint": "Кабель NYM 5х6 100м",
+      "category": "Кабели и провода",
+      "difficulty": "easy",
+      "notes": "NYM-J вместо NYM"
+    },
+    {
+      "query_id": "Q0210",
+      "raw_query": "силовой медный 4жилы 4мм2",
+      "expected_product_hint": "Кабель ВВГнг(А)-LS 4х4",
+      "category": "Кабели и провода",
+      "difficulty": "hard",
+      "notes": "Описательное без марки"
+    },
+    {
+      "query_id": "Q0211",
+      "raw_query": "кг 1x25 50м",
+      "expected_product_hint": "Кабель КГ 1х25",
+      "category": "Кабели и провода",
+      "difficulty": "medium",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0212",
+      "raw_query": "ШВВП 3x0.75 бел 100м",
+      "expected_product_hint": "Кабель ШВВП 3х0.75 100м",
+      "category": "Кабели и провода",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0213",
+      "raw_query": "кабел огнестойкий 3х2.5 ls",
+      "expected_product_hint": "Кабель ВВГнг(А)-LS 3х2.5",
+      "category": "Кабели и провода",
+      "difficulty": "medium",
+      "notes": "Описательное: 'огнестойкий', 'ls'"
+    },
+    {
+      "query_id": "Q0214",
+      "raw_query": "ввгнг-ls 2x6 чёрный бухта",
+      "expected_product_hint": "Кабель ВВГнг(А)-LS 2х6",
+      "category": "Кабели и провода",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0215",
+      "raw_query": "провода для проводки 3х1.5",
+      "expected_product_hint": "Кабель ВВГнг(А)-LS 3х1.5",
+      "category": "Кабели и провода",
+      "difficulty": "hard",
+      "notes": "Множественное число, разговорное"
+    },
+    {
+      "query_id": "Q0216",
+      "raw_query": "пеноплэкс основа 100мм",
+      "expected_product_hint": "Утеплитель Пеноплэкс Основа 100 мм",
+      "category": "Утеплители",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0217",
+      "raw_query": "XPS 50мм техноникол карбон",
+      "expected_product_hint": "Утеплитель ТехноНИКОЛЬ XPS Carbon 50 мм",
+      "category": "Утеплители",
+      "difficulty": "medium",
+      "notes": "Латинская аббревиатура + кириллица бренда"
+    },
+    {
+      "query_id": "Q0218",
+      "raw_query": "утепл каменная вата 50 рок",
+      "expected_product_hint": "Утеплитель Rockwool 50 мм",
+      "category": "Утеплители",
+      "difficulty": "hard",
+      "notes": "Сокращения 'утепл', 'рок'"
+    },
+    {
+      "query_id": "Q0219",
+      "raw_query": "пенополистирол 1185x585x50",
+      "expected_product_hint": "Утеплитель Пеноплэкс 50 мм",
+      "category": "Утеплители",
+      "difficulty": "hard",
+      "notes": "Только размеры, нет бренда"
+    },
+    {
+      "query_id": "Q0220",
+      "raw_query": "logicpir технониколь 50мм",
+      "expected_product_hint": "Утеплитель ТехноНИКОЛЬ Logicpir 50 мм",
+      "category": "Утеплители",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0221",
+      "raw_query": "пенофол тип а 5мм",
+      "expected_product_hint": "Утеплитель Пенофол тип A 5 мм",
+      "category": "Утеплители",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0222",
+      "raw_query": "K-Flex каучук 13мм",
+      "expected_product_hint": "Утеплитель K-Flex ST 13 мм",
+      "category": "Утеплители",
+      "difficulty": "medium",
+      "notes": "'каучук' вместо названия линейки"
+    },
+    {
+      "query_id": "Q0223",
+      "raw_query": "рулонная изоляция 100мм",
+      "expected_product_hint": "Утеплитель рулон 100 мм",
+      "category": "Утеплители",
+      "difficulty": "hard",
+      "notes": "Общий запрос"
+    },
+    {
+      "query_id": "Q0224",
+      "raw_query": "URSA XPS 50",
+      "expected_product_hint": "Утеплитель URSA XPS 50 мм",
+      "category": "Утеплители",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0225",
+      "raw_query": "парок экстра 100 мм плита",
+      "expected_product_hint": "Утеплитель Paroc eXtra 100 мм",
+      "category": "Утеплители",
+      "difficulty": "medium",
+      "notes": "Кириллица бренда"
+    },
+    {
+      "query_id": "Q0226",
+      "raw_query": "саморез кровельный 4.8x35 цинк",
+      "expected_product_hint": "Саморез кровельный 4.8x35 оцинк.",
+      "category": "Крепёж",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0227",
+      "raw_query": "анкер химический хилти 12x110",
+      "expected_product_hint": "Анкер химический 12x110 Hilti",
+      "category": "Крепёж",
+      "difficulty": "easy",
+      "notes": "Кириллица бренда"
+    },
+    {
+      "query_id": "Q0228",
+      "raw_query": "винт потайной м5 20 цинк",
+      "expected_product_hint": "Винт потайной М5x20 DIN 965 оцинк.",
+      "category": "Крепёж",
+      "difficulty": "medium",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0229",
+      "raw_query": "болт нержавейка м10 50",
+      "expected_product_hint": "Болт М10x50 нерж. A2",
+      "category": "Крепёж",
+      "difficulty": "medium",
+      "notes": "'нержавейка' разговорное"
+    },
+    {
+      "query_id": "Q0230",
+      "raw_query": "саморез ГКЛ 32мм 1000шт ЗУБР",
+      "expected_product_hint": "Саморез для ГКЛ 32 мм ЗУБР уп.1000шт",
+      "category": "Крепёж",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0231",
+      "raw_query": "шуруп-глухарь 10*80 цинк",
+      "expected_product_hint": "Шуруп глухарь 10x80 DIN 571 оцинк.",
+      "category": "Крепёж",
+      "difficulty": "medium",
+      "notes": "'шуруп-глухарь' через тире"
+    },
+    {
+      "query_id": "Q0232",
+      "raw_query": "дюбель Fischer 8x50 распорный",
+      "expected_product_hint": "Дюбель распорный 8x50 Fischer",
+      "category": "Крепёж",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0233",
+      "raw_query": "метиз М12 гайка",
+      "expected_product_hint": "Гайка М12 DIN 934 оцинк.",
+      "category": "Крепёж",
+      "difficulty": "medium",
+      "notes": "'метиз' общее слово"
+    },
+    {
+      "query_id": "Q0234",
+      "raw_query": "гроверная шайба 10",
+      "expected_product_hint": "Шайба пружинная М10 DIN 127",
+      "category": "Крепёж",
+      "difficulty": "hard",
+      "notes": "'гроверная' — разговорное для пружинной шайбы"
+    },
+    {
+      "query_id": "Q0235",
+      "raw_query": "грунтовка бетоконтакт Кнауф 20кг",
+      "expected_product_hint": "Грунтовка Knauf Бетоконтакт 20 л",
+      "category": "Краски и лаки",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0236",
+      "raw_query": "грунт глубокого проникн ceresit 10л",
+      "expected_product_hint": "Грунтовка Ceresit CT 17 10 л",
+      "category": "Краски и лаки",
+      "difficulty": "medium",
+      "notes": "Сокращение 'проникн'"
+    },
+    {
+      "query_id": "Q0237",
+      "raw_query": "пена монтажная титан проф 750мл",
+      "expected_product_hint": "Пена монтажная Tytan Professional 0.75 л",
+      "category": "Краски и лаки",
+      "difficulty": "easy",
+      "notes": "'титан' вместо 'Tytan', 'проф' сокращение"
+    },
+    {
+      "query_id": "Q0238",
+      "raw_query": "пена монтажн пеносил 65",
+      "expected_product_hint": "Пена монтажная Penosil Gold Gun 65",
+      "category": "Краски и лаки",
+      "difficulty": "medium",
+      "notes": "Сокращения"
+    },
+    {
+      "query_id": "Q0239",
+      "raw_query": "герметик Момент силикон бел",
+      "expected_product_hint": "Герметик Момент силиконовый белый",
+      "category": "Краски и лаки",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0240",
+      "raw_query": "KUDO пена 65+ проф",
+      "expected_product_hint": "Пена монтажная KUDO Proff 70+",
+      "category": "Краски и лаки",
+      "difficulty": "medium",
+      "notes": "'65+' vs '70+'"
+    },
+    {
+      "query_id": "Q0241",
+      "raw_query": "пиноткес ультра орех 2.7л",
+      "expected_product_hint": "Лак Pinotex Ultra орех 2.7 л",
+      "category": "Краски и лаки",
+      "difficulty": "medium",
+      "notes": "Опечатка 'пиноткес'"
+    },
+    {
+      "query_id": "Q0242",
+      "raw_query": "VGT краска для стен 15 кг",
+      "expected_product_hint": "Краска VGT ВД-АК-1180 15 л",
+      "category": "Краски и лаки",
+      "difficulty": "medium",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0243",
+      "raw_query": "маршалл экспорт 7 белая 9л",
+      "expected_product_hint": "Краска Marshall Export 7 белая 9 л",
+      "category": "Краски и лаки",
+      "difficulty": "easy",
+      "notes": "Кириллица бренда"
+    },
+    {
+      "query_id": "Q0244",
+      "raw_query": "эмаль ПФ-115 белая 2.7кг",
+      "expected_product_hint": "Эмаль ПФ-115 белая 2.7 л",
+      "category": "Краски и лаки",
+      "difficulty": "medium",
+      "notes": "кг вместо л"
+    },
+    {
+      "query_id": "Q0245",
+      "raw_query": "Педролло насос центробежный",
+      "expected_product_hint": "Насос Pedrollo NGA",
+      "category": "Насосы",
+      "difficulty": "hard",
+      "notes": "Кириллица бренда, без модели"
+    },
+    {
+      "query_id": "Q0246",
+      "raw_query": "Grundfos Sololift2 WC-1",
+      "expected_product_hint": "Канализационная установка Grundfos Sololift2 WC-1",
+      "category": "Насосы",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0247",
+      "raw_query": "насосная станция джилекс джамбо",
+      "expected_product_hint": "Насосная станция Джилекс Джамбо",
+      "category": "Насосы",
+      "difficulty": "medium",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0248",
+      "raw_query": "Wilo TOP-S 25/7",
+      "expected_product_hint": "Насос циркуляционный Wilo TOP-S 25/7",
+      "category": "Насосы",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0249",
+      "raw_query": "DAB Jet 82M самовсасывающий",
+      "expected_product_hint": "Насос DAB Jet 82M",
+      "category": "Насосы",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0250",
+      "raw_query": "помпа дренажная 750Вт",
+      "expected_product_hint": "Насос дренажный 750 Вт",
+      "category": "Насосы",
+      "difficulty": "hard",
+      "notes": "'помпа' — разговорное, без бренда"
+    },
+    {
+      "query_id": "Q0251",
+      "raw_query": "грюндфос скала2 3-45",
+      "expected_product_hint": "Насосная станция Grundfos SCALA2 3-45",
+      "category": "Насосы",
+      "difficulty": "medium",
+      "notes": "Кириллица бренда"
+    },
+    {
+      "query_id": "Q0252",
+      "raw_query": "повысительный насос вило",
+      "expected_product_hint": "Насос повысительный Wilo",
+      "category": "Насосы",
+      "difficulty": "hard",
+      "notes": "Кириллица бренда, нет модели"
+    },
+    {
+      "query_id": "Q0253",
+      "raw_query": "бур SDS-plus 10x160 бош",
+      "expected_product_hint": "Бур SDS-plus Bosch 10x160",
+      "category": "Инструмент",
+      "difficulty": "easy",
+      "notes": "Кириллица бренда"
+    },
+    {
+      "query_id": "Q0254",
+      "raw_query": "бур 8мм SDS+ хилти",
+      "expected_product_hint": "Бур SDS-plus Hilti 8",
+      "category": "Инструмент",
+      "difficulty": "medium",
+      "notes": "'SDS+' сокращение, кириллица бренда"
+    },
+    {
+      "query_id": "Q0255",
+      "raw_query": "круг отрезной 125х1.0 по мет",
+      "expected_product_hint": "Круг отрезной по металлу 125x1.0",
+      "category": "Инструмент",
+      "difficulty": "medium",
+      "notes": "Сокращение 'мет'"
+    },
+    {
+      "query_id": "Q0256",
+      "raw_query": "алмазный диск бош 230 по бетону",
+      "expected_product_hint": "Круг алмазный по бетону Bosch 230",
+      "category": "Инструмент",
+      "difficulty": "medium",
+      "notes": "Кириллица бренда"
+    },
+    {
+      "query_id": "Q0257",
+      "raw_query": "диск отрезной Луга 230 3мм",
+      "expected_product_hint": "Круг отрезной Луга 230x3.0",
+      "category": "Инструмент",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0258",
+      "raw_query": "лазерный уровень бош зелёный",
+      "expected_product_hint": "Уровень лазерный Bosch зелёный",
+      "category": "Инструмент",
+      "difficulty": "medium",
+      "notes": "Кириллица бренда"
+    },
+    {
+      "query_id": "Q0259",
+      "raw_query": "дальномер 50м профи",
+      "expected_product_hint": "Дальномер лазерный 50 м",
+      "category": "Инструмент",
+      "difficulty": "hard",
+      "notes": "Без бренда"
+    },
+    {
+      "query_id": "Q0260",
+      "raw_query": "реноватор макита 320 вт",
+      "expected_product_hint": "Реноватор Makita TM3010C 320 Вт",
+      "category": "Инструмент",
+      "difficulty": "medium",
+      "notes": "Кириллица бренда"
+    },
+    {
+      "query_id": "Q0261",
+      "raw_query": "подводка гибкая 1/2 60см вальтек",
+      "expected_product_hint": "Подводка Valtec 1/2 60 см",
+      "category": "Сантехника",
+      "difficulty": "easy",
+      "notes": "Кириллица бренда"
+    },
+    {
+      "query_id": "Q0262",
+      "raw_query": "подводка газовая 1/2 100см",
+      "expected_product_hint": "Подводка для газа 1/2 100 см",
+      "category": "Сантехника",
+      "difficulty": "medium",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0263",
+      "raw_query": "термоголовка oventrop",
+      "expected_product_hint": "Термоголовка Oventrop Uni LH",
+      "category": "Сантехника",
+      "difficulty": "medium",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0264",
+      "raw_query": "инсталляция Geberit Duofix",
+      "expected_product_hint": "Инсталляция Geberit Duofix Sigma",
+      "category": "Сантехника",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0265",
+      "raw_query": "кнопка смыва геберит хром",
+      "expected_product_hint": "Кнопка смыва Geberit Sigma хром",
+      "category": "Сантехника",
+      "difficulty": "medium",
+      "notes": "Кириллица бренда"
+    },
+    {
+      "query_id": "Q0266",
+      "raw_query": "радиатор Rifar Base 500 8 секций",
+      "expected_product_hint": "Радиатор Rifar Base 500/100 8 секций",
+      "category": "Сантехника",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0267",
+      "raw_query": "батарея рифар 10 секций",
+      "expected_product_hint": "Радиатор Rifar Base 500/100 10 секций",
+      "category": "Сантехника",
+      "difficulty": "medium",
+      "notes": "'батарея' — разговорное, кириллица бренда"
+    },
+    {
+      "query_id": "Q0268",
+      "raw_query": "панельный радиатор будерус 22 500x800",
+      "expected_product_hint": "Радиатор Buderus Logatrend тип 22 500x800",
+      "category": "Сантехника",
+      "difficulty": "medium",
+      "notes": "Кириллица бренда"
+    },
+    {
+      "query_id": "Q0269",
+      "raw_query": "радиатор стальной керми 22 500 1000",
+      "expected_product_hint": "Радиатор Kermi FKO тип 22 500x1000",
+      "category": "Сантехника",
+      "difficulty": "medium",
+      "notes": "Кириллица бренда"
+    },
+    {
+      "query_id": "Q0270",
+      "raw_query": "сифон для ванны алкапласт",
+      "expected_product_hint": "Сифон AlcaPlast",
+      "category": "Сантехника",
+      "difficulty": "medium",
+      "notes": "Кириллица бренда"
+    },
+    {
+      "query_id": "Q0271",
+      "raw_query": "трап душевой нерж 100x100",
+      "expected_product_hint": "Трап для душа 100x100 нерж.",
+      "category": "Сантехника",
+      "difficulty": "medium",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0272",
+      "raw_query": "водонагреватель аристон 80л",
+      "expected_product_hint": "Водонагреватель Ariston 80 л",
+      "category": "Сантехника",
+      "difficulty": "easy",
+      "notes": "Кириллица бренда"
+    },
+    {
+      "query_id": "Q0273",
+      "raw_query": "бойлер термекс 50 литров",
+      "expected_product_hint": "Водонагреватель Thermex 50 л",
+      "category": "Сантехника",
+      "difficulty": "medium",
+      "notes": "'бойлер' — разговорное"
+    },
+    {
+      "query_id": "Q0274",
+      "raw_query": "автомат TDM C16 1P",
+      "expected_product_hint": "Автомат 1P TDM ВА 47-29 C16А",
+      "category": "Электрика",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0275",
+      "raw_query": "автомат Hager C25 2P",
+      "expected_product_hint": "Автомат 2P Hager MC2 C25А",
+      "category": "Электрика",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0276",
+      "raw_query": "Chint NB1-63 C32 3P",
+      "expected_product_hint": "Автомат 3P Chint NB1-63 C32А",
+      "category": "Электрика",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0277",
+      "raw_query": "щит 24 модуля навесной IEK",
+      "expected_product_hint": "Щит ЩРн-24з IEK 24 мод.",
+      "category": "Электрика",
+      "difficulty": "medium",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0278",
+      "raw_query": "шкаф электрич 36мод Schneider",
+      "expected_product_hint": "Щит Schneider Electric 36 мод.",
+      "category": "Электрика",
+      "difficulty": "medium",
+      "notes": "'шкаф электрич' — разговорное"
+    },
+    {
+      "query_id": "Q0279",
+      "raw_query": "контактор ABB 20А 2НО",
+      "expected_product_hint": "Контактор ABB ESB20-20N 20A 2НО",
+      "category": "Электрика",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0280",
+      "raw_query": "реле времени 24ч шнайдер",
+      "expected_product_hint": "Реле времени Schneider Electric 24ч",
+      "category": "Электрика",
+      "difficulty": "medium",
+      "notes": "Кириллица бренда"
+    },
+    {
+      "query_id": "Q0281",
+      "raw_query": "УЗИП ABB OVR 40кА",
+      "expected_product_hint": "Ограничитель перенапряжений ABB OVR T2 40",
+      "category": "Электрика",
+      "difficulty": "medium",
+      "notes": "УЗИП — аббревиатура для ОПС/ОПН"
+    },
+    {
+      "query_id": "Q0282",
+      "raw_query": "шина гребёнка 1P 12 модулей",
+      "expected_product_hint": "Шина соединительная 1P 12мод",
+      "category": "Электрика",
+      "difficulty": "medium",
+      "notes": "'гребёнка' — разговорное"
+    },
+    {
+      "query_id": "Q0283",
+      "raw_query": "weber vetonit 4100 25кг наливной",
+      "expected_product_hint": "Наливной пол Weber.Vetonit 4100 25 кг",
+      "category": "Сухие смеси",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0284",
+      "raw_query": "затирка mapei ultracolor плюс 5кг",
+      "expected_product_hint": "Затирка Mapei Ultracolor Plus 5 кг",
+      "category": "Сухие смеси",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0285",
+      "raw_query": "клей для плитки Ivsil 25",
+      "expected_product_hint": "Плиточный клей Ivsil Classic 25 кг",
+      "category": "Сухие смеси",
+      "difficulty": "medium",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0286",
+      "raw_query": "штукатурка юнис теплон 25кг бел",
+      "expected_product_hint": "Штукатурка Юнис Теплон белый 25 кг",
+      "category": "Сухие смеси",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0287",
+      "raw_query": "старатели штукатурка гипс 25",
+      "expected_product_hint": "Штукатурка Старатели гипсовая 25 кг",
+      "category": "Сухие смеси",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0288",
+      "raw_query": "крепс плит клей усиленный 25",
+      "expected_product_hint": "Плиточный клей Крепс Усиленный 25 кг",
+      "category": "Сухие смеси",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0289",
+      "raw_query": "литокол литохром стар лайк 5кг",
+      "expected_product_hint": "Затирка Литокол Litochrom Starlike 5 кг",
+      "category": "Сухие смеси",
+      "difficulty": "medium",
+      "notes": "Кириллица бренда + транслит линейки"
+    },
+    {
+      "query_id": "Q0290",
+      "raw_query": "сухая смесь для стяжки 25кг",
+      "expected_product_hint": "Стяжка 25 кг",
+      "category": "Сухие смеси",
+      "difficulty": "hard",
+      "notes": "Общий запрос без бренда"
+    },
+    {
+      "query_id": "Q0291",
+      "raw_query": "sika level pro 25кг",
+      "expected_product_hint": "Наливной пол Sika Level Pro 25 кг",
+      "category": "Сухие смеси",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0292",
+      "raw_query": "ремонтная смесь мастер эмако",
+      "expected_product_hint": "Ремонтная смесь MC-Bauchemie Emaco",
+      "category": "Сухие смеси",
+      "difficulty": "hard",
+      "notes": "Кириллица + искажение бренда"
+    },
+    {
+      "query_id": "Q0293",
+      "raw_query": "кабельканал 40х25 2м DKC",
+      "expected_product_hint": "Кабель-канал 40x25 2м DKC",
+      "category": "Электрика",
+      "difficulty": "easy",
+      "notes": "Слитное написание 'кабельканал'"
+    },
+    {
+      "query_id": "Q0294",
+      "raw_query": "гофра ПВХ d20 50м ИЕК",
+      "expected_product_hint": "Труба гофр. ПВХ d20 50м IEK",
+      "category": "Электрика",
+      "difficulty": "medium",
+      "notes": "Кириллица бренда"
+    },
+    {
+      "query_id": "Q0295",
+      "raw_query": "коробка распред 100x100x50",
+      "expected_product_hint": "Коробка распределительная 100x100x50",
+      "category": "Электрика",
+      "difficulty": "medium",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0296",
+      "raw_query": "Rifar алюминиевый 500 10сек",
+      "expected_product_hint": "Радиатор алюминиевый Rifar Alp 500/100 10 секций",
+      "category": "Сантехника",
+      "difficulty": "medium",
+      "notes": "'10сек' сокращение секций"
+    },
+    {
+      "query_id": "Q0297",
+      "raw_query": "гребенка вальтек 4 контура теплый пол",
+      "expected_product_hint": "Гребёнка Valtec 4 контура для тёплого пола",
+      "category": "Сантехника",
+      "difficulty": "medium",
+      "notes": "Кириллица бренда"
+    },
+    {
+      "query_id": "Q0298",
+      "raw_query": "расширит бак 8л Valtec",
+      "expected_product_hint": "Расширительный бак Valtec 8 л",
+      "category": "Сантехника",
+      "difficulty": "medium",
+      "notes": "Сокращение 'расширит'"
+    },
+    {
+      "query_id": "Q0299",
+      "raw_query": "ПФ 115 эмаль черная текс 0.9",
+      "expected_product_hint": "Эмаль ПФ-115 чёрная Текс 0.9 л",
+      "category": "Краски и лаки",
+      "difficulty": "easy",
+      "notes": ""
+    },
+    {
+      "query_id": "Q0300",
+      "raw_query": "силиконовый герметик церезит бел",
+      "expected_product_hint": "Герметик Ceresit CS 25 белый",
+      "category": "Краски и лаки",
+      "difficulty": "medium",
+      "notes": "Кириллица бренда"
+    },
+    {
+      "query_id": "Q0301",
+      "raw_query": "перф. метабо 880Вт SDS+",
+      "expected_product_hint": "Перфоратор Metabo KHE 2860 Quick 880 Вт",
+      "category": "Инструмент",
+      "difficulty": "medium",
+      "notes": "Сокращение 'перф.', 'SDS+' вместо 'SDS-plus'"
+    },
+    {
+      "query_id": "Q0302",
+      "raw_query": "рубанок бош 82мм 710вт",
+      "expected_product_hint": "Рубанок Bosch GHO 26-82 D 710 Вт",
+      "category": "Инструмент",
+      "difficulty": "medium",
+      "notes": "Кириллица бренда"
+    }
+  ]
+}
