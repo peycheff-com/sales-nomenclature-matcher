@@ -49,10 +49,6 @@ export default function SettingsPage() {
     queryFn: getSettings,
   });
 
-  const modelsQuery = useQuery({
-    queryKey: ["models"],
-    queryFn: getModels,
-  });
 
   const form = useForm<SettingsResponse & { new_api_keys?: Record<string, string> }>({
     defaultValues: {
@@ -179,9 +175,41 @@ export default function SettingsPage() {
   const llmProvider = form.watch("llm_provider");
   const embeddingProvider = form.watch("embedding_provider");
   const rerankProvider = form.watch("rerank_provider");
+
+  const llmModelsQuery = useQuery({
+    queryKey: ["models", llmProvider],
+    queryFn: () => getModels(llmProvider),
+    enabled: !!llmProvider,
+  });
+
+  const embeddingModelsQuery = useQuery({
+    queryKey: ["models", embeddingProvider],
+    queryFn: () => getModels(embeddingProvider),
+    enabled: !!embeddingProvider,
+  });
+
+  const rerankModelsQuery = useQuery({
+    queryKey: ["models", rerankProvider],
+    queryFn: () => getModels(rerankProvider),
+    enabled: !!rerankProvider && rerankProvider !== "llm-fallback",
+  });
+
+  const llmModelsRaw = llmModelsQuery.data?.models || [];
+  const llmModels = llmModelsRaw.filter(m => m.type !== "embedding" && m.type !== "rerank");
+
+  const embeddingModelsRaw = embeddingModelsQuery.data?.models || [];
+  const embeddingModels = embeddingModelsRaw.filter(m => m.type === "embedding");
+
+  const rerankModelsRaw = rerankModelsQuery.data?.models || [];
+  const rerankModels = rerankModelsRaw.filter(m => m.type === "rerank");
   
   const activeProviderIds = Array.from(new Set([llmProvider, embeddingProvider, rerankProvider])).filter(Boolean);
   const registry = form.watch("providers_registry") || [];
+
+  const savedSettings = settingsQuery.data;
+  const embeddingModelChanged = savedSettings && form.watch("embedding_model") !== savedSettings.embedding_model;
+  const embeddingDimsChanged = savedSettings && form.watch("embedding_dimensions") !== savedSettings.embedding_dimensions;
+  const needsReindex = embeddingModelChanged || embeddingDimsChanged;
 
   return (
     <PageLayout
@@ -239,15 +267,15 @@ export default function SettingsPage() {
                     onChange={(val) =>
                       form.setValue("llm_model", val, { shouldDirty: true })
                     }
-                    options={modelsQuery.data?.models || []}
-                    isLoading={modelsQuery.isLoading}
+                    options={llmModels}
+                    isLoading={llmModelsQuery.isLoading}
                     placeholder="Например: gpt-4o-mini"
                   />
                 </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 pt-4 border-t border-border">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-border">
               <div className="space-y-2">
                 <Label>Провайдер Embeddings</Label>
                 <Select
@@ -276,14 +304,14 @@ export default function SettingsPage() {
                   onChange={(val) =>
                     form.setValue("embedding_model", val, { shouldDirty: true })
                   }
-                  options={modelsQuery.data?.models || []}
-                  isLoading={modelsQuery.isLoading}
+                  options={embeddingModels}
+                  isLoading={embeddingModelsQuery.isLoading}
                   placeholder="Например: text-embedding-3-large"
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 pt-4 border-t border-border">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-border">
               <div className="space-y-2">
                 <Label>Провайдер Reranking</Label>
                 <Select
@@ -312,20 +340,20 @@ export default function SettingsPage() {
                   onChange={(val) =>
                     form.setValue("llm_rerank_model", val, { shouldDirty: true })
                   }
-                  options={modelsQuery.data?.models || []}
-                  isLoading={modelsQuery.isLoading}
+                  options={rerankModels}
+                  isLoading={rerankModelsQuery.isLoading}
                   placeholder="Например: BAAI/bge-reranker-v2-m3"
                 />
               </div>
             </div>
 
             {registry.filter(p => activeProviderIds.includes(p.id) && p.id !== "local").map(p => (
-              <div key={p.id} className="grid grid-cols-2 gap-4 pt-4 border-t border-border">
+              <div key={p.id} className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-border">
                 <div className="space-y-2 col-span-2 sm:col-span-1">
                   <Label>{p.name} Base URL</Label>
-                  <Input 
-                    placeholder="Base URL..." 
-                    {...form.register(`providers_registry.${registry.findIndex(x => x.id === p.id)}.base_url` as any)} 
+                  <Input
+                    placeholder="Base URL..."
+                    {...form.register(`providers_registry.${registry.findIndex(x => x.id === p.id)}.base_url` as any)}
                   />
                 </div>
                 <div className="space-y-2 col-span-2 sm:col-span-1">
@@ -335,10 +363,30 @@ export default function SettingsPage() {
                     placeholder={p.api_key_set ? "••••••••••••••••" : "Введите API ключ"}
                     {...form.register(`new_api_keys.${p.id}` as any)}
                   />
+                  {!p.api_key_set && (
+                    <p className="text-[10px] text-yellow-600">API ключ не настроен. Сопоставление не будет работать без ключа.</p>
+                  )}
                 </div>
               </div>
             ))}
             
+            {/* GAP-8.1/8.2: Provider status summary */}
+            <div className="pt-4 border-t border-border">
+              <div className="rounded-lg border p-3 space-y-2">
+                <div className="text-xs font-medium text-muted-foreground">Статус провайдеров:</div>
+                <div className="flex flex-wrap gap-2">
+                  {registry.filter(p => activeProviderIds.includes(p.id) && p.id !== "local").map(p => (
+                    <div key={p.id} className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border ${
+                      p.api_key_set ? "bg-green-50 text-green-700 border-green-200" : "bg-red-50 text-red-700 border-red-200"
+                    }`}>
+                      {p.api_key_set ? <CheckCircle2 className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
+                      {p.name}: {p.api_key_set ? "ключ настроен" : "ключ не настроен"}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 gap-4 pt-4 border-t border-border">
               <div className="flex items-center justify-between rounded-lg border p-3">
                 <div className="space-y-0.5">
@@ -363,7 +411,7 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 pt-2 border-t border-border">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-border">
               <div className="space-y-2">
                 <Label className="flex items-center gap-1">
                   Размерности (Dimensions) Embeddings
@@ -387,7 +435,21 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 pt-4 border-t border-border">
+            {needsReindex && (
+              <div className="flex items-start gap-2 rounded-lg border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
+                <AlertCircle className="h-4 w-4 mt-0.5 shrink-0 text-yellow-600" />
+                <div>
+                  <div className="font-medium">Требуется переиндексация каталога</div>
+                  <div className="text-xs text-yellow-700 mt-0.5">
+                    Вы изменили {embeddingModelChanged ? "модель эмбеддингов" : ""}{embeddingModelChanged && embeddingDimsChanged ? " и " : ""}{embeddingDimsChanged ? "размерность векторов" : ""}.
+                    После сохранения необходимо выполнить полную переиндексацию каталога на странице «Каталог» → «Обновить индекс поиска».
+                    До переиндексации результаты поиска будут некорректными.
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-border">
               <div className="space-y-2">
                 <Label className="flex items-center gap-1">
                   Количество кандидатов для Rerank (top_n)
@@ -405,6 +467,102 @@ export default function SettingsPage() {
                 <p className="text-[10px] text-muted-foreground">
                   Кол-во лучших по вектору, передаваемых в LLM-rerank.
                 </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* GAP-8.3: Threshold configuration with visual explanation */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Пороги принятия решений</CardTitle>
+            <CardDescription>
+              Настройка порогов автоматического сопоставления и ручной проверки.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1">
+                  Порог автоматического сопоставления
+                  <Tooltip>
+                    <TooltipTrigger render={<button type="button" className="text-muted-foreground" />}>
+                      <HelpCircle className="h-3.5 w-3.5" />
+                    </TooltipTrigger>
+                    <TooltipContent>Позиции с оценкой выше этого порога принимаются автоматически без ручной проверки</TooltipContent>
+                  </Tooltip>
+                </Label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={form.watch("auto_match_threshold")}
+                    onChange={(e) => form.setValue("auto_match_threshold", parseFloat(e.target.value), { shouldDirty: true })}
+                    className="flex-1 h-2 accent-green-600"
+                  />
+                  <span className="text-sm font-mono w-12 text-right font-medium text-green-700">
+                    {(form.watch("auto_match_threshold") * 100).toFixed(0)}%
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1">
+                  Порог ручной проверки
+                  <Tooltip>
+                    <TooltipTrigger render={<button type="button" className="text-muted-foreground" />}>
+                      <HelpCircle className="h-3.5 w-3.5" />
+                    </TooltipTrigger>
+                    <TooltipContent>Позиции с оценкой между этим порогом и порогом авто-сопоставления отправляются на ручную проверку. Ниже — «не найдено».</TooltipContent>
+                  </Tooltip>
+                </Label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={form.watch("review_threshold")}
+                    onChange={(e) => form.setValue("review_threshold", parseFloat(e.target.value), { shouldDirty: true })}
+                    className="flex-1 h-2 accent-yellow-600"
+                  />
+                  <span className="text-sm font-mono w-12 text-right font-medium text-yellow-700">
+                    {(form.watch("review_threshold") * 100).toFixed(0)}%
+                  </span>
+                </div>
+              </div>
+
+              {/* Visual threshold bar */}
+              <div className="rounded-lg border p-3 bg-muted/30 space-y-2">
+                <div className="text-xs font-medium text-muted-foreground">Визуализация зон решений:</div>
+                <div className="flex h-6 rounded-md overflow-hidden text-[10px] font-medium">
+                  <div
+                    className="bg-red-200 text-red-800 flex items-center justify-center transition-all"
+                    style={{ width: `${form.watch("review_threshold") * 100}%` }}
+                  >
+                    {form.watch("review_threshold") >= 0.15 && "Не найдено"}
+                  </div>
+                  <div
+                    className="bg-yellow-200 text-yellow-800 flex items-center justify-center transition-all"
+                    style={{ width: `${(form.watch("auto_match_threshold") - form.watch("review_threshold")) * 100}%` }}
+                  >
+                    {(form.watch("auto_match_threshold") - form.watch("review_threshold")) >= 0.15 && "На проверку"}
+                  </div>
+                  <div
+                    className="bg-green-200 text-green-800 flex items-center justify-center transition-all"
+                    style={{ width: `${(1 - form.watch("auto_match_threshold")) * 100}%` }}
+                  >
+                    {(1 - form.watch("auto_match_threshold")) >= 0.1 && "Авто"}
+                  </div>
+                </div>
+                <div className="flex justify-between text-[10px] text-muted-foreground">
+                  <span>0%</span>
+                  <span>{(form.watch("review_threshold") * 100).toFixed(0)}%</span>
+                  <span>{(form.watch("auto_match_threshold") * 100).toFixed(0)}%</span>
+                  <span>100%</span>
+                </div>
               </div>
             </div>
           </CardContent>

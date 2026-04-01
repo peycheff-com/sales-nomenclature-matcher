@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Loader2, KeyRound, UserCog, Copy, Check, Users } from "lucide-react";
+import { Plus, Loader2, KeyRound, UserCog, Copy, Check, Users, Upload, AlertTriangle, Info } from "lucide-react";
 import { toast } from "sonner";
 import {
   listUsers,
@@ -54,6 +54,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { SkeletonTable } from "@/components/ui/skeleton";
 import { QueryErrorBanner } from "@/components/ui/query-error-banner";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageLayout } from "@/components/layout/page-layout";
 
@@ -209,99 +210,122 @@ export default function UsersPage() {
   const users = usersQuery.data?.items ?? [];
   const currentUserId = meQuery.data?.user_id;
 
+  const pageActions = (
+    <div className="flex items-center gap-2">
+      <Tooltip>
+        <TooltipTrigger>
+          <Button variant="outline" size="sm" disabled>
+            <Upload className="mr-2 h-4 w-4" />
+            Импорт пользователей
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>
+          Массовое создание пользователей будет доступно в следующей версии.
+        </TooltipContent>
+      </Tooltip>
+      <Dialog
+        open={isCreateOpen}
+        onOpenChange={(open) => {
+          setIsCreateOpen(open);
+          if (!open) resetCreateForm();
+        }}
+      >
+        <DialogTrigger className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground shadow hover:bg-primary/90 h-9 px-4 py-2">
+          <Plus className="mr-2 h-4 w-4" />
+          Создать пользователя
+        </DialogTrigger>
+        <DialogContent>
+          <form onSubmit={handleCreateSubmit}>
+            <DialogHeader>
+              <DialogTitle>Новый пользователь</DialogTitle>
+              <DialogDescription>
+                Создайте учётную запись. Пользователю потребуется сменить пароль при первом входе.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="create-username">Имя пользователя</Label>
+                <Input
+                  id="create-username"
+                  placeholder="ivanov"
+                  value={newUsername}
+                  onChange={(e) => setNewUsername(e.target.value)}
+                  autoComplete="off"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Латиница, цифры, подчёркивания. Нельзя изменить позже.
+                </p>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="create-fullname">Полное имя</Label>
+                <Input
+                  id="create-fullname"
+                  placeholder="Иванов Иван Иванович"
+                  value={newFullName}
+                  onChange={(e) => setNewFullName(e.target.value)}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label>Роль</Label>
+                <Select value={newRole} onValueChange={(v) => setNewRole(v as typeof newRole)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">Администратор</SelectItem>
+                    <SelectItem value="operator">Оператор</SelectItem>
+                    <SelectItem value="viewer">Наблюдатель</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="create-password">Временный пароль</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="create-password"
+                    type="text"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Минимум 6 символов"
+                    autoComplete="off"
+                  />
+                  <Button type="button" variant="outline" size="sm" onClick={handleGeneratePassword}>
+                    {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                  </Button>
+                </div>
+                <p className="text-[10px] text-muted-foreground">
+                  Нажмите кнопку для генерации и копирования пароля.
+                </p>
+              </div>
+              {newPassword && (
+                <div className="flex items-start gap-2 rounded-md bg-yellow-50 border border-yellow-200 px-3 py-2">
+                  <AlertTriangle className="h-4 w-4 text-yellow-600 mt-0.5 shrink-0" />
+                  <p className="text-xs text-yellow-800">
+                    Скопируйте пароль и передайте его пользователю. После закрытия окна пароль не будет доступен.
+                  </p>
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" type="button" onClick={() => setIsCreateOpen(false)}>
+                Отмена
+              </Button>
+              <Button type="submit" disabled={createMutation.isPending}>
+                {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Создать
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+
   return (
     <PageLayout
       title="Пользователи"
       description="Создание, редактирование и управление учётными записями."
-      actions={
-        <Dialog
-          open={isCreateOpen}
-          onOpenChange={(open) => {
-            setIsCreateOpen(open);
-            if (!open) resetCreateForm();
-          }}
-        >
-          <DialogTrigger className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground shadow hover:bg-primary/90 h-9 px-4 py-2">
-            <Plus className="mr-2 h-4 w-4" />
-            Создать пользователя
-          </DialogTrigger>
-          <DialogContent>
-            <form onSubmit={handleCreateSubmit}>
-              <DialogHeader>
-                <DialogTitle>Новый пользователь</DialogTitle>
-                <DialogDescription>
-                  Создайте учётную запись. Пользователю потребуется сменить пароль при первом входе.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="create-username">Имя пользователя</Label>
-                  <Input
-                    id="create-username"
-                    placeholder="ivanov"
-                    value={newUsername}
-                    onChange={(e) => setNewUsername(e.target.value)}
-                    autoComplete="off"
-                  />
-                  <p className="text-[10px] text-muted-foreground">
-                    Латиница, цифры, подчёркивания. Нельзя изменить позже.
-                  </p>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="create-fullname">Полное имя</Label>
-                  <Input
-                    id="create-fullname"
-                    placeholder="Иванов Иван Иванович"
-                    value={newFullName}
-                    onChange={(e) => setNewFullName(e.target.value)}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label>Роль</Label>
-                  <Select value={newRole} onValueChange={(v) => setNewRole(v as typeof newRole)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="admin">Администратор</SelectItem>
-                      <SelectItem value="operator">Оператор</SelectItem>
-                      <SelectItem value="viewer">Наблюдатель</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="create-password">Временный пароль</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      id="create-password"
-                      type="text"
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      placeholder="Минимум 6 символов"
-                      autoComplete="off"
-                    />
-                    <Button type="button" variant="outline" size="sm" onClick={handleGeneratePassword}>
-                      {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                    </Button>
-                  </div>
-                  <p className="text-[10px] text-muted-foreground">
-                    Нажмите кнопку для генерации и копирования пароля.
-                  </p>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" type="button" onClick={() => setIsCreateOpen(false)}>
-                  Отмена
-                </Button>
-                <Button type="submit" disabled={createMutation.isPending}>
-                  {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Создать
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
-      }
+      actions={pageActions}
     >
       {usersQuery.isError && (
         <QueryErrorBanner
@@ -332,6 +356,7 @@ export default function UsersPage() {
                 <TableHead>Роль</TableHead>
                 <TableHead>Статус</TableHead>
                 <TableHead>Создан</TableHead>
+                <TableHead>Последний вход</TableHead>
                 <TableHead className="text-right w-32">Действия</TableHead>
               </TableRow>
             </TableHeader>
@@ -379,6 +404,17 @@ export default function UsersPage() {
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {new Date(u.created_at).toLocaleDateString("ru-RU")}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {u.last_login
+                        ? new Date(u.last_login).toLocaleDateString("ru-RU", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
+                        : "\u2014"}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
@@ -449,6 +485,14 @@ export default function UsersPage() {
                     Нельзя изменить свою роль.
                   </p>
                 )}
+                {editTarget?.user_id !== currentUserId && editRole !== editTarget?.role && (
+                  <div className="flex items-start gap-2 rounded-md bg-blue-50 border border-blue-200 px-3 py-2">
+                    <Info className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
+                    <p className="text-xs text-blue-800">
+                      Изменение роли вступит в силу при следующем входе пользователя.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
             <DialogFooter>
@@ -477,27 +521,41 @@ export default function UsersPage() {
               будет обязан установить новый пароль при следующем входе.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <div className="px-6 pb-2">
-            <Label htmlFor="reset-pw">Новый временный пароль</Label>
-            <div className="mt-1.5 flex gap-2">
-              <Input
-                id="reset-pw"
-                type="text"
-                value={resetPassword}
-                onChange={(e) => setResetPassword(e.target.value)}
-                autoComplete="off"
-              />
-              <Button
-                variant="outline"
-                size="sm"
-                type="button"
-                onClick={() => {
-                  navigator.clipboard.writeText(resetPassword);
-                  toast.success("Скопировано");
-                }}
-              >
-                <Copy className="h-4 w-4" />
-              </Button>
+          <div className="px-6 pb-2 space-y-3">
+            <div>
+              <Label htmlFor="reset-pw">Новый временный пароль</Label>
+              <div className="mt-1.5 flex gap-2">
+                <Input
+                  id="reset-pw"
+                  type="text"
+                  value={resetPassword}
+                  onChange={(e) => setResetPassword(e.target.value)}
+                  autoComplete="off"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(resetPassword);
+                    toast.success("Скопировано");
+                  }}
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            <div className="flex items-start gap-2 rounded-md bg-yellow-50 border border-yellow-200 px-3 py-2">
+              <AlertTriangle className="h-4 w-4 text-yellow-600 mt-0.5 shrink-0" />
+              <p className="text-xs text-yellow-800">
+                Скопируйте пароль и передайте его пользователю. После закрытия окна пароль не будет доступен.
+              </p>
+            </div>
+            <div className="flex items-start gap-2 rounded-md bg-blue-50 border border-blue-200 px-3 py-2">
+              <Info className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
+              <p className="text-xs text-blue-800">
+                Уведомление пользователю не отправляется. Передайте пароль лично или через защищённый канал.
+              </p>
             </div>
           </div>
           <AlertDialogFooter>

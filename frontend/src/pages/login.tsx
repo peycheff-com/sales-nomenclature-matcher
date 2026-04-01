@@ -1,6 +1,6 @@
 import { type FormEvent, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { BarChart3 } from "lucide-react";
+import { BarChart3, Eye, EyeOff } from "lucide-react";
 import { login } from "@/api/auth";
 import { setAuthenticated, setMustChangePassword } from "@/lib/auth-store";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -29,7 +30,21 @@ export default function LoginPage() {
       if (err && typeof err === "object" && "response" in err) {
         const httpErr = err as { response: Response };
         if (httpErr.response.status === 401) {
-          setError("Неверное имя пользователя или пароль");
+          // Check if account is deactivated
+          try {
+            const body = await httpErr.response.json() as { detail?: string };
+            if (
+              body.detail &&
+              (body.detail.toLowerCase().includes("deactivated") ||
+                body.detail.toLowerCase().includes("disabled"))
+            ) {
+              setError("Ваш аккаунт деактивирован. Обратитесь к администратору.");
+            } else {
+              setError("Неверное имя пользователя или пароль");
+            }
+          } catch {
+            setError("Неверное имя пользователя или пароль");
+          }
         } else {
           setError("Ошибка сервера. Попробуйте позже.");
         }
@@ -65,15 +80,31 @@ export default function LoginPage() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="password">Пароль</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Пароль"
-                autoComplete="current-password"
-                required
-              />
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Пароль"
+                  autoComplete="current-password"
+                  className="pr-10"
+                  required
+                />
+                <button
+                  type="button"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  onClick={() => setShowPassword((v) => !v)}
+                  tabIndex={-1}
+                  aria-label={showPassword ? "Скрыть пароль" : "Показать пароль"}
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
             </div>
 
             {error && (
@@ -86,6 +117,12 @@ export default function LoginPage() {
               {loading ? "Вход..." : "Войти"}
             </Button>
           </form>
+          <p className="text-xs text-muted-foreground text-center mt-4">
+            Забыли пароль? Обратитесь к администратору системы для сброса.
+          </p>
+          <p className="text-[11px] text-muted-foreground text-center mt-2">
+            Сессия активна в течение рабочего дня. При истечении потребуется повторный вход.
+          </p>
         </CardContent>
       </Card>
     </div>

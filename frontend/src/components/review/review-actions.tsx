@@ -72,9 +72,104 @@ export default function ReviewActions({ item, onReviewed }: ReviewActionsProps) 
     });
   }
 
-  if (item.status === "auto_match") {
+  if (item.status === "auto_match" && !item.final_decision && !isOverriding) {
     return (
-      <span className="text-xs text-green-600 font-medium">Автоматически сопоставлено</span>
+      <>
+        <div className="flex flex-col gap-0.5 relative group">
+          <span className="text-xs text-green-600 font-medium">Авто</span>
+          <div className="absolute right-0 top-0 opacity-60 hover:opacity-100 transition-opacity flex items-center gap-0.5">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-1.5 text-[10px] text-green-700 hover:text-green-800"
+              onClick={handleAccept}
+              disabled={mutation.isPending}
+              title="Подтвердить авто-сопоставление"
+            >
+              <Check className="h-3 w-3 mr-0.5" />
+              Ок
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-1.5 text-[10px] text-yellow-700 hover:text-yellow-800"
+              onClick={() => { setSearchQuery(item.raw_text); setSearchTrigger(item.raw_text); setCorrecting(true); }}
+              disabled={mutation.isPending}
+              title="Исправить авто-сопоставление"
+            >
+              <Pencil className="h-3 w-3 mr-0.5" />
+              Исправить
+            </Button>
+          </div>
+        </div>
+
+        <Dialog open={correcting} onOpenChange={setCorrecting}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Указать правильный товар</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 py-2">
+              <div className="rounded bg-muted p-2 text-sm">
+                <span className="font-semibold">Исходный текст:</span> {item.raw_text}
+              </div>
+              <div className="space-y-1.5 flex flex-col gap-2">
+                <Label>Поиск по каталогу (название, артикул, бренд)</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        setSearchTrigger(searchQuery);
+                      }
+                    }}
+                    placeholder="Введите запрос и нажмите Enter"
+                  />
+                  <Button variant="secondary" onClick={() => setSearchTrigger(searchQuery)} disabled={catalogQuery.isFetching}>
+                    {catalogQuery.isFetching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </div>
+
+              <div className="max-h-[300px] overflow-y-auto border border-border rounded-md mt-4">
+                {catalogQuery.isLoading && <div className="p-4 text-center text-sm text-muted-foreground">Загрузка...</div>}
+                {catalogQuery.isSuccess && catalogQuery.data.length === 0 && <div className="p-4 text-center text-sm text-muted-foreground">Ничего не найдено</div>}
+                {catalogQuery.isSuccess && catalogQuery.data.length > 0 && (
+                  <div className="divide-y divide-border">
+                    {catalogQuery.data.map((product) => (
+                      <div
+                        key={product.product_id}
+                        className={`p-3 text-sm cursor-pointer hover:bg-muted/50 transition-colors ${correctedProductId === product.product_id ? 'bg-primary/10 border-l-2 border-l-primary' : ''}`}
+                        onClick={() => setCorrectedProductId(product.product_id)}
+                      >
+                        <div className="font-medium">{product.name}</div>
+                        <div className="text-xs text-muted-foreground mt-1 flex justify-between">
+                          <span>Арт: {product.article || "\u2014"}</span>
+                          <span>Бренд: {product.brand || "\u2014"}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {correctedProductId && (
+                <div className="bg-green-50 text-green-800 text-xs p-2 rounded border border-green-200">
+                  Выбран товар: {correctedProductId}
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setCorrecting(false)}>
+                Отмена
+              </Button>
+              <Button onClick={handleCorrect} disabled={mutation.isPending || !correctedProductId}>
+                Сохранить
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </>
     );
   }
 
@@ -87,7 +182,7 @@ export default function ReviewActions({ item, onReviewed }: ReviewActionsProps) 
         {item.reviewed_by && (
           <span className="text-[10px] text-muted-foreground">{item.reviewed_by}</span>
         )}
-        <div className="absolute right-0 top-0 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="absolute right-0 top-0 opacity-60 hover:opacity-100 transition-opacity">
           <Button 
             variant="outline" 
             size="icon" 
@@ -120,7 +215,7 @@ export default function ReviewActions({ item, onReviewed }: ReviewActionsProps) 
           variant="ghost"
           size="sm"
           className="h-7 gap-1 text-xs text-yellow-700 hover:text-yellow-800"
-          onClick={() => setCorrecting(true)}
+          onClick={() => { setSearchQuery(item.raw_text); setSearchTrigger(item.raw_text); setCorrecting(true); }}
           disabled={mutation.isPending}
           title="Указать правильный товар"
         >
@@ -211,7 +306,7 @@ export default function ReviewActions({ item, onReviewed }: ReviewActionsProps) 
             <Button variant="outline" onClick={() => setCorrecting(false)}>
               Отмена
             </Button>
-            <Button onClick={handleCorrect} disabled={mutation.isPending}>
+            <Button onClick={handleCorrect} disabled={mutation.isPending || !correctedProductId}>
               Сохранить
             </Button>
           </DialogFooter>

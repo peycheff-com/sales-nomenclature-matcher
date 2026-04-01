@@ -63,12 +63,15 @@ export interface BatchRequestAccepted {
 export interface MatchRequestDetails {
   request_id: string;
   supplier_id?: string;
+  source_type?: string;
+  file_name?: string;
   status: "queued" | "running" | "done" | "failed";
   total_items: number;
   processed_items: number;
   auto_matched_items: number;
   review_needed_items: number;
   no_match_items: number;
+  error_message?: string;
   created_at: string;
   started_at?: string;
   finished_at?: string;

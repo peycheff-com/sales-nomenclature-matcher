@@ -1,5 +1,5 @@
 import ky from "ky";
-import { getCsrfToken, setAuthenticated } from "@/lib/auth-store";
+import { getCsrfToken, setAuthenticated, isAuthenticated, notifySessionExpired } from "@/lib/auth-store";
 
 const api = ky.create({
   prefixUrl: "/api/v1",
@@ -22,13 +22,37 @@ const api = ky.create({
         }
       },
     ],
+    beforeError: [
+      async (error) => {
+        // Extract backend error detail for better error messages (GAP-9.6)
+        const { response } = error;
+        if (response) {
+          try {
+            const body = await response.clone().json();
+            if (body?.detail) {
+              error.message = typeof body.detail === "string"
+                ? body.detail
+                : JSON.stringify(body.detail);
+            } else if (body?.error) {
+              error.message = body.error;
+            }
+          } catch {
+            // Response is not JSON, keep original message
+          }
+        }
+        return error;
+      },
+    ],
     afterResponse: [
-      async (_request, _options, response) => {
+      async (request, _options, response) => {
         if (response.status === 401) {
+          const wasAuth = isAuthenticated();
           setAuthenticated(false);
-          // Don't hard-redirect here — the router's beforeLoad guards
-          // handle redirection. A hard reload would reset in-memory
-          // auth state and cause an infinite redirect loop.
+          const url = new URL(request.url);
+          const isLoginEndpoint = url.pathname.includes("/auth/login");
+          if (wasAuth && !isLoginEndpoint) {
+            notifySessionExpired();
+          }
         }
       },
     ],

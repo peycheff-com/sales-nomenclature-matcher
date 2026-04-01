@@ -1,7 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, X, Store, Trash2, Edit2, Loader2, ChevronDown, ChevronRight, HelpCircle, Package } from "lucide-react";
+import {
+  Plus, X, Store, Trash2, Edit2, Loader2, ChevronDown, ChevronRight,
+  HelpCircle, Package, Search, Download, AlertTriangle,
+} from "lucide-react";
 import { toast } from "sonner";
+import Papa from "papaparse";
 import {
   createSupplier,
   updateSupplier,
@@ -9,6 +13,7 @@ import {
   deleteSupplier,
   listSupplierMappings
 } from "@/api/suppliers";
+import { listMatchRequests } from "@/api/match";
 import type { SupplierProfile } from "@/api/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,6 +54,8 @@ import { SkeletonTable } from "@/components/ui/skeleton";
 import { QueryErrorBanner } from "@/components/ui/query-error-banner";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
+const SUPPLIER_ID_PATTERN = /^[a-zA-Z0-9_]*$/;
+
 export default function SuppliersPage() {
   const queryClient = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -56,6 +63,15 @@ export default function SuppliersPage() {
   const [newSupplierName, setNewSupplierName] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<SupplierProfile | null>(null);
   const [toggleWarning, setToggleWarning] = useState<SupplierProfile | null>(null);
+
+  // GAP-6.1: Real-time ID validation
+  const [idTouched, setIdTouched] = useState(false);
+  const idValid = SUPPLIER_ID_PATTERN.test(newSupplierId);
+  const idError = idTouched && newSupplierId.length > 0 && !idValid;
+
+  // GAP-6.7: Active request count for deactivation warning
+  const [activeRequestCount, setActiveRequestCount] = useState<number | null>(null);
+  const [activeRequestLoading, setActiveRequestLoading] = useState(false);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editNameValue, setEditNameValue] = useState("");
@@ -80,6 +96,7 @@ export default function SuppliersPage() {
       setIsCreateOpen(false);
       setNewSupplierId("");
       setNewSupplierName("");
+      setIdTouched(false);
       toast.success("Поставщик успешно добавлен");
     },
     onError: () => toast.error("Ошибка при добавлении поставщика"),
@@ -116,6 +133,10 @@ export default function SuppliersPage() {
       toast.error("Заполните обязательные поля");
       return;
     }
+    if (!idValid) {
+      toast.error("Недопустимый формат ID");
+      return;
+    }
     createMutation.mutate();
   };
 
@@ -124,6 +145,7 @@ export default function SuppliersPage() {
     if (!open) {
       setNewSupplierId("");
       setNewSupplierName("");
+      setIdTouched(false);
     }
   };
 
@@ -132,8 +154,23 @@ export default function SuppliersPage() {
     setEditNameValue(s.supplier_name);
   };
 
-  const handleToggleActive = (s: SupplierProfile, val: boolean) => {
+  // GAP-6.7: Check active requests before deactivation
+  const handleToggleActive = async (s: SupplierProfile, val: boolean) => {
     if (!val) {
+      setActiveRequestLoading(true);
+      setActiveRequestCount(null);
+      try {
+        const [queuedRes, runningRes] = await Promise.all([
+          listMatchRequests({ supplier_id: s.supplier_id, status: "queued", limit: 100 }),
+          listMatchRequests({ supplier_id: s.supplier_id, status: "running", limit: 100 }),
+        ]);
+        const count = (queuedRes.items?.length ?? 0) + (runningRes.items?.length ?? 0);
+        setActiveRequestCount(count);
+      } catch {
+        setActiveRequestCount(null);
+      } finally {
+        setActiveRequestLoading(false);
+      }
       setToggleWarning(s);
     } else {
       updateMutation.mutate({ id: s.supplier_id, is_active: val });
@@ -167,9 +204,22 @@ export default function SuppliersPage() {
                     id="id"
                     placeholder="partner_xyz"
                     value={newSupplierId}
-                    onChange={(e) => setNewSupplierId(e.target.value)}
+                    onChange={(e) => {
+                      setNewSupplierId(e.target.value);
+                      if (!idTouched) setIdTouched(true);
+                    }}
+                    onBlur={() => setIdTouched(true)}
+                    aria-invalid={idError || undefined}
+                    className={idError ? "border-red-500 focus-visible:border-red-500 focus-visible:ring-red-500/20" : ""}
                   />
-                  <p className="text-[10px] text-muted-foreground">Только латиница и подчеркивания. Нельзя изменить позже.</p>
+                  {/* GAP-6.1: Validation message */}
+                  {idError ? (
+                    <p className="text-[10px] text-red-600 font-medium">
+                      Только латиница, цифры и подчеркивания
+                    </p>
+                  ) : (
+                    <p className="text-[10px] text-muted-foreground">Только латиница и подчеркивания. Нельзя изменить позже.</p>
+                  )}
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="name">Наименование</Label>
@@ -183,7 +233,10 @@ export default function SuppliersPage() {
               </div>
               <DialogFooter>
                 <Button variant="outline" type="button" onClick={() => handleCreateDialogChange(false)}>Отмена</Button>
-                <Button type="submit" disabled={createMutation.isPending}>
+                <Button
+                  type="submit"
+                  disabled={createMutation.isPending || !idValid || !newSupplierId || !newSupplierName}
+                >
                   {createMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
                   Создать
                 </Button>
@@ -356,13 +409,32 @@ export default function SuppliersPage() {
         </CardContent>
       </Card>
 
-      <AlertDialog open={!!toggleWarning} onOpenChange={(open) => !open && setToggleWarning(null)}>
+      {/* GAP-6.7: Enhanced deactivation warning with active request info */}
+      <AlertDialog open={!!toggleWarning} onOpenChange={(open) => { if (!open) { setToggleWarning(null); setActiveRequestCount(null); } }}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Отключить поставщика?</AlertDialogTitle>
             <AlertDialogDescription>
-              Поставщик <span className="font-medium text-foreground">{toggleWarning?.supplier_name}</span> больше не сможет загружать данные в систему,
-              а его маппинги не будут применяться.
+              <div className="space-y-3">
+                <p>
+                  Поставщик <span className="font-medium text-foreground">{toggleWarning?.supplier_name}</span> больше не сможет загружать данные в систему,
+                  а его маппинги не будут применяться.
+                </p>
+                {activeRequestLoading && (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Проверка активных запросов...
+                  </div>
+                )}
+                {activeRequestCount != null && activeRequestCount > 0 && (
+                  <div className="flex items-start gap-2 rounded-md border border-orange-200 bg-orange-50 p-3">
+                    <AlertTriangle className="h-4 w-4 text-orange-600 mt-0.5 shrink-0" />
+                    <p className="text-xs text-orange-800">
+                      У этого поставщика есть {activeRequestCount} активных запросов. Деактивация может повлиять на их обработку.
+                    </p>
+                  </div>
+                )}
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -373,6 +445,7 @@ export default function SuppliersPage() {
                 if (toggleWarning) {
                   updateMutation.mutate({ id: toggleWarning.supplier_id, is_active: false });
                   setToggleWarning(null);
+                  setActiveRequestCount(null);
                 }
               }}
             >
@@ -410,23 +483,108 @@ export default function SuppliersPage() {
   );
 }
 
+const MAPPINGS_PAGE_SIZE = 50;
+
 function MappingsPanel({ supplier }: { supplier: SupplierProfile }) {
   const mappingsQuery = useQuery({
     queryKey: ["supplier-mappings", supplier.supplier_id],
-    queryFn: () => listSupplierMappings(supplier.supplier_id, 100),
+    queryFn: () => listSupplierMappings(supplier.supplier_id, 500),
   });
+
+  // GAP-6.5: Search within mappings
+  const [mappingSearch, setMappingSearch] = useState("");
+  const [debouncedMappingSearch, setDebouncedMappingSearch] = useState("");
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedMappingSearch(mappingSearch.trim().toLowerCase());
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [mappingSearch]);
+
+  const allMappings = mappingsQuery.data ?? [];
+
+  const filteredMappings = useMemo(() => {
+    if (!debouncedMappingSearch) return allMappings;
+    return allMappings.filter(
+      (m: any) =>
+        (m.supplier_raw_text ?? "").toLowerCase().includes(debouncedMappingSearch) ||
+        (m.product_id ?? "").toLowerCase().includes(debouncedMappingSearch) ||
+        (m.supplier_article ?? "").toLowerCase().includes(debouncedMappingSearch)
+    );
+  }, [allMappings, debouncedMappingSearch]);
+
+  // GAP-6.4: Pagination for mappings
+  const [visibleCount, setVisibleCount] = useState(MAPPINGS_PAGE_SIZE);
+  const displayedMappings = filteredMappings.slice(0, visibleCount);
+  const hasMore = filteredMappings.length > visibleCount;
+
+  // Reset visible count when search changes
+  useEffect(() => {
+    setVisibleCount(MAPPINGS_PAGE_SIZE);
+  }, [debouncedMappingSearch]);
+
+  // GAP-6.6: Export mappings to CSV
+  const handleExportCSV = useCallback(() => {
+    if (!allMappings.length) return;
+
+    const rows = allMappings.map((m: any) => ({
+      "Исходный текст поставщика": m.supplier_raw_text ?? "",
+      "Артикул поставщика": m.supplier_article ?? "",
+      "ID целевого товара": m.product_id ?? "",
+    }));
+
+    const csv = Papa.unparse(rows);
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `mappings-${supplier.supplier_id}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [allMappings, supplier.supplier_id]);
 
   return (
     <div className="bg-background rounded-md border p-4 shadow-sm">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <h3 className="font-medium text-sm flex items-center gap-2">
-          Маппинги ({mappingsQuery.data?.length ?? 0})
+          Маппинги ({allMappings.length})
         </h3>
+        <div className="flex items-center gap-2">
+          {/* GAP-6.5: Search within mappings */}
+          {allMappings.length > 0 && (
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Поиск по маппингам..."
+                value={mappingSearch}
+                onChange={(e) => setMappingSearch(e.target.value)}
+                className="h-7 w-[200px] pl-7 text-xs"
+              />
+            </div>
+          )}
+          {/* GAP-6.6: Export button */}
+          {allMappings.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={handleExportCSV}
+            >
+              <Download className="mr-1.5 h-3.5 w-3.5" />
+              CSV
+            </Button>
+          )}
+        </div>
       </div>
+
+      <p className="text-[10px] text-muted-foreground mb-3">
+        Маппинги создаются автоматически при проверке результатов
+      </p>
 
       {mappingsQuery.isLoading ? (
         <SkeletonTable rows={3} columns={3} />
-      ) : !mappingsQuery.data || mappingsQuery.data.length === 0 ? (
+      ) : !allMappings.length ? (
         <EmptyState
           icon={Package}
           title="Нет маппингов"
@@ -434,26 +592,53 @@ function MappingsPanel({ supplier }: { supplier: SupplierProfile }) {
           variant="no-results"
         />
       ) : (
-        <div className="max-h-[300px] overflow-auto rounded border">
-          <Table>
-            <TableHeader className="bg-muted/50 sticky top-0 z-10">
-              <TableRow>
-                <TableHead className="py-2.5">Исходный текст поставщика</TableHead>
-                <TableHead className="py-2.5">Артикул поставщика</TableHead>
-                <TableHead className="py-2.5">ID Целевого товара (База)</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {mappingsQuery.data.map((m, idx) => (
-                <TableRow key={idx} className="text-xs">
-                  <TableCell className="py-2 font-medium">{m.supplier_raw_text ?? "\u2014"}</TableCell>
-                  <TableCell className="py-2 text-muted-foreground">{m.supplier_article ?? "\u2014"}</TableCell>
-                  <TableCell className="py-2 font-mono text-muted-foreground">{m.product_id}</TableCell>
+        <>
+          {/* Show filtered count when searching */}
+          {debouncedMappingSearch && (
+            <p className="text-[10px] text-muted-foreground mb-2">
+              Найдено: {filteredMappings.length} из {allMappings.length}
+            </p>
+          )}
+          <div className="max-h-[300px] overflow-auto rounded border">
+            <Table>
+              <TableHeader className="bg-muted/50 sticky top-0 z-10">
+                <TableRow>
+                  <TableHead className="py-2.5">Исходный текст поставщика</TableHead>
+                  <TableHead className="py-2.5">Артикул поставщика</TableHead>
+                  <TableHead className="py-2.5">ID Целевого товара (База)</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+              </TableHeader>
+              <TableBody>
+                {displayedMappings.map((m: any, idx: number) => (
+                  <TableRow key={idx} className="text-xs">
+                    <TableCell className="py-2 font-medium">{m.supplier_raw_text ?? "\u2014"}</TableCell>
+                    <TableCell className="py-2 text-muted-foreground">{m.supplier_article ?? "\u2014"}</TableCell>
+                    <TableCell className="py-2 font-mono text-muted-foreground">{m.product_id}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* GAP-6.4: Pagination info and "show more" */}
+          {filteredMappings.length > MAPPINGS_PAGE_SIZE && (
+            <div className="mt-2 flex items-center justify-between">
+              <p className="text-[10px] text-muted-foreground">
+                Показаны {Math.min(visibleCount, filteredMappings.length)} из {filteredMappings.length} маппингов
+              </p>
+              {hasMore && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 text-[10px]"
+                  onClick={() => setVisibleCount((prev) => prev + MAPPINGS_PAGE_SIZE)}
+                >
+                  Показать ещё
+                </Button>
+              )}
+            </div>
+          )}
+        </>
       )}
     </div>
   );

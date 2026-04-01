@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { Download } from "lucide-react";
+import { Download, Loader2 } from "lucide-react";
 import Papa from "papaparse";
 import ExcelJS from "exceljs";
 import { getMatchItems } from "@/api/match";
@@ -21,17 +21,21 @@ interface ExportButtonProps {
 
 export default function ExportButton({ requestId, totalItems }: ExportButtonProps) {
   const [exporting, setExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState("");
 
   const fetchAll = useCallback(async (): Promise<MatchResult[]> => {
     const allItems: MatchResult[] = [];
     let page = 1;
     const pageSize = 100;
+    const totalPages = Math.ceil(totalItems / pageSize);
     while (allItems.length < totalItems) {
+      setExportProgress(`стр. ${page} из ${totalPages}`);
       const resp = await getMatchItems(requestId, { page, page_size: pageSize });
       allItems.push(...resp.items);
       if (resp.items.length < pageSize) break;
       page++;
     }
+    setExportProgress("");
     return allItems;
   }, [requestId, totalItems]);
 
@@ -125,15 +129,24 @@ export default function ExportButton({ requestId, totalItems }: ExportButtonProp
         disabled={exporting}
         className="inline-flex items-center justify-center rounded-lg border border-input bg-background px-2.5 py-1.5 text-sm font-medium transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-50"
       >
-        <Download className="mr-1.5 h-4 w-4" />
-        {exporting ? "Экспорт..." : "Экспорт"}
+        {exporting ? (
+          <>
+            <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+            Экспортируем... {exportProgress && <span className="ml-1 text-xs text-muted-foreground">({exportProgress})</span>}
+          </>
+        ) : (
+          <>
+            <Download className="mr-1.5 h-4 w-4" />
+            Экспорт
+          </>
+        )}
       </DropdownMenuTrigger>
       <DropdownMenuContent>
         <DropdownMenuItem onClick={handleExportCSV}>
-          Скачать CSV
+          Экспорт всех результатов (CSV)
         </DropdownMenuItem>
         <DropdownMenuItem onClick={handleExportXLSX}>
-          Скачать XLSX
+          Экспорт всех результатов (XLSX)
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -86,6 +86,7 @@ export default function DashboardPage() {
   const [textInput, setTextInput] = useState("");
   const [gsheetUrl, setGsheetUrl] = useState("");
   const [confirmSubmit, setConfirmSubmit] = useState<{ msg: string; items: MatchItemInput[]; ext: string } | null>(null);
+  const [lastRemoved, setLastRemoved] = useState<{ item: MatchItemInput; index: number } | null>(null);
 
 
   const suppliersQuery = useQuery({
@@ -156,7 +157,11 @@ export default function DashboardPage() {
       toast.success(`Обнаружено ${data.tables_detected} таблиц: ${msgs.join(", ")}`);
     },
     onError: () => {
-      toast.error("Ошибка при анализе структуры файла.");
+      toast.error("Ошибка при анализе структуры файла. Переключаем на базовый режим...");
+      setUseAi(false);
+      if (selectedFile) {
+        parseMutation.mutate({ file: selectedFile, supplierId, useAiColumnPicker: false });
+      }
     },
   });
 
@@ -201,16 +206,38 @@ export default function DashboardPage() {
   }
 
   function processFile(file: File) {
-    if (file.name.endsWith(".xls") || file.name.endsWith(".xlsx") || file.name.endsWith(".csv") || file.name.endsWith(".tsv") || file.name.endsWith(".txt")) {
-      setSelectedFile(file);
-      setFileName(file.name);
-      if (useAi) {
-        structuredMutation.mutate(file);
-      } else {
-        parseMutation.mutate({ file, supplierId, useAiColumnPicker: false });
-      }
-    } else {
+    const validExtensions = [".xls", ".xlsx", ".csv", ".tsv", ".txt"];
+    const hasValidExtension = validExtensions.some(ext => file.name.toLowerCase().endsWith(ext));
+
+    if (!hasValidExtension) {
       toast.error("Поддерживаются только форматы .xlsx, .xls, .csv, .txt");
+      return;
+    }
+
+    // GAP-2.2: File size limit (50 MB)
+    if (file.size > 50 * 1024 * 1024) {
+      toast.error("Файл превышает максимальный размер 50 МБ");
+      return;
+    }
+
+    // GAP-2.1: MIME type validation
+    const validMimeTypes = [
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "application/vnd.ms-excel",
+      "text/csv",
+      "text/tab-separated-values",
+      "text/plain",
+    ];
+    if (file.type && !validMimeTypes.includes(file.type)) {
+      toast.warning("Формат файла может быть некорректным. Убедитесь, что это настоящий CSV/Excel файл.");
+    }
+
+    setSelectedFile(file);
+    setFileName(file.name);
+    if (useAi) {
+      structuredMutation.mutate(file);
+    } else {
+      parseMutation.mutate({ file, supplierId, useAiColumnPicker: false });
     }
   }
 
@@ -255,9 +282,24 @@ export default function DashboardPage() {
   };
 
   const handleItemRemove = (idx: number) => {
+    const removed = parsedItems[idx];
     const newItems = [...parsedItems];
     newItems.splice(idx, 1);
     setParsedItems(newItems);
+    setLastRemoved({ item: removed, index: idx });
+    toast("Строка удалена", {
+      action: {
+        label: "Отменить",
+        onClick: () => {
+          setParsedItems(prev => {
+            const restored = [...prev];
+            restored.splice(idx, 0, removed);
+            return restored;
+          });
+          setLastRemoved(null);
+        },
+      },
+    });
   };
 
   const checkDuplicates = (items: MatchItemInput[]) => {
@@ -272,7 +314,12 @@ export default function DashboardPage() {
 
     // Check recent requests for identical count (cheap heuristic for re-submission)
     const recentRequests = recentQuery.data?.items ?? [];
-    const isResubmission = recentRequests.some(r => r.total_items === items.length && r.status !== 'failed');
+    const isResubmission = recentRequests.some(r =>
+      r.total_items === items.length &&
+      r.status !== 'failed' &&
+      r.supplier_id === (supplierId || undefined) &&
+      (Date.now() - new Date(r.created_at).getTime()) < 3600000
+    );
 
     return { internalDups, isResubmission };
   };
@@ -387,6 +434,7 @@ export default function DashboardPage() {
                       <p className="text-sm text-muted-foreground">
                         Перетащите CSV или XLSX файл сюда или нажмите для выбора
                       </p>
+                      <p className="text-xs text-muted-foreground mt-1">Максимальный размер: 50 МБ</p>
                       {fileName && (
                         <p className="mt-2 text-sm font-medium text-foreground">
                           {fileName}
@@ -400,6 +448,12 @@ export default function DashboardPage() {
                         onChange={handleFileChange}
                       />
                     </div>
+                    {/* GAP-2.3: Upload progress indicator */}
+                    {(parseMutation.isPending || structuredMutation.isPending) && (
+                      <div className="h-1 bg-primary/20 rounded overflow-hidden">
+                        <div className="h-full w-1/3 bg-primary rounded animate-pulse" />
+                      </div>
+                    )}
                     {fileName && (
                       <div className="flex items-center space-x-2 pt-2 px-1 mb-2">
                         <Switch id="ai-mode" checked={useAi} onCheckedChange={(val) => {
@@ -423,8 +477,13 @@ export default function DashboardPage() {
                     {parsedItems.length > 0 && activeTab === "file" && !structuredMode && (
                       <div className="space-y-2 mt-4">
                         <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
-                          <span>Убедитесь, что ИИ или система выбрала правильную колонку (отображается до 50 строк)</span>
-                          <span>Извлечено: {parsedItems.length} позиций</span>
+                          <span>Убедитесь, что ИИ или система выбрала правильную колонку</span>
+                          <span>
+                            {parsedItems.length > 50
+                              ? `Показаны первые 50 из ${parsedItems.length} позиций`
+                              : `Извлечено: ${parsedItems.length} позиций`}
+                            {duplicateKeys.size > 0 && <span className="text-xs text-yellow-700 ml-2">({duplicateKeys.size} точных дубликатов выделены)</span>}
+                          </span>
                         </div>
                         <div className="max-h-80 overflow-auto rounded-md border border-border">
                           <Table>
@@ -486,13 +545,14 @@ export default function DashboardPage() {
                           </p>
                           <div className="space-y-3 max-w-sm">
                             <Label className="text-purple-900 font-medium text-xs uppercase tracking-wider">Определенный поставщик (исправьте при необходимости)</Label>
-                            <Input 
-                              value={editedSupplierName} 
+                            <Input
+                              value={editedSupplierName}
                               onChange={(e) => setEditedSupplierName(e.target.value)}
                               placeholder="Название поставщика"
                               className="bg-white border-purple-200"
                             />
                           </div>
+                          <p className="text-xs text-purple-700 mt-2">Если поставщик не зарегистрирован, он будет создан автоматически при отправке.</p>
                         </div>
 
                         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -567,7 +627,7 @@ export default function DashboardPage() {
 
                 <TabsContent value="gsheet">
                   <div className="mt-4 space-y-4">
-                    <p className="text-sm text-muted-foreground">Вставьте ссылку на публичную Google Таблицу (обязательно включите доступ "Все у кого есть ссылка")</p>
+                    <p className="text-sm text-muted-foreground">Вставьте ссылку на Google Таблицу. Убедитесь, что включён доступ: Файл &rarr; Поделиться &rarr; &laquo;Все, у кого есть ссылка&raquo; &rarr; &laquo;Читатель&raquo;.</p>
                     <div className="flex gap-2">
                       <Input
                         placeholder="https://docs.google.com/spreadsheets/d/..."
@@ -575,8 +635,15 @@ export default function DashboardPage() {
                         onChange={(e) => setGsheetUrl(e.target.value)}
                         className="flex-1"
                       />
-                      <Button 
-                        onClick={() => gsheetMutation.mutate(gsheetUrl)}
+                      <Button
+                        onClick={() => {
+                          const isValidGSheetUrl = (url: string) => /^https:\/\/docs\.google\.com\/spreadsheets\/d\//.test(url.trim());
+                          if (!isValidGSheetUrl(gsheetUrl)) {
+                            toast.error("Вставьте корректную ссылку на Google Таблицу (docs.google.com/spreadsheets/...)");
+                            return;
+                          }
+                          gsheetMutation.mutate(gsheetUrl);
+                        }}
                         disabled={!gsheetUrl.trim() || gsheetMutation.isPending}
                       >
                         {gsheetMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -589,7 +656,10 @@ export default function DashboardPage() {
                       <div className="space-y-2 mt-4">
                         <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
                           <span>Предпросмотр данных (первые 50 строк)</span>
-                          <span>Всего: {parsedItems.length}</span>
+                          <span>
+                            Всего: {parsedItems.length}
+                            {duplicateKeys.size > 0 && <span className="text-xs text-yellow-700 ml-2">({duplicateKeys.size} точных дубликатов выделены)</span>}
+                          </span>
                         </div>
                         <div className="max-h-80 overflow-auto rounded-md border border-border">
                           <Table>
@@ -660,6 +730,25 @@ export default function DashboardPage() {
 
                 <TabsContent value="text">
                   <div className="mt-4 space-y-2">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-medium">Текст</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs"
+                        onClick={async () => {
+                          try {
+                            const text = await navigator.clipboard.readText();
+                            setTextInput(prev => prev ? prev + "\n" + text : text);
+                            toast.success("Текст вставлен из буфера обмена");
+                          } catch {
+                            toast.error("Не удалось получить доступ к буферу обмена");
+                          }
+                        }}
+                      >
+                        <ClipboardList className="h-3.5 w-3.5 mr-1" /> Вставить из буфера
+                      </Button>
+                    </div>
                     <Textarea
                       rows={10}
                       placeholder="Введите наименования, каждое с новой строки..."
@@ -670,6 +759,38 @@ export default function DashboardPage() {
                     {textInput.trim() && (
                       <div className="flex justify-between items-center text-xs text-muted-foreground px-1">
                         <span>{getTextItems().length} позиций</span>
+                      </div>
+                    )}
+                    {getTextItems().length > 0 && activeTab === "text" && (
+                      <div className="space-y-2 mt-2">
+                        <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
+                          <span>Предпросмотр ({getTextItems().length} позиций)</span>
+                        </div>
+                        <div className="max-h-60 overflow-auto rounded-md border border-border">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className="w-16">#</TableHead>
+                                <TableHead>Текст</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {getTextItems().slice(0, 30).map((item, idx) => (
+                                <TableRow key={idx}>
+                                  <TableCell className="text-xs text-muted-foreground py-1">{item.line_id}</TableCell>
+                                  <TableCell className="py-1 text-sm">{item.raw_text}</TableCell>
+                                </TableRow>
+                              ))}
+                              {getTextItems().length > 30 && (
+                                <TableRow>
+                                  <TableCell colSpan={2} className="text-center text-xs text-muted-foreground p-2">
+                                    ... и ещё {getTextItems().length - 30} позиций
+                                  </TableCell>
+                                </TableRow>
+                              )}
+                            </TableBody>
+                          </Table>
+                        </div>
                       </div>
                     )}
                   </div>

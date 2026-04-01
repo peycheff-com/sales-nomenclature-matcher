@@ -299,7 +299,7 @@ export default function ResultsTable({ requestId }: ResultsTableProps) {
     if (reviewFilter === "pending" && !itemsQuery.isLoading && itemsQuery.data) {
       if (filteredData.length === 0 && itemsQuery.data.items.length > 0) {
         if (page < totalPages) {
-          toast.info("Переход к следующей странице...");
+          toast.info(`Страница ${page + 1}: все позиции проверены, переход...`);
           setPage((p) => p + 1);
         } else if (page > 1) {
           setPage(1);
@@ -345,13 +345,17 @@ export default function ResultsTable({ requestId }: ResultsTableProps) {
 
   const selectedRows = table.getSelectedRowModel().rows.map(r => r.original);
 
+  const autoMatchesOnPage = useMemo(
+    () => filteredData.filter(i => i.status === "auto_match" && !i.final_decision),
+    [filteredData]
+  );
+
   const approveAllAutoMatches = () => {
-    const autoMatches = filteredData.filter(i => i.status === "auto_match" && !i.final_decision);
-    if (autoMatches.length === 0) {
+    if (autoMatchesOnPage.length === 0) {
       toast.info("Нет доступных авто-сопоставлений для подтверждения");
       return;
     }
-    bulkMutation.mutate({ action: "accepted", items: autoMatches });
+    bulkMutation.mutate({ action: "accepted", items: autoMatchesOnPage });
   };
 
   return (
@@ -395,12 +399,26 @@ export default function ResultsTable({ requestId }: ResultsTableProps) {
         </div>
       </div>
 
+      {filteredData.length > 0 && (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground px-1">
+          <span>
+            Проверено: {filteredData.filter(i => !!i.final_decision).length} из {filteredData.length} на странице
+          </span>
+          <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden max-w-[200px]">
+            <div
+              className="h-full bg-primary/60 rounded-full transition-all"
+              style={{ width: `${filteredData.length > 0 ? (filteredData.filter(i => !!i.final_decision).length / filteredData.length) * 100 : 0}%` }}
+            />
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between gap-2 p-2 bg-muted/30 border border-border rounded-md min-h-[52px]">
         <div className="flex items-center gap-2">
           {selectedRows.length > 0 ? (
             <>
               <span className="text-sm font-medium mr-2 ml-1 text-muted-foreground">
-                Выбрано: {selectedRows.length}
+                Выбрано: {selectedRows.length} <span className="text-[10px] opacity-70">(выбор только на текущей странице)</span>
               </span>
               <Button size="sm" variant="outline" className="text-green-700 hover:text-green-800" disabled={bulkMutation.isPending} onClick={() => bulkMutation.mutate({ action: "accepted", items: selectedRows })}>
                 <Check className="h-4 w-4 mr-1"/> Принять выбранные
@@ -410,12 +428,12 @@ export default function ResultsTable({ requestId }: ResultsTableProps) {
               </Button>
             </>
           ) : (
-            <Button size="sm" variant="outline" onClick={approveAllAutoMatches} disabled={bulkMutation.isPending || itemsQuery.isLoading}>
-              <Check className="h-4 w-4 mr-1 text-green-600"/> Принять все автоматические
+            <Button size="sm" variant="outline" onClick={approveAllAutoMatches} disabled={bulkMutation.isPending || itemsQuery.isLoading || autoMatchesOnPage.length === 0}>
+              <Check className="h-4 w-4 mr-1 text-green-600"/> Принять авто ({autoMatchesOnPage.length} на стр.)
             </Button>
           )}
         </div>
-        <div className="hidden lg:flex items-center gap-4 text-[10px] text-muted-foreground mr-2 font-mono opacity-80 cursor-default select-none">
+        <div className="flex items-center gap-2 lg:gap-4 text-[8px] lg:text-[10px] text-muted-foreground mr-2 font-mono opacity-80 cursor-default select-none">
           <span className="flex items-center gap-1.5" title="Навигация по строкам">
             <kbd className="bg-background px-1 py-0.5 rounded border border-border/50 text-[10px]">&darr;</kbd>
             <kbd className="bg-background px-1 py-0.5 rounded border border-border/50 text-[10px]">&uarr;</kbd> Навигация
@@ -429,7 +447,7 @@ export default function ResultsTable({ requestId }: ResultsTableProps) {
         </div>
       </div>
 
-      <div className="rounded-md border border-border">
+      <div className="rounded-md border border-border overflow-x-auto">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -474,9 +492,9 @@ export default function ResultsTable({ requestId }: ResultsTableProps) {
             ) : (
               table.getRowModel().rows.map((row) => {
                 let rowColor = "hover:bg-muted/50";
-                if (row.original.final_decision === "accepted") rowColor = "bg-green-50/50 hover:bg-green-50";
-                if (row.original.final_decision === "corrected") rowColor = "bg-blue-50/50 hover:bg-blue-50";
-                if (row.original.final_decision === "rejected") rowColor = "bg-red-50/50 hover:bg-red-50";
+                if (row.original.final_decision === "accepted") rowColor = "bg-green-50/50 hover:bg-green-50 border-l-2 border-l-green-500";
+                if (row.original.final_decision === "corrected") rowColor = "bg-blue-50/50 hover:bg-blue-50 border-l-2 border-l-blue-500";
+                if (row.original.final_decision === "rejected") rowColor = "bg-red-50/50 hover:bg-red-50 border-l-2 border-l-red-500";
 
                 return (
                   <React.Fragment key={row.id}>

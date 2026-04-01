@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, Link, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, FileSearch, Loader2, Trash2 } from "lucide-react";
-import { getMatchRequest, deleteMatchRequest } from "@/api/match";
+import { ArrowLeft, ChevronRight, FileSearch, Loader2, RefreshCw, Trash2 } from "lucide-react";
+import { getMatchRequest, deleteMatchRequest, matchBatch } from "@/api/match";
+import { listSuppliers } from "@/api/suppliers";
 import { POLLING_INTERVAL } from "@/lib/constants";
 import { formatDate } from "@/lib/format";
 import StatsBar from "@/components/match/stats-bar";
@@ -37,6 +38,16 @@ export default function ResultsPage() {
       return false;
     },
   });
+
+  // Resolve supplier name from ID
+  const suppliersQuery = useQuery({
+    queryKey: ["suppliers"],
+    queryFn: listSuppliers,
+    staleTime: 5 * 60 * 1000,
+  });
+  const supplierName = suppliersQuery.data?.items.find(
+    (s) => s.supplier_id === requestQuery.data?.supplier_id
+  )?.supplier_name;
 
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -89,8 +100,8 @@ export default function ResultsPage() {
 
   return (
     <PageLayout
-      title={`Запрос ${request.request_id}`}
-      description={`Создан: ${formatDate(request.created_at)}${request.supplier_id ? ` | Поставщик: ${request.supplier_id}` : ""}`}
+      title={`Запрос ${request.request_id.slice(0, 8)}`}
+      description={`Создан: ${formatDate(request.created_at)}${request.supplier_id ? ` | Поставщик: ${supplierName || request.supplier_id}` : ""}`}
       actions={
         <div className="flex gap-2 items-center">
           <Link to="/requests">
@@ -110,15 +121,24 @@ export default function ResultsPage() {
             <Trash2 className="h-4 w-4 mr-2" />
             Удалить
           </Button>
-          {request.status === "done" && (
+          {(request.status === "done" || request.processed_items > 0) && (
             <ExportButton
               requestId={request.request_id}
-              totalItems={request.total_items}
+              totalItems={request.processed_items || request.total_items}
             />
           )}
         </div>
       }
     >
+
+      {/* Breadcrumbs */}
+      <nav aria-label="Навигация" className="flex items-center gap-1 text-xs text-muted-foreground -mt-2 mb-2">
+        <Link to="/" className="hover:text-foreground transition-colors">Главная</Link>
+        <ChevronRight className="h-3 w-3" />
+        <Link to="/requests" className="hover:text-foreground transition-colors">Запросы</Link>
+        <ChevronRight className="h-3 w-3" />
+        <span className="text-foreground font-medium">{request.request_id.slice(0, 8)}</span>
+      </nav>
 
       {/* Stats bar */}
       <StatsBar request={request} />
@@ -142,8 +162,22 @@ export default function ResultsPage() {
 
       {/* Failed state */}
       {request.status === "failed" && (
-        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-          Обработка завершилась с ошибкой. Обратитесь к администратору.
+        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 space-y-2">
+          <div className="font-medium">Обработка завершилась с ошибкой.</div>
+          {request.error_message && (
+            <div className="text-xs text-red-700 font-mono bg-red-100/50 rounded px-2 py-1">
+              {request.error_message}
+            </div>
+          )}
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-red-600">Если ошибка повторяется, обратитесь к администратору.</span>
+            <Link to="/">
+              <Button variant="outline" size="sm" className="text-xs border-red-200 text-red-700 hover:bg-red-100">
+                <RefreshCw className="h-3 w-3 mr-1" />
+                Повторить загрузку
+              </Button>
+            </Link>
+          </div>
         </div>
       )}
 

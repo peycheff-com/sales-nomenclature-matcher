@@ -11,6 +11,7 @@ export interface UserDetail {
   must_change_password: boolean;
   created_at: string;
   updated_at: string;
+  last_login?: string | null;
 }
 
 export interface UserCreateInput {

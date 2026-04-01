@@ -12,10 +12,15 @@ import {
   Server,
   Search,
   HelpCircle,
+  ArrowRight,
+  Shield,
+  UserCog,
+  Eye,
 } from "lucide-react";
 import { toast } from "sonner";
 import { getQualityMetrics } from "@/api/metrics";
 import { listSuppliers } from "@/api/suppliers";
+import { listUsers } from "@/api/users";
 import { reindexCatalog } from "@/api/catalog";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -52,8 +57,20 @@ export default function AdminPage() {
     onError: () => toast.error("Ошибка при запуске переиндексации"),
   });
 
+  const healthQuery = useQuery({
+    queryKey: ["health"],
+    queryFn: () => fetch("/api/v1/health").then((r) => r.json()),
+    refetchInterval: 30000,
+  });
+
+  const usersQuery = useQuery({
+    queryKey: ["users"],
+    queryFn: listUsers,
+  });
+
   const metrics = metricsQuery.data;
   const suppliers = suppliersQuery.data?.items ?? [];
+  const allUsers = usersQuery.data?.items ?? [];
 
   return (
     <PageLayout
@@ -183,18 +200,106 @@ export default function AdminPage() {
 
           <Card className="mt-6">
             <CardHeader>
-              <CardTitle>История качества (Заглушка)</CardTitle>
-              <CardDescription>Изменение % авто-сопоставлений (в разработке)</CardDescription>
+              <CardTitle>Обзор метрик</CardTitle>
+              <CardDescription>Визуализация основных показателей качества</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="h-[200px] w-full bg-muted/20 border border-dashed rounded-md flex items-center justify-center text-muted-foreground text-sm">
-                График трендов будет доступен в следующих обновлениях
-              </div>
+              {metricsQuery.isLoading ? (
+                <div className="space-y-3">
+                  {[1, 2, 3].map((i) => (
+                    <Skeleton key={i} className="h-6 w-full" />
+                  ))}
+                </div>
+              ) : metrics ? (
+                <div className="space-y-3">
+                  {[
+                    { label: "Точность Top-1", value: metrics.top1_accuracy ?? 0, color: "bg-green-500" },
+                    { label: "Полнота Top-3", value: metrics.top3_recall ?? 0, color: "bg-yellow-500" },
+                    { label: "Принято операторами", value: metrics.review_acceptance_rate ?? 0, color: "bg-primary" },
+                  ].map(({ label, value, color }) => (
+                    <div key={label} className="space-y-1">
+                      <div className="flex justify-between text-xs">
+                        <span>{label}</span>
+                        <span className="font-medium">{(value * 100).toFixed(1)}%</span>
+                      </div>
+                      <div className="h-2 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${color}`}
+                          style={{ width: `${value * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                  <div className="pt-2 border-t mt-3">
+                    <div className="flex justify-between text-xs">
+                      <span>Всего обработано</span>
+                      <span className="font-medium">{metrics.total_cases?.toLocaleString() ?? 0}</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-sm text-muted-foreground">Нет данных</div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
 
         <TabsContent value="system" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Состояние сервисов</CardTitle>
+              <CardDescription>Подключение к базе данных и очередям задач</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-4">
+                {healthQuery.isLoading ? (
+                  <>
+                    <Skeleton className="h-8 w-40" />
+                    <Skeleton className="h-8 w-40" />
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <Database className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm">База данных:</span>
+                      <Badge
+                        variant="outline"
+                        className={
+                          healthQuery.data?.database === "connected" || healthQuery.data?.status === "ok"
+                            ? "bg-green-50 text-green-700"
+                            : "bg-red-50 text-red-700"
+                        }
+                      >
+                        {healthQuery.data?.database === "connected" || healthQuery.data?.status === "ok"
+                          ? "Подключена"
+                          : "Недоступна"}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Server className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm">Redis:</span>
+                      <Badge
+                        variant="outline"
+                        className={
+                          healthQuery.data?.redis === "connected" || healthQuery.data?.status === "ok"
+                            ? "bg-green-50 text-green-700"
+                            : "bg-red-50 text-red-700"
+                        }
+                      >
+                        {healthQuery.data?.redis === "connected" || healthQuery.data?.status === "ok"
+                          ? "Подключён"
+                          : "Недоступен"}
+                      </Badge>
+                    </div>
+                  </>
+                )}
+                {healthQuery.isError && (
+                  <span className="text-sm text-destructive">Не удалось получить статус</span>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle>Фоновые задачи</CardTitle>
@@ -209,7 +314,7 @@ export default function AdminPage() {
                   </div>
                   <Badge variant="outline" className="bg-green-50 text-green-700">Завершено</Badge>
                 </div>
-                
+
                 <div className="flex items-center justify-between py-3 border-b border-border text-sm">
                   <div className="flex flex-col gap-1">
                     <span className="font-medium">Полная переиндексация векторов (Cohere)</span>
@@ -228,16 +333,63 @@ export default function AdminPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="access">
+        <TabsContent value="access" className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Всего пользователей</CardTitle>
+                <Users className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {usersQuery.isLoading ? <Skeleton className="h-8 w-12" /> : allUsers.length}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Администраторы</CardTitle>
+                <Shield className="h-4 w-4 text-purple-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {usersQuery.isLoading ? <Skeleton className="h-8 w-12" /> : allUsers.filter((u) => u.role === "admin").length}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Операторы</CardTitle>
+                <UserCog className="h-4 w-4 text-blue-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {usersQuery.isLoading ? <Skeleton className="h-8 w-12" /> : allUsers.filter((u) => u.role === "operator").length}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Наблюдатели</CardTitle>
+                <Eye className="h-4 w-4 text-gray-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {usersQuery.isLoading ? <Skeleton className="h-8 w-12" /> : allUsers.filter((u) => u.role === "viewer").length}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
           <Card>
-            <CardHeader>
-              <CardTitle>Управление пользователями</CardTitle>
-              <CardDescription>Создание учётных записей и разграничение прав доступа.</CardDescription>
-            </CardHeader>
-            <CardContent>
+            <CardContent className="pt-6">
               <Link to="/users">
                 <Button>
-                  Перейти к управлению пользователями
+                  Управление пользователями
+                  <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </Link>
             </CardContent>

@@ -2,16 +2,17 @@ import { Link, useMatchRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { BarChart3, FileSearch, LayoutDashboard, Settings as SettingsIcon, Database, Users, Shield, UserCog } from "lucide-react";
 import { getMe } from "@/api/auth";
+import { listMatchRequests } from "@/api/match";
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { to: "/", label: "Загрузка", icon: LayoutDashboard, adminOnly: false },
-  { to: "/requests", label: "Запросы", icon: FileSearch, adminOnly: false },
-  { to: "/catalog", label: "Каталог", icon: Database, adminOnly: false },
-  { to: "/suppliers", label: "Поставщики", icon: Users, adminOnly: false },
-  { to: "/admin", label: "Админ / Метрики", icon: Shield, adminOnly: true },
-  { to: "/users", label: "Пользователи", icon: UserCog, adminOnly: true },
-  { to: "/settings", label: "Настройки", icon: SettingsIcon, adminOnly: true },
+  { to: "/", label: "Загрузка", icon: LayoutDashboard, adminOnly: false, badgeKey: null },
+  { to: "/requests", label: "Запросы", icon: FileSearch, adminOnly: false, badgeKey: "requests" as const },
+  { to: "/catalog", label: "Каталог", icon: Database, adminOnly: false, badgeKey: null },
+  { to: "/suppliers", label: "Поставщики", icon: Users, adminOnly: false, badgeKey: null },
+  { to: "/admin", label: "Админ / Метрики", icon: Shield, adminOnly: true, badgeKey: null },
+  { to: "/users", label: "Пользователи", icon: UserCog, adminOnly: true, badgeKey: null },
+  { to: "/settings", label: "Настройки", icon: SettingsIcon, adminOnly: true, badgeKey: null },
 ] as const;
 
 interface SidebarProps {
@@ -22,6 +23,20 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
   const matchRoute = useMatchRoute();
   const userQuery = useQuery({ queryKey: ["me"], queryFn: getMe, retry: false });
   const role = userQuery.data?.role;
+
+  // Badge: count of active (queued/running) requests
+  const requestsQuery = useQuery({
+    queryKey: ["match-requests"],
+    queryFn: () => listMatchRequests(),
+    staleTime: 30_000,
+  });
+  const activeRequestCount = (requestsQuery.data?.items ?? []).filter(
+    (r) => r.status === "running" || r.status === "queued"
+  ).length;
+
+  const badges: Record<string, number> = {
+    requests: activeRequestCount,
+  };
 
   const visibleItems = navItems.filter((item) => !item.adminOnly || role === "admin");
 
@@ -54,7 +69,12 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
               )}
             >
               <item.icon className="h-4 w-4" />
-              {item.label}
+              <span className="flex-1">{item.label}</span>
+              {item.badgeKey && badges[item.badgeKey] > 0 && (
+                <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-medium text-primary-foreground">
+                  {badges[item.badgeKey]}
+                </span>
+              )}
             </Link>
           );
         })}

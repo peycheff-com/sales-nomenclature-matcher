@@ -59,6 +59,7 @@ export interface OpenRouterModel {
   id: string;
   name: string;
   context_length: number;
+  type?: string;
 }
 
 export interface OpenRouterModelsResponse {
@@ -73,8 +74,12 @@ export async function updateSettings(input: SettingsUpdateInput): Promise<Settin
   return api.put("settings", { json: input }).json<SettingsResponse>();
 }
 
-export async function getModels(): Promise<OpenRouterModelsResponse> {
-  return api.get("settings/models").json<OpenRouterModelsResponse>();
+export async function getModels(providerId?: string): Promise<OpenRouterModelsResponse> {
+  const searchParams = new URLSearchParams();
+  if (providerId) {
+    searchParams.set("provider_id", providerId);
+  }
+  return api.get("settings/models", { searchParams }).json<OpenRouterModelsResponse>();
 }
 
 export async function testOneCConnection(): Promise<{ status: string; detail?: string; http_status?: number }> {

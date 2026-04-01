@@ -99,6 +99,7 @@ class OpenRouterModel(BaseModel):
     id: str
     name: str
     context_length: int
+    type: str | None = None
 
 
 class OpenRouterModelsResponse(BaseModel):
@@ -306,30 +307,84 @@ async def update_settings(
 
 @router.get("/settings/models", response_model=OpenRouterModelsResponse)
 async def list_models(
+    provider_id: str | None = None,
     current_user: User = Depends(get_current_user),
 ) -> OpenRouterModelsResponse:
-    """Fetch all available models from OpenRouter."""
+    """Fetch available models dynamically from the specified provider."""
+    target_provider = provider_id or "openrouter"
+    
+    # Defaults
+    base_url = "https://openrouter.ai/api/v1"
+    api_key = getattr(settings, "OPENROUTER_API_KEY", "")
+    
+    if target_provider == "together":
+        base_url = "https://api.together.xyz/v1"
+        api_key = getattr(settings, "TOGETHER_API_KEY", "")
+    elif target_provider == "openai":
+        base_url = "https://api.openai.com/v1"
+        api_key = getattr(settings, "OPENAI_API_KEY", "")
+    elif target_provider == "cohere":
+        base_url = "https://api.cohere.com/v1"
+        api_key = getattr(settings, "COHERE_API_KEY", "")
+
+    # Override from registry if configured
+    reg = getattr(settings, "providers_registry", {}).get(target_provider, {})
+    if reg.get("base_url"):
+        base_url = reg["base_url"]
+    if reg.get("api_key"):
+        api_key = reg["api_key"]
+
+    url = f"{base_url.rstrip('/')}/models"
+    headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+    
     try:
         async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.get("https://openrouter.ai/api/v1/models")
+            resp = await client.get(url, headers=headers)
             resp.raise_for_status()
             data = resp.json()
     except Exception as e:
-        logger.warning("Failed to fetch OpenRouter models: %s", e)
-        # Return a hardcoded fallback list
-        return OpenRouterModelsResponse(models=_FALLBACK_MODELS)
+        logger.warning("Failed to fetch models from %s: %s", url, e)
+        if target_provider == "openrouter":
+            return OpenRouterModelsResponse(models=_FALLBACK_MODELS)
+        return OpenRouterModelsResponse(models=[])
 
     models: list[OpenRouterModel] = []
-    for m in data.get("data", []):
+    items = data.get("data", [])
+    
+    for m in items:
+        m_id = m.get("id")
+        if not m_id:
+            continue
+            
+        m_name = m.get("name", m_id)
+        m_type = m.get("type", None)
+        ctx = m.get("context_length", 0)
+        
+        # OpenRouter modality checking
         arch = m.get("architecture", {})
-        modality = arch.get("modality", "")
-        # Filter primarily for text capabilities, although we'll allow mixed modalities
-        if "text" in modality or not modality:
-            models.append(OpenRouterModel(
-                id=m["id"],
-                name=m.get("name", m["id"]),
-                context_length=m.get("context_length", 0),
-            ))
+        if arch:
+            modality = arch.get("modality", "")
+            if modality and "text" not in modality:
+                continue
+                
+        # Heuristics for type if missing
+        if not m_type:
+            lower_id = m_id.lower()
+            if "embed" in lower_id:
+                m_type = "embedding"
+            elif "rerank" in lower_id or "ranker" in lower_id or "bge-" in lower_id:
+                m_type = "rerank"
+            elif "jina-" in lower_id and "v2" in lower_id:
+                m_type = "embedding" # simple heuristic
+            else:
+                m_type = "chat"
+                
+        models.append(OpenRouterModel(
+            id=m_id,
+            name=m_name,
+            context_length=ctx,
+            type=m_type
+        ))
 
     models.sort(key=lambda x: x.context_length, reverse=True)
     return OpenRouterModelsResponse(models=models)
@@ -377,11 +432,11 @@ async def test_onec_connection(
 # ── Fallback model list ─────────────────────────────────────────────────────
 
 _FALLBACK_MODELS = [
-    OpenRouterModel(id="openai/gpt-4o", name="OpenAI GPT-4o", context_length=128000),
-    OpenRouterModel(id="openai/gpt-4o-mini", name="OpenAI GPT-4o-mini", context_length=128000),
-    OpenRouterModel(id="anthropic/claude-3.5-sonnet", name="Anthropic Claude 3.5 Sonnet", context_length=200000),
-    OpenRouterModel(id="anthropic/claude-3-haiku", name="Anthropic Claude 3 Haiku", context_length=200000),
-    OpenRouterModel(id="google/gemini-1.5-pro", name="Google Gemini 1.5 Pro", context_length=2000000),
-    OpenRouterModel(id="google/gemini-1.5-flash", name="Google Gemini 1.5 Flash", context_length=1000000),
-    OpenRouterModel(id="meta-llama/llama-3.1-70b-instruct", name="Meta Llama 3.1 70B", context_length=131072),
+    OpenRouterModel(id="openai/gpt-4o", name="OpenAI GPT-4o", context_length=128000, type="chat"),
+    OpenRouterModel(id="openai/gpt-4o-mini", name="OpenAI GPT-4o-mini", context_length=128000, type="chat"),
+    OpenRouterModel(id="anthropic/claude-3.5-sonnet", name="Anthropic Claude 3.5 Sonnet", context_length=200000, type="chat"),
+    OpenRouterModel(id="anthropic/claude-3-haiku", name="Anthropic Claude 3 Haiku", context_length=200000, type="chat"),
+    OpenRouterModel(id="google/gemini-1.5-pro", name="Google Gemini 1.5 Pro", context_length=2000000, type="chat"),
+    OpenRouterModel(id="google/gemini-1.5-flash", name="Google Gemini 1.5 Flash", context_length=1000000, type="chat"),
+    OpenRouterModel(id="meta-llama/llama-3.1-70b-instruct", name="Meta Llama 3.1 70B", context_length=131072, type="chat"),
 ]

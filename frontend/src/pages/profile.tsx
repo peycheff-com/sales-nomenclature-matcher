@@ -1,16 +1,20 @@
 import { useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { getMe } from "@/api/auth";
 import { updateProfile, changePassword } from "@/api/users";
+import { listMatchRequests } from "@/api/match";
+import type { MatchRequestDetails } from "@/api/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { QueryErrorBanner } from "@/components/ui/query-error-banner";
 import { PageLayout } from "@/components/layout/page-layout";
-import { Loader2 } from "lucide-react";
+import { Loader2, History } from "lucide-react";
 
 const ROLE_LABELS: Record<string, string> = {
   admin: "Администратор",
@@ -79,6 +83,26 @@ export default function ProfilePage() {
 
   const user = meQuery.data;
 
+  const activityQuery = useQuery({
+    queryKey: ["my-activity"],
+    queryFn: () => listMatchRequests({ limit: 5 }),
+    enabled: !!user,
+  });
+
+  const STATUS_LABELS: Record<string, string> = {
+    queued: "В очереди",
+    running: "Обрабатывается",
+    done: "Завершено",
+    failed: "Ошибка",
+  };
+
+  const STATUS_COLORS: Record<string, string> = {
+    queued: "bg-gray-100 text-gray-800",
+    running: "bg-blue-100 text-blue-800",
+    done: "bg-green-100 text-green-800",
+    failed: "bg-red-100 text-red-800",
+  };
+
   return (
     <PageLayout title="Мой профиль" description="Информация об аккаунте и смена пароля.">
       {meQuery.isError && (
@@ -98,6 +122,7 @@ export default function ProfilePage() {
             <div className="grid gap-1.5">
               <Label className="text-muted-foreground text-xs">Имя пользователя</Label>
               <div className="text-sm font-mono">@{user?.username ?? "..."}</div>
+              <p className="text-xs text-muted-foreground">Имя пользователя нельзя изменить</p>
             </div>
             <div className="grid gap-1.5">
               <Label className="text-muted-foreground text-xs">Роль</Label>
@@ -186,6 +211,62 @@ export default function ProfilePage() {
                 Сменить пароль
               </Button>
             </form>
+          </CardContent>
+        </Card>
+
+        {/* Activity history card */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <History className="h-4 w-4" />
+              Моя активность
+            </CardTitle>
+            <CardDescription>Последние запросы на сопоставление.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {activityQuery.isLoading ? (
+              <div className="space-y-2">
+                {[1, 2, 3].map((i) => (
+                  <Skeleton key={i} className="h-10 w-full" />
+                ))}
+              </div>
+            ) : activityQuery.data?.items && activityQuery.data.items.length > 0 ? (
+              <div className="space-y-2">
+                {activityQuery.data.items.map((req: MatchRequestDetails) => (
+                  <Link
+                    key={req.request_id}
+                    to="/requests/$requestId"
+                    params={{ requestId: req.request_id }}
+                    className="flex items-center justify-between rounded-md border px-3 py-2 hover:bg-muted/50 transition-colors"
+                  >
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-sm font-medium">
+                        {req.file_name ?? `Запрос от ${new Date(req.created_at).toLocaleDateString("ru-RU")}`}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(req.created_at).toLocaleDateString("ru-RU", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                        {" \u00b7 "}
+                        {req.total_items} {req.total_items === 1 ? "позиция" : "позиций"}
+                      </span>
+                    </div>
+                    <Badge
+                      variant="outline"
+                      className={STATUS_COLORS[req.status] ?? ""}
+                    >
+                      {STATUS_LABELS[req.status] ?? req.status}
+                    </Badge>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">Нет недавней активности.</p>
+            )}
           </CardContent>
         </Card>
       </div>
