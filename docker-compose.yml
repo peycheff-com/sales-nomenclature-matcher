@@ -26,7 +26,10 @@ services:
       retries: 5
 
   api:
-    build: .
+    build:
+      context: .
+      args:
+        USE_LOCAL: "false"
     command: uvicorn matcher.main:app --host 0.0.0.0 --port 8000 --reload
     ports:
       - "127.0.0.1:8000:8000"
@@ -46,7 +49,10 @@ services:
       - ./src:/app/src
 
   worker:
-    build: .
+    build:
+      context: .
+      args:
+        USE_LOCAL: "false"
     command: arq matcher.worker.settings.WorkerSettings
     env_file: .env
     depends_on:

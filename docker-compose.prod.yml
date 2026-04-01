@@ -22,7 +22,10 @@ services:
         max-file: "5"
 
   api:
-    build: .
+    build:
+      context: .
+      args:
+        USE_LOCAL: "false"
     command: uvicorn matcher.main:app --host 0.0.0.0 --port 8000 --workers 2
     env_file: .env.production
     healthcheck:
@@ -50,7 +53,10 @@ services:
         max-file: "5"
 
   worker:
-    build: .
+    build:
+      context: .
+      args:
+        USE_LOCAL: "false"
     command: arq matcher.worker.settings.WorkerSettings
     env_file: .env.production
     deploy:

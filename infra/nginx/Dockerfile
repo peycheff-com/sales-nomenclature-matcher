@@ -10,3 +10,5 @@ RUN npm run build
 FROM nginx:1.25-alpine
 COPY --from=frontend-build /frontend/dist /usr/share/nginx/html
 COPY infra/nginx/nginx.conf /etc/nginx/conf.d/default.conf
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+    CMD ["wget", "--spider", "-q", "http://localhost:80/"]

@@ -1,0 +1,35 @@
+name: CD
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [] # We run right after CI natively, but we could add needs: [test]
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      # We sync the source files straight to the Droplet
+      - name: Deploy via Rsync
+        uses: appleboy/scp-action@v0.1.7     
+        with:
+          host: ${{ secrets.DO_HOST }}
+          username: root
+          key: ${{ secrets.DO_SSH_KEY }}
+          source: "."
+          target: "/opt/1C"
+          rm: false
+      
+      # Then execute Docker Compose over SSH
+      - name: Execute Docker Deployment
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DO_HOST }}
+          username: root
+          key: ${{ secrets.DO_SSH_KEY }}
+          script: |
+            cd /opt/1C
+            docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build --force-recreate api worker nginx

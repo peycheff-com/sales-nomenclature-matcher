@@ -1,0 +1,138 @@
+<h2>UI Audit Overview</h2>
+<p class="subtitle">Issues found across 11 pages, organized by pattern category</p>
+
+<div class="section">
+  <h3>Phase 1: Shared Patterns to Fix</h3>
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 12px;">
+
+    <div style="background: #1a1a2e; border: 1px solid #333; border-radius: 12px; padding: 20px;">
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+        <span style="background: #dc2626; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;">CRITICAL</span>
+        <h4 style="margin: 0; color: #e0e0e0;">Loading States</h4>
+      </div>
+      <p style="color: #999; font-size: 13px; line-height: 1.5;">Currently mixing: spinner, animate-pulse text, "—" dashes, no indicator. Need unified skeleton loader component + standardized spinner usage.</p>
+      <div style="color: #666; font-size: 12px; margin-top: 8px;">Affects: All 11 pages</div>
+    </div>
+
+    <div style="background: #1a1a2e; border: 1px solid #333; border-radius: 12px; padding: 20px;">
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+        <span style="background: #dc2626; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;">CRITICAL</span>
+        <h4 style="margin: 0; color: #e0e0e0;">Empty States</h4>
+      </div>
+      <p style="color: #999; font-size: 13px; line-height: 1.5;">EmptyState component exists but used inconsistently. Some pages show wrong messages, others show nothing. Need correct empty state for every data view.</p>
+      <div style="color: #666; font-size: 12px; margin-top: 8px;">Affects: Dashboard, Requests, Catalog, Suppliers, Admin</div>
+    </div>
+
+    <div style="background: #1a1a2e; border: 1px solid #333; border-radius: 12px; padding: 20px;">
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+        <span style="background: #ca8a04; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;">HIGH</span>
+        <h4 style="margin: 0; color: #e0e0e0;">Error Handling</h4>
+      </div>
+      <p style="color: #999; font-size: 13px; line-height: 1.5;">Mix of toast, inline, and modal errors with no clear pattern. Need: toasts for transient, inline for form fields, full-page for fatal errors.</p>
+      <div style="color: #666; font-size: 12px; margin-top: 8px;">Affects: All pages with forms/API calls</div>
+    </div>
+
+    <div style="background: #1a1a2e; border: 1px solid #333; border-radius: 12px; padding: 20px;">
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+        <span style="background: #ca8a04; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;">HIGH</span>
+        <h4 style="margin: 0; color: #e0e0e0;">Responsive Layout</h4>
+      </div>
+      <p style="color: #999; font-size: 13px; line-height: 1.5;">Settings sticky bar uses hardcoded left-64. Tables overflow on mobile. Supplier selector cramped. Need responsive fixes in layout + per-page.</p>
+      <div style="color: #666; font-size: 12px; margin-top: 8px;">Affects: Settings, Catalog, Suppliers, Dashboard</div>
+    </div>
+
+    <div style="background: #1a1a2e; border: 1px solid #333; border-radius: 12px; padding: 20px;">
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+        <span style="background: #2563eb; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;">MEDIUM</span>
+        <h4 style="margin: 0; color: #e0e0e0;">Accessibility</h4>
+      </div>
+      <p style="color: #999; font-size: 13px; line-height: 1.5;">Missing aria-labels on icon buttons, no role="status" on spinners, color-only status indicators, no keyboard hints on modals.</p>
+      <div style="color: #666; font-size: 12px; margin-top: 8px;">Affects: All pages</div>
+    </div>
+
+    <div style="background: #1a1a2e; border: 1px solid #333; border-radius: 12px; padding: 20px;">
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+        <span style="background: #2563eb; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;">MEDIUM</span>
+        <h4 style="margin: 0; color: #e0e0e0;">Dialogs & Confirmations</h4>
+      </div>
+      <p style="color: #999; font-size: 13px; line-height: 1.5;">Dashboard uses window.confirm() instead of AlertDialog. Delete confirmations don't show item names. Dialog forms don't reset on reopen.</p>
+      <div style="color: #666; font-size: 12px; margin-top: 8px;">Affects: Dashboard, Users, Suppliers, Catalog</div>
+    </div>
+
+  </div>
+</div>
+
+<div class="section" style="margin-top: 24px;">
+  <h3>Phase 2: Per-Page Fixes (after shared patterns)</h3>
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 12px;">
+
+    <div style="background: #111827; border: 1px solid #374151; border-radius: 8px; padding: 14px;">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <strong style="color: #e0e0e0;">Dashboard</strong>
+        <span style="background: #7c3aed; color: white; padding: 1px 6px; border-radius: 4px; font-size: 11px;">9 issues</span>
+      </div>
+      <p style="color: #888; font-size: 12px; margin-top: 6px;">AI toggle confusion, structured mode help, file size warning, window.confirm</p>
+    </div>
+
+    <div style="background: #111827; border: 1px solid #374151; border-radius: 8px; padding: 14px;">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <strong style="color: #e0e0e0;">Settings</strong>
+        <span style="background: #7c3aed; color: white; padding: 1px 6px; border-radius: 4px; font-size: 11px;">10 issues</span>
+      </div>
+      <p style="color: #888; font-size: 12px; margin-top: 6px;">API key visibility, sticky bar responsive, provider layout, validation</p>
+    </div>
+
+    <div style="background: #111827; border: 1px solid #374151; border-radius: 8px; padding: 14px;">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <strong style="color: #e0e0e0;">Requests</strong>
+        <span style="background: #7c3aed; color: white; padding: 1px 6px; border-radius: 4px; font-size: 11px;">6 issues</span>
+      </div>
+      <p style="color: #888; font-size: 12px; margin-top: 6px;">Pagination reset, status legend, progress bar, refresh button</p>
+    </div>
+
+    <div style="background: #111827; border: 1px solid #374151; border-radius: 8px; padding: 14px;">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <strong style="color: #e0e0e0;">Catalog</strong>
+        <span style="background: #7c3aed; color: white; padding: 1px 6px; border-radius: 4px; font-size: 11px;">7 issues</span>
+      </div>
+      <p style="color: #888; font-size: 12px; margin-top: 6px;">Search UX, expandable row affordance, empty states, skeleton</p>
+    </div>
+
+    <div style="background: #111827; border: 1px solid #374151; border-radius: 8px; padding: 14px;">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <strong style="color: #e0e0e0;">Users</strong>
+        <span style="background: #7c3aed; color: white; padding: 1px 6px; border-radius: 4px; font-size: 11px;">7 issues</span>
+      </div>
+      <p style="color: #888; font-size: 12px; margin-top: 6px;">Password generation, dialog reset, validation feedback</p>
+    </div>
+
+    <div style="background: #111827; border: 1px solid #374151; border-radius: 8px; padding: 14px;">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <strong style="color: #e0e0e0;">Suppliers</strong>
+        <span style="background: #7c3aed; color: white; padding: 1px 6px; border-radius: 4px; font-size: 11px;">7 issues</span>
+      </div>
+      <p style="color: #888; font-size: 12px; margin-top: 6px;">Inline edit UX, strict mode help, mapping loading, responsive</p>
+    </div>
+
+    <div style="background: #111827; border: 1px solid #374151; border-radius: 8px; padding: 14px;">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <strong style="color: #e0e0e0;">Admin</strong>
+        <span style="background: #7c3aed; color: white; padding: 1px 6px; border-radius: 4px; font-size: 11px;">6 issues</span>
+      </div>
+      <p style="color: #888; font-size: 12px; margin-top: 6px;">Placeholder chart, hardcoded data, stat skeletons, metric tooltips</p>
+    </div>
+
+    <div style="background: #111827; border: 1px solid #374151; border-radius: 8px; padding: 14px;">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <strong style="color: #e0e0e0;">Other pages</strong>
+        <span style="background: #7c3aed; color: white; padding: 1px 6px; border-radius: 4px; font-size: 11px;">12 issues</span>
+      </div>
+      <p style="color: #888; font-size: 12px; margin-top: 6px;">Results, Profile, Login, Force Password — smaller fixes</p>
+    </div>
+
+  </div>
+</div>
+
+<div style="margin-top: 24px; padding: 16px; background: #0f172a; border: 1px solid #334155; border-radius: 8px;">
+  <p style="color: #94a3b8; font-size: 13px; margin: 0;"><strong style="color: #e0e0e0;">Total: ~64 issues</strong> across 11 pages. Pattern-first approach: fix 6 shared patterns, then sweep all pages. Estimated: 6 shared components/utilities + changes to all 11 page files.</p>
+</div>
