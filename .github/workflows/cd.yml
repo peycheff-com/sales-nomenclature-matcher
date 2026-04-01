@@ -8,13 +8,13 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    
+    if: ${{ secrets.DO_HOST != '' }}
+
     steps:
       - uses: actions/checkout@v4
-      
-      # We sync the source files straight to the Droplet
-      - name: Deploy via Rsync
-        uses: appleboy/scp-action@v0.1.7     
+
+      - name: Deploy via SCP
+        uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.DO_HOST }}
           username: root
@@ -22,8 +22,7 @@ jobs:
           source: "."
           target: "/opt/1C"
           rm: false
-      
-      # Then execute Docker Compose over SSH
+
       - name: Execute Docker Deployment
         uses: appleboy/ssh-action@v1.0.3
         with:
