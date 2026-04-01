@@ -7,7 +7,7 @@ import {
   createSupplierMapping,
   updateSupplier,
 } from "@/api/suppliers";
-import PageLayout from "@/components/layout/page-layout";
+import { PageLayout } from "@/components/layout/page-layout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -196,9 +196,9 @@ export default function SuppliersPage() {
                           ? (m.confidence * 100).toFixed(0) + "%"
                           : "—"}
                       </TableCell>
-                      <TableCell>{(m as Record<string, unknown>).approved_by as string ?? "—"}</TableCell>
+                      <TableCell>{(m as unknown as Record<string, unknown>).approved_by as string ?? "—"}</TableCell>
                       <TableCell>
-                        {(m as Record<string, unknown>).is_active !== false ? (
+                        {(m as unknown as Record<string, unknown>).is_active !== false ? (
                           <Badge variant="default">Активен</Badge>
                         ) : (
                           <Badge variant="secondary">Неактивен</Badge>
@@ -263,7 +263,7 @@ export default function SuppliersPage() {
               </div>
               <div className="space-y-2">
                 <Label>Тип</Label>
-                <Select value={newMappingType} onValueChange={setNewMappingType}>
+                <Select value={newMappingType} onValueChange={(v) => setNewMappingType(v || "")}>
                   <SelectTrigger>
                     <SelectValue placeholder="Выберите тип" />
                   </SelectTrigger>

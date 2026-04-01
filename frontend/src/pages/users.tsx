@@ -7,7 +7,7 @@ import {
   resetUserPassword,
   type UserDetail,
 } from "@/api/users";
-import PageLayout from "@/components/layout/page-layout";
+import { PageLayout } from "@/components/layout/page-layout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -236,7 +236,7 @@ export default function UsersPage() {
               <Label>Роль</Label>
               <Select
                 value={createForm.role}
-                onValueChange={(v) => setCreateForm((f) => ({ ...f, role: v }))}
+                onValueChange={(v) => setCreateForm((f) => ({ ...f, role: v || "" }))}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -289,7 +289,7 @@ export default function UsersPage() {
               <Label>Роль</Label>
               <Select
                 value={editForm.role}
-                onValueChange={(v) => setEditForm((f) => ({ ...f, role: v }))}
+                onValueChange={(v) => setEditForm((f) => ({ ...f, role: v || "" }))}
               >
                 <SelectTrigger>
                   <SelectValue />

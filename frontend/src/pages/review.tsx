@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getReviewQueue } from "@/api/match";
 import { listSuppliers } from "@/api/suppliers";
 import { reviewItem } from "@/api/review";
-import PageLayout from "@/components/layout/page-layout";
+import { PageLayout } from "@/components/layout/page-layout";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -140,7 +140,7 @@ export default function ReviewPage() {
         {/* Toolbar */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Select value={supplierId} onValueChange={(v) => { setSupplierId(v); setPage(0); }}>
+            <Select value={supplierId} onValueChange={(v) => { setSupplierId(v || ""); setPage(0); }}>
               <SelectTrigger className="w-[220px]">
                 <SelectValue placeholder="Все поставщики" />
               </SelectTrigger>
