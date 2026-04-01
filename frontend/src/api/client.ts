@@ -4,6 +4,7 @@ import { getCsrfToken, setAuthenticated, isAuthenticated, notifySessionExpired }
 const api = ky.create({
   prefixUrl: "/api/v1",
   credentials: "include", // Send httpOnly cookies on every request
+  timeout: 60000, // 60 seconds for LLM inference endpoints
   retry: {
     limit: 2,
     methods: ["get"],
