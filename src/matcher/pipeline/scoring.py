@@ -186,8 +186,15 @@ def compute_pair_features(
             f.unit_match_score = 1.0
         else:
             f.unit_conflict = True
-    elif not qu or not cu:
-        f.unit_match_score = 0.5  # Unknown, give partial credit
+            f.unit_match_score = 0.0
+    elif qu and not cu:
+        # Query has unit but candidate doesn't — not a conflict, just missing data
+        f.unit_match_score = 0.5
+    elif cu and not qu:
+        f.unit_match_score = 0.5
+    else:
+        # Neither has unit
+        f.unit_match_score = 0.5
 
     # Packaging matching
     qp = (query_packaging or "").lower().strip()
@@ -199,14 +206,64 @@ def compute_pair_features(
             f.packaging_match_score = 0.5
         else:
             f.packaging_conflict = True
-    elif not qp or not cp:
-        f.packaging_match_score = 0.5  # Unknown
+            f.packaging_match_score = 0.0
+    else:
+        # One or both sides missing — not a conflict
+        f.packaging_match_score = 0.5
 
     return f
 
 
+def _compute_effective_weights(features: PairFeatures) -> dict[str, float]:
+    """Dynamically redistribute weights when metadata features are inapplicable.
+
+    When both sides of a comparison lack data (e.g., no brand on query AND no brand
+    on candidate), that feature cannot contribute signal. Its weight is redistributed
+    proportionally to features that DO have signal, so the total always sums to 1.0.
+    """
+    weights = dict(WEIGHTS)
+
+    # Detect inapplicable features (both sides missing → no signal possible)
+    dead_keys: list[str] = []
+
+    # Brand: inapplicable when BOTH query and candidate have no brand
+    if features.brand_exact == 0.0 and features.brand_fuzzy == 0.0 and not features.brand_conflict:
+        # Could be a match with no brand data on either side
+        dead_keys.extend(["brand_exact", "brand_fuzzy"])
+
+    # Category: inapplicable when both sides have no category
+    if (
+        features.category_exact == 0.0
+        and features.category_fuzzy == 0.0
+        and not features.category_conflict
+    ):
+        dead_keys.extend(["category_exact", "category_fuzzy"])
+
+    if not dead_keys:
+        return weights
+
+    # Redistribute dead weight proportionally to live features
+    dead_weight = sum(weights[k] for k in dead_keys)
+    live_keys = [k for k in weights if k not in dead_keys]
+    live_weight = sum(weights[k] for k in live_keys)
+
+    if live_weight > 0:
+        scale = (live_weight + dead_weight) / live_weight
+        for k in live_keys:
+            weights[k] *= scale
+    for k in dead_keys:
+        weights[k] = 0.0
+
+    return weights
+
+
 def score_candidate(features: PairFeatures) -> ScoringResult:
-    """Apply Scoring Formula v1 to computed features."""
+    """Apply Scoring Formula v2 to computed features.
+
+    v2 changes from v1:
+    - Dynamic weight redistribution for sparse catalogs (missing brand/category)
+    - Eliminates dead-weight features that cap the score ceiling
+    """
     result = ScoringResult(features=features)
 
     # Short-circuit: supplier exact mapping
@@ -221,20 +278,23 @@ def score_candidate(features: PairFeatures) -> ScoringResult:
         result.short_circuit = "article_brand_exact"
         return result
 
+    # Compute effective weights (redistributes dead metadata weight)
+    w = _compute_effective_weights(features)
+
     # Base score
     result.base_score = (
-        WEIGHTS["brand_exact"] * features.brand_exact
-        + WEIGHTS["brand_fuzzy"] * features.brand_fuzzy
-        + WEIGHTS["category_exact"] * features.category_exact
-        + WEIGHTS["category_fuzzy"] * features.category_fuzzy
-        + WEIGHTS["lexical_score"] * features.lexical_score
-        + WEIGHTS["semantic_score"] * features.semantic_score
-        + WEIGHTS["rerank_score"] * features.rerank_score
-        + WEIGHTS["number_signature_score"] * features.number_signature_score
-        + WEIGHTS["packaging_match_score"] * features.packaging_match_score
-        + WEIGHTS["unit_match_score"] * features.unit_match_score
-        + WEIGHTS["attribute_overlap_score"] * features.attribute_overlap_score
-        + WEIGHTS["alias_hit"] * features.alias_hit
+        w["brand_exact"] * features.brand_exact
+        + w["brand_fuzzy"] * features.brand_fuzzy
+        + w["category_exact"] * features.category_exact
+        + w["category_fuzzy"] * features.category_fuzzy
+        + w["lexical_score"] * features.lexical_score
+        + w["semantic_score"] * features.semantic_score
+        + w["rerank_score"] * features.rerank_score
+        + w["number_signature_score"] * features.number_signature_score
+        + w["packaging_match_score"] * features.packaging_match_score
+        + w["unit_match_score"] * features.unit_match_score
+        + w["attribute_overlap_score"] * features.attribute_overlap_score
+        + w["alias_hit"] * features.alias_hit
     )
 
     # Bonuses

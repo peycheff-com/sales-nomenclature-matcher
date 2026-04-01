@@ -191,6 +191,20 @@ async def _http_rerank(
                 )
             )
 
+    # Normalize rerank scores to [0, 1] range.
+    # Some providers (Jina, Together) return raw logits or unbounded scores.
+    # Min-max normalize so the scoring formula gets usable values.
+    if results and len(results) > 1:
+        scores = [r.rerank_score for r in results]
+        min_s, max_s = min(scores), max(scores)
+        if max_s > min_s:
+            for r in results:
+                r.rerank_score = (r.rerank_score - min_s) / (max_s - min_s)
+        elif max_s > 0:
+            # All scores are the same positive value — normalize to 1.0
+            for r in results:
+                r.rerank_score = 1.0
+
     return results
 
 
