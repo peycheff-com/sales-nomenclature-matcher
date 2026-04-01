@@ -9,7 +9,7 @@ import { router } from "@/router";
 
 /** GAP-9.8: Offline/online detection (debounced to avoid flicker) */
 function useOnlineStatus() {
-  const offlineTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const offlineTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
     let offlineToastId: string | number | undefined;
