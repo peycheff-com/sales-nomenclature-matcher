@@ -44,7 +44,15 @@ def upgrade() -> None:
     op.create_index("idx_audit_created", "audit_log", ["created_at"])
 
     # 3. Expand user role constraint to include reviewer and catalog_operator
-    op.drop_constraint("ck_users_role", "users", type_="check")
+    # Drop existing check constraint (name may vary across environments)
+    conn = op.get_bind()
+    result = conn.execute(sa.text("""
+        SELECT conname FROM pg_constraint
+        WHERE conrelid = 'users'::regclass AND contype = 'c'
+          AND pg_get_constraintdef(oid) LIKE '%role%'
+    """))
+    for row in result:
+        op.drop_constraint(row[0], "users", type_="check")
     op.create_check_constraint(
         "ck_users_role",
         "users",
