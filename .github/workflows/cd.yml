@@ -56,7 +56,7 @@ jobs:
           key: ${{ secrets.DO_SSH_KEY }}
           script: |
             cd /opt/1C
-            docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build --force-recreate api worker nginx
+            docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build --force-recreate api worker-match worker-catalog nginx
 
       - name: Verify deployment health
         if: steps.check.outputs.skip != 'true'
