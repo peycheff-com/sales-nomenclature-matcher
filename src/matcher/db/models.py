@@ -84,6 +84,8 @@ class CatalogEmbedding(Base):
     )
     embedding_model: Mapped[str] = mapped_column(Text, nullable=False)
     embedding_version: Mapped[str] = mapped_column(Text, nullable=False)
+    # NOTE: dimension must match settings.embedding_dimensions. Changing the
+    # setting requires a migration to ALTER this column's vector dimension.
     embedding_vector = Column(Vector(1024), nullable=False)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 

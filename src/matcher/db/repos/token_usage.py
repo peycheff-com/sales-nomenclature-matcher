@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import Date, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,7 +18,7 @@ class TokenUsageRepo:
         provider: str | None = None,
     ) -> dict:
         """Get aggregated token usage summary."""
-        since = datetime.utcnow() - timedelta(days=days)
+        since = datetime.now(UTC) - timedelta(days=days)
 
         # Base filter
         base = select(TokenUsageLog).where(TokenUsageLog.created_at >= since)

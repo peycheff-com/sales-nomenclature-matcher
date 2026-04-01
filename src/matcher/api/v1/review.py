@@ -31,8 +31,8 @@ async def review_item(
     """Accept, correct, or reject a match result."""
     match_repo = MatchRepo(db)
 
-    # Verify item exists and get associated request
-    item, request = await match_repo.get_item_with_request(request_item_id)
+    # Verify item exists and get associated request (lock row to prevent concurrent reviews)
+    item, request = await match_repo.get_item_with_request(request_item_id, for_update=True)
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
 

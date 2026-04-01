@@ -185,13 +185,15 @@ class MatchRepo:
         return result.scalar_one_or_none()
 
     async def get_item_with_request(
-        self, request_item_id: str
+        self, request_item_id: str, *, for_update: bool = False
     ) -> tuple[MatchRequestItem | None, MatchRequest | None]:
         stmt = (
             select(MatchRequestItem, MatchRequest)
             .join(MatchRequest, MatchRequestItem.request_id == MatchRequest.request_id)
             .where(MatchRequestItem.request_item_id == request_item_id)
         )
+        if for_update:
+            stmt = stmt.with_for_update()
         result = await self.session.execute(stmt)
         row = result.first()
         if row:
@@ -307,7 +309,7 @@ class MatchRepo:
             "final_decision": decision,
             "final_product_id": final_product_id,
             "reviewed_by": reviewed_by,
-            "reviewed_at": func.now(),
+            "reviewed_at": datetime.now(UTC),
         }
         if review_notes is not None:
             values["review_notes"] = review_notes
