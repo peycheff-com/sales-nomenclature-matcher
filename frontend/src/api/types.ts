@@ -145,6 +145,7 @@ export interface SettingsResponse {
   review_threshold: number;
   retrieval_top_n: number;
   rerank_top_n: number;
+  agentic_resolution_enabled: boolean;
   onec: OneCConnectionSettings;
 }
 
@@ -164,6 +165,7 @@ export interface SettingsUpdateInput {
   embedding_dimensions?: number;
   auto_match_threshold?: number;
   review_threshold?: number;
+  agentic_resolution_enabled?: boolean;
   onec?: OneCConnectionSettings;
 }
 

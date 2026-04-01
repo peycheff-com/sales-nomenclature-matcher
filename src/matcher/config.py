@@ -109,6 +109,7 @@ class Settings(BaseSettings):
     retrieval_top_n: int = 50
     rerank_top_n: int = 5
     rerank_enabled: bool = True
+    agentic_resolution_enabled: bool = False
 
     # Embedding config
     embedding_model: str = "text-embedding-3-large"

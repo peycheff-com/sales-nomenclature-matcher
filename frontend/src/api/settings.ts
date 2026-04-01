@@ -28,6 +28,7 @@ export interface SettingsResponse {
   review_threshold: number;
   retrieval_top_n: number;
   rerank_top_n: number;
+  agentic_resolution_enabled: boolean;
   onec: OneCConnectionSettings;
 }
 
@@ -50,6 +51,7 @@ export interface SettingsUpdateInput {
   review_threshold?: number;
   retrieval_top_n?: number;
   rerank_top_n?: number;
+  agentic_resolution_enabled?: boolean;
   onec?: OneCConnectionSettings;
 }
 

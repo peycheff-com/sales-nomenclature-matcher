@@ -54,6 +54,7 @@ class SettingsResponse(BaseModel):
     review_threshold: float
     retrieval_top_n: int
     rerank_top_n: int
+    agentic_resolution_enabled: bool
     # 1C Connection
     onec: OneCConnectionSettings
 
@@ -76,6 +77,7 @@ class SettingsUpdateInput(BaseModel):
     review_threshold: float | None = None
     retrieval_top_n: int | None = None
     rerank_top_n: int | None = None
+    agentic_resolution_enabled: bool | None = None
     onec: OneCConnectionSettings | None = None
 
     @model_validator(mode="after")
@@ -114,6 +116,7 @@ _PERSIST_KEYS = (
     "review_threshold",
     "retrieval_top_n",
     "rerank_top_n",
+    "agentic_resolution_enabled",
     "onec",
     "llm_provider",
     "embedding_provider",
@@ -148,6 +151,8 @@ async def load_persisted_settings(db: AsyncSession, force: bool = False) -> None
         settings.retrieval_top_n = int(stored["retrieval_top_n"])
     if "rerank_top_n" in stored and stored["rerank_top_n"] is not None:
         settings.rerank_top_n = int(stored["rerank_top_n"])
+    if "agentic_resolution_enabled" in stored and stored["agentic_resolution_enabled"] is not None:
+        settings.agentic_resolution_enabled = stored["agentic_resolution_enabled"].lower() == "true"
     if "embedding_dimensions" in stored and stored["embedding_dimensions"] is not None:
         settings.embedding_dimensions = int(stored["embedding_dimensions"])
 
@@ -183,6 +188,7 @@ async def _persist_settings(db: AsyncSession) -> None:
     await repo.upsert("review_threshold", str(settings.review_threshold))
     await repo.upsert("retrieval_top_n", str(settings.retrieval_top_n))
     await repo.upsert("rerank_top_n", str(settings.rerank_top_n))
+    await repo.upsert("agentic_resolution_enabled", str(settings.agentic_resolution_enabled).lower())
     await repo.upsert("embedding_dimensions", str(settings.embedding_dimensions))
     await repo.upsert("onec", _onec_settings.model_dump_json())
 
@@ -227,6 +233,7 @@ async def get_settings(
         review_threshold=settings.review_threshold,
         retrieval_top_n=settings.retrieval_top_n,
         rerank_top_n=settings.rerank_top_n,
+        agentic_resolution_enabled=settings.agentic_resolution_enabled,
         onec=OneCConnectionSettings(
             base_url=_onec_settings.base_url,
             username=_onec_settings.username,
@@ -277,6 +284,8 @@ async def update_settings(
         settings.retrieval_top_n = body.retrieval_top_n
     if body.rerank_top_n is not None:
         settings.rerank_top_n = body.rerank_top_n
+    if body.agentic_resolution_enabled is not None:
+        settings.agentic_resolution_enabled = body.agentic_resolution_enabled
     if body.onec is not None:
         _onec_settings = body.onec
 

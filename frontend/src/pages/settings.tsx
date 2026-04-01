@@ -73,6 +73,7 @@ export default function SettingsPage() {
         catalog_endpoint: "/hs/catalog/v1/nomenclature",
         enabled: false,
       },
+      agentic_resolution_enabled: false,
     },
   });
 
@@ -212,9 +213,9 @@ export default function SettingsPage() {
                     <SelectValue placeholder="Выберите провайдера" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="openai">OpenAI</SelectItem>
-                    <SelectItem value="openrouter">OpenRouter</SelectItem>
-                    <SelectItem value="google">Google (Gemini)</SelectItem>
+                    {registry.map(p => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -292,6 +293,18 @@ export default function SettingsPage() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-2">
+                <Label>Модель Reranking</Label>
+                <ModelCombobox
+                  value={form.watch("llm_rerank_model")}
+                  onChange={(val) =>
+                    form.setValue("llm_rerank_model", val, { shouldDirty: true })
+                  }
+                  options={modelsQuery.data?.models || []}
+                  isLoading={modelsQuery.isLoading}
+                  placeholder="Например: BAAI/bge-reranker-v2-m3"
+                />
+              </div>
             </div>
 
             {registry.filter(p => activeProviderIds.includes(p.id) && p.id !== "local").map(p => (
@@ -313,6 +326,30 @@ export default function SettingsPage() {
                 </div>
               </div>
             ))}
+            
+            <div className="grid grid-cols-1 gap-4 pt-4 border-t border-border">
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <div className="space-y-0.5">
+                  <Label
+                    className="text-base cursor-pointer"
+                    htmlFor="agent-enable"
+                  >
+                    Включить Agentic Resolution (Web Search / Catalog Fallback)
+                  </Label>
+                  <div className="text-sm text-muted-foreground w-11/12">
+                    При низком скоринге совпадений система попытается использовать интернет-поиск и глубокий поиск по базе через LLM. 
+                    <b>Внимание: может увеличить время обработки 1-й строки на 3-6 секунд.</b>
+                  </div>
+                </div>
+                <Switch
+                  id="agent-enable"
+                  checked={form.watch("agentic_resolution_enabled")}
+                  onCheckedChange={(checked: boolean) =>
+                    form.setValue("agentic_resolution_enabled", checked, { shouldDirty: true })
+                  }
+                />
+              </div>
+            </div>
 
             <div className="grid grid-cols-2 gap-4 pt-2 border-t border-border">
               <div className="space-y-2">

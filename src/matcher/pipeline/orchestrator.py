@@ -201,7 +201,7 @@ async def match_single(
     result_reasons = best["reasons"].copy()
     
     # Trigger Agentic RAG loop if not confident and settings allow it
-    if result_status != "auto_match" and settings.active_llm_api_key and settings.active_llm_api_key != "none":
+    if result_status != "auto_match" and settings.agentic_resolution_enabled and settings.active_llm_api_key and settings.active_llm_api_key != "none":
         agent_decision = await resolve_agentically(raw_text, scored_candidates[:5], session)
         if agent_decision:
             new_status = agent_decision.get("status")
