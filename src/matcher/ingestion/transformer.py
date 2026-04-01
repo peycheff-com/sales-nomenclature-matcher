@@ -54,8 +54,14 @@ def transform_item(raw: RawCatalogItem) -> dict:
     )
     source_hash = hashlib.sha256(hash_input.encode()).hexdigest()[:16]
 
+    # Deterministic product_id from source_hash for file imports — prevents duplicates.
+    # 1C imports keep their native UUID (onec_ref) as product_id.
+    product_id = raw.product_id
+    if not raw.onec_ref and (not product_id or product_id.startswith("prd_")):
+        product_id = f"prd_{source_hash}"
+
     return {
-        "product_id": raw.product_id,
+        "product_id": product_id,
         "onec_ref": raw.onec_ref,
         "code": raw.code,
         "article": raw.article,
