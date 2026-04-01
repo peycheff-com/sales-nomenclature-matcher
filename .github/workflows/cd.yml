@@ -54,7 +54,7 @@ jobs:
           key: ${{ secrets.DO_SSH_KEY }}
           script: |
             for i in $(seq 1 30); do
-              if curl -sf http://localhost/api/v1/health | grep -q '"status":"ok"'; then
+              if curl -sfk https://localhost/api/v1/health | grep -q '"status":"ok"'; then
                 echo "Health check passed on attempt $i"
                 exit 0
               fi
