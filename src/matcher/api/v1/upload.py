@@ -8,6 +8,7 @@ from matcher.auth.deps import get_current_user
 from matcher.db.models import User
 from matcher.db.repos.match import MatchRepo
 from matcher.ingestion.parser import parse_excel_upload
+from matcher.api.v1.settings import load_persisted_settings
 from matcher.schemas.match import BatchRequestAccepted
 
 router = APIRouter(tags=["Upload"])
@@ -43,6 +44,8 @@ async def upload_match_file(
     contents = await file.read()
     _validate_excel_content(contents)
     try:
+        if use_ai_column_picker:
+            await load_persisted_settings(db, force=True)
         items = await parse_excel_upload(contents, use_ai=use_ai_column_picker)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to process file: {str(e)}")
@@ -84,11 +87,14 @@ async def parse_match_file(
     file: UploadFile = File(...),
     use_ai_column_picker: bool = Form(False),
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """Parse an Excel file and return extracted nomenclature candidates for UI preview."""
     contents = await file.read()
     _validate_excel_content(contents)
     try:
+        if use_ai_column_picker:
+            await load_persisted_settings(db, force=True)
         items = await parse_excel_upload(contents, use_ai=use_ai_column_picker)
         return {"items": items}
     except Exception as e:

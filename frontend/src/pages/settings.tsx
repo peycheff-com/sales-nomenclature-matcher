@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { getSettings, updateSettings, getFreeModels, testOneCConnection, type SettingsResponse } from "@/api/settings";
+import { getSettings, updateSettings, getModels, testOneCConnection, type SettingsResponse } from "@/api/settings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { RefreshCw, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { PageLayout } from "@/components/layout/page-layout";
+import { ModelCombobox } from "@/components/ui/model-combobox";
 
 export default function SettingsPage() {
   const queryClient = useQueryClient();
@@ -23,13 +24,13 @@ export default function SettingsPage() {
   });
 
   const modelsQuery = useQuery({
-    queryKey: ["free-models"],
-    queryFn: getFreeModels,
+    queryKey: ["models"],
+    queryFn: getModels,
   });
 
   const form = useForm<SettingsResponse>({
     defaultValues: {
-      llm_provider: "openrouter",
+      llm_provider: "openai",
       embedding_provider: "openai",
       llm_model: "",
       llm_rerank_model: "",
@@ -114,6 +115,13 @@ export default function SettingsPage() {
     return <div className="text-sm text-muted-foreground p-6 animate-pulse">Загрузка настроек...</div>;
   }
 
+  const llmProvider = form.watch("llm_provider");
+  const embeddingProvider = form.watch("embedding_provider");
+  
+  const showOpenAiKey = llmProvider === "openai" || embeddingProvider === "openai";
+  const showOpenRouterKey = llmProvider === "openrouter" || embeddingProvider === "openrouter";
+  const showGoogleKey = llmProvider === "google" || embeddingProvider === "google";
+
   return (
     <PageLayout
       title="Настройки системы"
@@ -130,41 +138,40 @@ export default function SettingsPage() {
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 max-w-4xl pb-24">
         <Card>
           <CardHeader>
-            <CardTitle>Нейросетевые модели (LLM & Embeddings)</CardTitle>
+            <CardTitle>Провайдеры ИИ (LLM & Embeddings)</CardTitle>
             <CardDescription>
-              Настройка провайдеров, ключей доступа и параметров моделей.
+              Настройка провайдеров и моделей для обработки номенклатуры.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Ранжирующая модель (Оценка качества совпадений)</Label>
-                <div className="flex gap-2">
-                  <Select
-                    value={form.watch("llm_model")}
-                    onValueChange={(val) => form.setValue("llm_model", val || "", { shouldDirty: true })}
-                  >
-                    <SelectTrigger disabled={modelsQuery.isLoading} className="flex-1">
-                      <SelectValue placeholder="Выберите LLM модель" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {modelsQuery.data?.models.map(m => (
-                        <SelectItem key={m.id} value={m.id}>
-                          {m.name} ({Math.round(m.context_length/1000)}k ctx)
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                {modelsQuery.isLoading && <div className="text-xs text-muted-foreground">Загрузка моделей OpenRouter...</div>}
+                <Label>Провайдер LLM (Ранжирование)</Label>
+                <Select
+                  value={form.watch("llm_provider")}
+                  onValueChange={(val) => form.setValue("llm_provider", val || "", { shouldDirty: true })}
+                >
+                  <SelectTrigger disabled={mutation.isPending}>
+                    <SelectValue placeholder="Выберите провайдера" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="openai">OpenAI</SelectItem>
+                    <SelectItem value="openrouter">OpenRouter</SelectItem>
+                    <SelectItem value="google">Google (Gemini)</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
-                <Label>API Ключ OpenRouter</Label>
-                <Input
-                  type="password"
-                  placeholder={settingsQuery.data?.openrouter_api_key_set ? "••••••••••••••••" : "Введите новый ключ"}
-                  {...form.register("openrouter_api_key" as any)}
-                />
+                <Label>Ранжирующая LLM модель</Label>
+                <div className="flex gap-2 relative">
+                  <ModelCombobox 
+                     value={form.watch("llm_model")}
+                     onChange={(val) => form.setValue("llm_model", val, { shouldDirty: true })}
+                     options={modelsQuery.data?.models || []}
+                     isLoading={modelsQuery.isLoading}
+                     placeholder="Например: gpt-4o-mini"
+                  />
+                </div>
               </div>
             </div>
 
@@ -187,47 +194,53 @@ export default function SettingsPage() {
               </div>
 
               <div className="space-y-2">
-                <Label>Модель для Embeddings</Label>
-                <Input {...form.register("embedding_model")} placeholder="Например: text-embedding-3-large" />
+                <Label>Модель Embeddings</Label>
+                <ModelCombobox 
+                   value={form.watch("embedding_model")}
+                   onChange={(val) => form.setValue("embedding_model", val, { shouldDirty: true })}
+                   options={modelsQuery.data?.models || []}
+                   isLoading={modelsQuery.isLoading}
+                   placeholder="Например: text-embedding-3-large"
+                />
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              {form.watch("embedding_provider") === "openai" && (
+            <div className="grid grid-cols-2 gap-4 pt-4 border-t border-border">
+              {showOpenAiKey && (
                 <div className="space-y-2 col-span-2">
                   <Label>API Ключ OpenAI</Label>
                   <Input
                     type="password"
-                    placeholder={settingsQuery.data?.openai_api_key_set ? "••••••••••••••••" : "Введите новый ключ"}
+                    placeholder={settingsQuery.data?.openai_api_key_set ? "••••••••••••••••" : "Введите новый ключ OpenAI"}
                     {...form.register("openai_api_key" as any)}
                   />
                 </div>
               )}
-              {form.watch("embedding_provider") === "openrouter" && (
+              {showOpenRouterKey && (
                 <div className="space-y-2 col-span-2">
-                  <Label>API Ключ OpenRouter (Embeddings)</Label>
+                  <Label>API Ключ OpenRouter</Label>
                   <Input
                     type="password"
-                    placeholder={settingsQuery.data?.openrouter_api_key_set ? "••••••••••••••••" : "Введите новый ключ (общий с LLM)"}
+                    placeholder={settingsQuery.data?.openrouter_api_key_set ? "••••••••••••••••" : "Введите новый ключ OpenRouter"}
                     {...form.register("openrouter_api_key" as any)}
                   />
                 </div>
               )}
-              {form.watch("embedding_provider") === "google" && (
+              {showGoogleKey && (
                 <div className="space-y-2 col-span-2">
                   <Label>API Ключ Google Gemini</Label>
                   <Input
                     type="password"
-                    placeholder={settingsQuery.data?.google_api_key_set ? "••••••••••••••••" : "Введите новый ключ"}
+                    placeholder={settingsQuery.data?.google_api_key_set ? "••••••••••••••••" : "Введите новый ключ Google"}
                     {...form.register("google_api_key" as any)}
                   />
                 </div>
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 pt-2">
               <div className="space-y-2">
-                <Label>Размерности Embeddings</Label>
+                <Label>Размерности (Dimensions) Embeddings</Label>
                 <Input 
                   type="number" 
                   {...form.register("embedding_dimensions", { valueAsNumber: true })} 
@@ -236,7 +249,7 @@ export default function SettingsPage() {
                 <p className="text-[10px] text-muted-foreground">Должно совпадать с параметрами выбранной модели.</p>
               </div>
               <div className="space-y-2">
-                <Label>API Ключ Cohere (Для Rerank_v3 V2)</Label>
+                <Label>API Ключ Cohere (Опционально: Для Rerank_v3)</Label>
                 <Input
                   type="password"
                   placeholder={settingsQuery.data?.cohere_api_key_set ? "••••••••••••••••" : "Укажите для активации Cohere Rerank"}
@@ -356,5 +369,3 @@ export default function SettingsPage() {
     </PageLayout>
   );
 }
-
-

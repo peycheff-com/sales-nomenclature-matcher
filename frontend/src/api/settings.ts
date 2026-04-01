@@ -44,14 +44,14 @@ export interface SettingsUpdateInput {
   onec?: OneCConnectionSettings;
 }
 
-export interface FreeModel {
+export interface OpenRouterModel {
   id: string;
   name: string;
   context_length: number;
 }
 
-export interface FreeModelsResponse {
-  models: FreeModel[];
+export interface OpenRouterModelsResponse {
+  models: OpenRouterModel[];
 }
 
 export async function getSettings(): Promise<SettingsResponse> {
@@ -62,8 +62,8 @@ export async function updateSettings(input: SettingsUpdateInput): Promise<Settin
   return api.put("settings", { json: input }).json<SettingsResponse>();
 }
 
-export async function getFreeModels(): Promise<FreeModelsResponse> {
-  return api.get("settings/free-models").json<FreeModelsResponse>();
+export async function getModels(): Promise<OpenRouterModelsResponse> {
+  return api.get("settings/models").json<OpenRouterModelsResponse>();
 }
 
 export async function testOneCConnection(): Promise<{ status: string; detail?: string; http_status?: number }> {

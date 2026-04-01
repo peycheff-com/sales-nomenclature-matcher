@@ -20,12 +20,14 @@ async def batch_match(ctx: dict, request_id: str) -> dict:
     """
     from matcher.db.repos.match import MatchRepo
     from matcher.pipeline.orchestrator import match_single
+    from matcher.api.v1.settings import load_persisted_settings
 
     db_factory = ctx["db_factory"]
     logger.info("Starting batch_match for request %s", request_id)
 
     # Load request metadata and item IDs into memory with a short-lived session
     async with db_factory() as session:
+        await load_persisted_settings(session, force=True)
         repo = MatchRepo(session)
         request = await repo.get_request(request_id)
         if not request:
@@ -182,6 +184,7 @@ async def _do_catalog_import(ctx: dict, job_id: str, source_type: str, **kwargs)
     from matcher.db.repos.catalog import CatalogRepo
     from matcher.ingestion.file_adapter import parse_file
     from matcher.ingestion.transformer import transform_item
+    from matcher.api.v1.settings import load_persisted_settings
 
     db_factory = ctx["db_factory"]
     file_url = kwargs.get("file_url")
@@ -211,6 +214,8 @@ async def _do_catalog_import(ctx: dict, job_id: str, source_type: str, **kwargs)
     if source_type == "onec_api":
         from matcher.ingestion.onec_adapter import fetch_onec_catalog
         try:
+            async with db_factory() as session:
+                await load_persisted_settings(session, force=True)
             raw_items = await fetch_onec_catalog(dry_run=dry_run)
             logger.info("Fetched %d items from 1C API", len(raw_items))
         except Exception as e:
@@ -278,9 +283,13 @@ async def _do_catalog_import(ctx: dict, job_id: str, source_type: str, **kwargs)
 async def catalog_reindex(ctx: dict, job_id: str, **kwargs) -> dict:
     """Rebuild embeddings and search indexes."""
     from matcher.indexing.indexer import reindex_catalog
+    from matcher.api.v1.settings import load_persisted_settings
 
     logger.info("Starting reindex job %s", job_id)
     db_factory = ctx.get("db_factory")
+    
+    async with db_factory() as session:
+        await load_persisted_settings(session, force=True)
     result = await reindex_catalog(
         embedding_model=kwargs.get("embedding_model"),
         embedding_version=kwargs.get("embedding_version"),

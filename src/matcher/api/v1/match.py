@@ -91,6 +91,9 @@ async def match_sync(
         total_items=len(body.items),
     )
 
+    from matcher.api.v1.settings import load_persisted_settings
+    await load_persisted_settings(db, force=True)
+
     results = []
     auto_count = review_count = no_match_count = 0
 

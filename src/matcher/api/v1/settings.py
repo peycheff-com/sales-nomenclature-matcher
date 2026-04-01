@@ -87,14 +87,14 @@ class SettingsUpdateInput(BaseModel):
         return self
 
 
-class FreeModel(BaseModel):
+class OpenRouterModel(BaseModel):
     id: str
     name: str
     context_length: int
 
 
-class FreeModelsResponse(BaseModel):
-    models: list[FreeModel]
+class OpenRouterModelsResponse(BaseModel):
+    models: list[OpenRouterModel]
 
 
 # ── In-memory 1C settings ──────────────────────────────────────────────────
@@ -122,11 +122,11 @@ _PERSIST_KEYS = (
 )
 
 
-async def _load_persisted_settings(db: AsyncSession) -> None:
-    """One-time load of persisted settings from DB into in-memory state."""
+async def load_persisted_settings(db: AsyncSession, force: bool = False) -> None:
+    """Load persisted settings from DB into in-memory state."""
     global _onec_settings, _db_loaded
 
-    if _db_loaded:
+    if _db_loaded and not force:
         return
 
     try:
@@ -185,7 +185,7 @@ async def get_settings(
     db: AsyncSession = Depends(get_db),
 ) -> SettingsResponse:
     """Get current runtime settings."""
-    await _load_persisted_settings(db)
+    await load_persisted_settings(db)
     return SettingsResponse(
         llm_provider=settings.llm_provider,
         embedding_provider=settings.embedding_provider,
@@ -278,11 +278,11 @@ async def update_settings(
     return await get_settings(current_user=current_user, db=db)
 
 
-@router.get("/settings/free-models", response_model=FreeModelsResponse)
-async def list_free_models(
+@router.get("/settings/models", response_model=OpenRouterModelsResponse)
+async def list_models(
     current_user: User = Depends(get_current_user),
-) -> FreeModelsResponse:
-    """Fetch currently available free models from OpenRouter."""
+) -> OpenRouterModelsResponse:
+    """Fetch all available models from OpenRouter."""
     try:
         async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.get("https://openrouter.ai/api/v1/models")
@@ -291,26 +291,22 @@ async def list_free_models(
     except Exception as e:
         logger.warning("Failed to fetch OpenRouter models: %s", e)
         # Return a hardcoded fallback list
-        return FreeModelsResponse(models=_FALLBACK_FREE_MODELS)
+        return OpenRouterModelsResponse(models=_FALLBACK_MODELS)
 
-    free: list[FreeModel] = []
+    models: list[OpenRouterModel] = []
     for m in data.get("data", []):
-        pricing = m.get("pricing", {})
-        prompt_price = float(pricing.get("prompt", "1") or "1")
-        completion_price = float(pricing.get("completion", "1") or "1")
         arch = m.get("architecture", {})
         modality = arch.get("modality", "")
-
-        # Only include free text→text models (skip audio/image-only)
-        if prompt_price == 0 and completion_price == 0 and "text" in modality:
-            free.append(FreeModel(
+        # Filter primarily for text capabilities, although we'll allow mixed modalities
+        if "text" in modality or not modality:
+            models.append(OpenRouterModel(
                 id=m["id"],
                 name=m.get("name", m["id"]),
                 context_length=m.get("context_length", 0),
             ))
 
-    free.sort(key=lambda x: x.context_length, reverse=True)
-    return FreeModelsResponse(models=free)
+    models.sort(key=lambda x: x.context_length, reverse=True)
+    return OpenRouterModelsResponse(models=models)
 
 
 @router.post("/settings/test-onec")
@@ -354,14 +350,12 @@ async def test_onec_connection(
 
 # ── Fallback model list ─────────────────────────────────────────────────────
 
-_FALLBACK_FREE_MODELS = [
-    FreeModel(id="qwen/qwen3.6-plus-preview:free", name="Qwen 3.6 Plus Preview", context_length=1000000),
-    FreeModel(id="qwen/qwen3-coder:free", name="Qwen 3 Coder 480B", context_length=262000),
-    FreeModel(id="nvidia/nemotron-3-super-120b-a12b:free", name="NVIDIA Nemotron 3 Super", context_length=262144),
-    FreeModel(id="meta-llama/llama-3.3-70b-instruct:free", name="Llama 3.3 70B Instruct", context_length=65536),
-    FreeModel(id="google/gemma-3-27b-it:free", name="Google Gemma 3 27B", context_length=131072),
-    FreeModel(id="nousresearch/hermes-3-llama-3.1-405b:free", name="Nous Hermes 3 405B", context_length=131072),
-    FreeModel(id="stepfun/step-3.5-flash:free", name="StepFun Step 3.5 Flash", context_length=256000),
-    FreeModel(id="minimax/minimax-m2.5:free", name="MiniMax M2.5", context_length=196608),
-    FreeModel(id="openai/gpt-oss-120b:free", name="OpenAI GPT-OSS 120B", context_length=131072),
+_FALLBACK_MODELS = [
+    OpenRouterModel(id="openai/gpt-4o", name="OpenAI GPT-4o", context_length=128000),
+    OpenRouterModel(id="openai/gpt-4o-mini", name="OpenAI GPT-4o-mini", context_length=128000),
+    OpenRouterModel(id="anthropic/claude-3.5-sonnet", name="Anthropic Claude 3.5 Sonnet", context_length=200000),
+    OpenRouterModel(id="anthropic/claude-3-haiku", name="Anthropic Claude 3 Haiku", context_length=200000),
+    OpenRouterModel(id="google/gemini-1.5-pro", name="Google Gemini 1.5 Pro", context_length=2000000),
+    OpenRouterModel(id="google/gemini-1.5-flash", name="Google Gemini 1.5 Flash", context_length=1000000),
+    OpenRouterModel(id="meta-llama/llama-3.1-70b-instruct", name="Meta Llama 3.1 70B", context_length=131072),
 ]
