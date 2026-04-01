@@ -203,6 +203,7 @@ class MatchRequestItem(Base):
     confidence: Mapped[Decimal | None] = mapped_column(Numeric, nullable=True)
     reasons_json: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
     decision_trace_json: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
+    review_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     reviewed_by: Mapped[str | None] = mapped_column(Text, nullable=True)
     reviewed_at: Mapped[datetime | None] = mapped_column(nullable=True)
     final_product_id: Mapped[str | None] = mapped_column(
@@ -260,9 +261,27 @@ class GoldenLabel(Base):
     )
     label_type: Mapped[str] = mapped_column(Text, nullable=False)
     source: Mapped[str] = mapped_column(Text, nullable=False)
+    version: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
     verified_by: Mapped[str | None] = mapped_column(Text, nullable=True)
     verified_at: Mapped[datetime | None] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_log"
+
+    log_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    action: Mapped[str] = mapped_column(Text, nullable=False)
+    entity_type: Mapped[str] = mapped_column(Text, nullable=False)
+    entity_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    user_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    username: Mapped[str | None] = mapped_column(Text, nullable=True)
+    details: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
+    ip_address: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
 
 class NormalizationSynonym(Base):

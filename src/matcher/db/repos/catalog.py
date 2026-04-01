@@ -6,7 +6,7 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from matcher.db.models import CatalogAlias, CatalogEmbedding, CatalogProduct
+from matcher.db.models import CatalogAlias, CatalogEmbedding, CatalogProduct, IndexVersion
 
 
 class CatalogRepo:
@@ -148,5 +148,41 @@ class CatalogRepo:
     async def delete_all_products(self) -> int:
         """Deletes ALL products by truncating the table, which cascades."""
         from sqlalchemy import text
-        result = await self.session.execute(text("TRUNCATE TABLE catalog_products CASCADE"))
+
+        await self.session.execute(text("TRUNCATE TABLE catalog_products CASCADE"))
         return 1
+
+    # ------------------------------------------------------------------
+    # Index versions
+    # ------------------------------------------------------------------
+
+    async def list_index_versions(self) -> list[IndexVersion]:
+        """List all index versions, newest first."""
+        stmt = select(IndexVersion).order_by(IndexVersion.created_at.desc())
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def activate_index_version(self, version_id: str) -> bool:
+        """Activate a specific index version, deactivating all others."""
+        from datetime import UTC, datetime
+
+        from sqlalchemy import update
+
+        target = await self.session.execute(
+            select(IndexVersion).where(IndexVersion.index_version_id == version_id)
+        )
+        version = target.scalar_one_or_none()
+        if not version:
+            return False
+
+        # Deactivate all
+        await self.session.execute(
+            update(IndexVersion).values(is_active=False)
+        )
+        # Activate target
+        await self.session.execute(
+            update(IndexVersion)
+            .where(IndexVersion.index_version_id == version_id)
+            .values(is_active=True, activated_at=datetime.now(UTC))
+        )
+        return True

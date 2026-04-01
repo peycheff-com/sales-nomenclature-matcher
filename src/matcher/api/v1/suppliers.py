@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from matcher.api.deps import get_db
 from matcher.auth.deps import get_current_user, require_role
 from matcher.db.models import User
+from matcher.db.repos.audit import AuditRepo
 from matcher.db.repos.supplier import SupplierRepo
 from matcher.normalization.pipeline import run_pipeline
 from matcher.schemas.supplier import (
@@ -104,8 +105,22 @@ async def create_supplier_mapping(
             "approved_by": current_user.username,
         },
     )
-    await db.commit()
 
+    audit = AuditRepo(db)
+    await audit.log(
+        action="mapping_create",
+        entity_type="supplier_mapping",
+        entity_id=supplier_id,
+        user_id=current_user.user_id,
+        username=current_user.username,
+        details={
+            "product_id": body.product_id,
+            "mapping_type": body.mapping_type,
+            "supplier_raw_text": body.supplier_raw_text,
+        },
+    )
+
+    await db.commit()
     return SupplierMapping.model_validate(mapping)
 
 

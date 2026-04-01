@@ -86,9 +86,7 @@ async def batch_match(ctx: dict, request_id: str) -> dict:
                         normalized_text=result.normalized_text,
                         extracted_attributes=result.extracted_attributes,
                         reasons_json=result.reasons,
-                        decision_trace_json=result.decision_trace
-                        if hasattr(result, "decision_trace")
-                        else None,
+                        decision_trace_json=result.decision_trace or None,
                     )
 
                     candidates_data = []
@@ -486,9 +484,7 @@ async def smart_upload(ctx: dict, request_id: str, **kwargs) -> dict:
                         normalized_text=result.normalized_text,
                         extracted_attributes=result.extracted_attributes,
                         reasons_json=result.reasons,
-                        decision_trace_json=result.decision_trace
-                        if hasattr(result, "decision_trace")
-                        else None,
+                        decision_trace_json=result.decision_trace or None,
                     )
 
                     candidates_data = []

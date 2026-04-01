@@ -58,6 +58,7 @@ services:
         USE_LOCAL: "false"
     command: arq matcher.worker.settings.WorkerSettings
     env_file: .env.production
+    stop_grace_period: 120s
     deploy:
       resources:
         limits:

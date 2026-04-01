@@ -7,6 +7,7 @@ import type {
   MatchRequestDetails,
   MatchRequestInput,
   MatchResponse,
+  ReviewQueuePage,
 } from "./types";
 
 export async function matchSync(input: MatchRequestInput): Promise<MatchResponse> {
@@ -117,4 +118,16 @@ export async function getItemCandidates(
   return api
     .get(`match/items/${requestItemId}/candidates`)
     .json<{ request_item_id: string; candidates: Candidate[] }>();
+}
+
+export async function getReviewQueue(params?: {
+  supplier_id?: string;
+  page?: number;
+  page_size?: number;
+}): Promise<ReviewQueuePage> {
+  const searchParams: Record<string, string | number> = {};
+  if (params?.supplier_id) searchParams.supplier_id = params.supplier_id;
+  if (params?.page != null) searchParams.page = params.page;
+  if (params?.page_size != null) searchParams.page_size = params.page_size;
+  return api.get("match/review-queue", { searchParams }).json<ReviewQueuePage>();
 }

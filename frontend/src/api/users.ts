@@ -17,13 +17,13 @@ export interface UserDetail {
 export interface UserCreateInput {
   username: string;
   full_name?: string;
-  role: "admin" | "operator" | "viewer";
+  role: "admin" | "operator" | "viewer" | "reviewer" | "catalog_operator";
   password: string;
 }
 
 export interface UserUpdateInput {
   full_name?: string;
-  role?: "admin" | "operator" | "viewer";
+  role?: "admin" | "operator" | "viewer" | "reviewer" | "catalog_operator";
   is_active?: boolean;
 }
 

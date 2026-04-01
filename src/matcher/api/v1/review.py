@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from matcher.api.deps import get_db
 from matcher.auth.deps import get_current_user
 from matcher.db.models import CatalogProduct, User
+from matcher.db.repos.audit import AuditRepo
 from matcher.db.repos.catalog import CatalogRepo
 from matcher.db.repos.match import MatchRepo
 from matcher.db.repos.supplier import SupplierRepo
@@ -58,6 +59,7 @@ async def review_item(
         decision=body.final_decision,
         final_product_id=final_product_id,
         reviewed_by=current_user.username,
+        review_notes=body.comment,
     )
 
     # Create golden label for training data
@@ -71,6 +73,22 @@ async def review_item(
         source="review",
     )
 
+    # Audit log
+    audit = AuditRepo(db)
+    await audit.log(
+        action="review",
+        entity_type="match_request_item",
+        entity_id=request_item_id,
+        user_id=current_user.user_id,
+        username=current_user.username,
+        details={
+            "decision": body.final_decision,
+            "final_product_id": final_product_id,
+            "create_alias": body.create_alias,
+            "create_supplier_mapping": body.create_supplier_mapping,
+        },
+    )
+
     # Optionally create alias
     if body.create_alias and final_product_id:
         ctx = run_pipeline(item.raw_text)
@@ -81,6 +99,14 @@ async def review_item(
             normalized_text=ctx.text or item.raw_text,
             alias_type="user_added",
             created_by=current_user.username,
+        )
+        await audit.log(
+            action="alias_create",
+            entity_type="catalog_alias",
+            entity_id=final_product_id,
+            user_id=current_user.user_id,
+            username=current_user.username,
+            details={"alias_text": item.raw_text, "source": "review"},
         )
 
     # Optionally create supplier mapping
@@ -96,6 +122,17 @@ async def review_item(
                 "mapping_type": "approved",
                 "confidence": float(item.confidence) if item.confidence else None,
                 "approved_by": current_user.username,
+            },
+        )
+        await audit.log(
+            action="mapping_create",
+            entity_type="supplier_mapping",
+            entity_id=request.supplier_id,
+            user_id=current_user.user_id,
+            username=current_user.username,
+            details={
+                "supplier_raw_text": item.raw_text,
+                "product_id": final_product_id,
             },
         )
 
@@ -114,6 +151,7 @@ async def batch_review_items(
     match_repo = MatchRepo(db)
     catalog_repo = CatalogRepo(db)
     supplier_repo = SupplierRepo(db)
+    audit = AuditRepo(db)
 
     processed_count = 0
     for req_item in body.items:
@@ -135,6 +173,7 @@ async def batch_review_items(
             decision=req_item.final_decision,
             final_product_id=final_product_id,
             reviewed_by=current_user.username,
+            review_notes=req_item.comment,
         )
 
         label_type = (
@@ -147,6 +186,19 @@ async def batch_review_items(
             product_id=final_product_id,
             label_type=label_type,
             source="review_batch",
+        )
+
+        await audit.log(
+            action="review",
+            entity_type="match_request_item",
+            entity_id=req_item.request_item_id,
+            user_id=current_user.user_id,
+            username=current_user.username,
+            details={
+                "decision": req_item.final_decision,
+                "final_product_id": final_product_id,
+                "batch": True,
+            },
         )
 
         if req_item.create_alias and final_product_id:

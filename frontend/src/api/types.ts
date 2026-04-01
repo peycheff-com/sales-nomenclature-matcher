@@ -164,3 +164,71 @@ export interface ProviderConfigInput {
   base_url?: string;
 }
 
+export interface ReviewQueueItem {
+  request_item_id: string;
+  request_id: string;
+  raw_text: string;
+  normalized_text?: string;
+  status: string;
+  confidence?: number;
+  best_product_id?: string;
+  reasons: string[];
+  supplier_id?: string;
+  file_name?: string;
+}
+
+export interface ReviewQueuePage {
+  items: ReviewQueueItem[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface AuditLogEntry {
+  log_id: string;
+  action: string;
+  entity_type: string;
+  entity_id?: string;
+  user_id?: string;
+  username?: string;
+  details: Record<string, unknown>;
+  created_at?: string;
+}
+
+export interface IndexVersionInfo {
+  index_version_id: string;
+  embedding_model: string;
+  embedding_version: string;
+  is_active: boolean;
+  product_count: number;
+  created_by?: string;
+  created_at?: string;
+  activated_at?: string;
+}
+
+export interface QualityHistoryItem {
+  report_id: string;
+  index_version_id?: string;
+  top1_accuracy?: number;
+  top3_recall?: number;
+  precision_at_1?: number;
+  auto_match_fp_rate?: number;
+  review_acceptance_rate?: number;
+  total_cases: number;
+  created_at?: string;
+}
+
+export interface SupplierMapping {
+  mapping_id: string;
+  supplier_id: string;
+  supplier_sku?: string;
+  supplier_article?: string;
+  supplier_raw_text?: string;
+  product_id: string;
+  mapping_type: string;
+  confidence?: number;
+  approved_by?: string;
+  is_active: boolean;
+  created_at?: string;
+}
+

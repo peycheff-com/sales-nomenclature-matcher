@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from matcher.api.deps import get_arq_pool, get_db
 from matcher.auth.deps import get_current_user, require_role
 from matcher.db.models import User
+from matcher.db.repos.audit import AuditRepo
 from matcher.db.repos.catalog import CatalogRepo
 from matcher.schemas.catalog import CatalogImportInput, CatalogReindexInput, JobAccepted
 
@@ -75,7 +76,8 @@ async def catalog_stats(
 async def import_catalog(
     body: CatalogImportInput,
     arq_pool=Depends(get_arq_pool),
-    current_user: User = Depends(require_role("admin", "operator")),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role("admin", "operator", "catalog_operator")),
 ):
     """Import catalog from 1C OData or file URL."""
     job_id = f"job_{uuid.uuid4().hex[:12]}"
@@ -87,6 +89,15 @@ async def import_catalog(
         dry_run=body.dry_run,
         source_version=body.source_version,
     )
+    audit = AuditRepo(db)
+    await audit.log(
+        action="catalog_import",
+        entity_type="catalog_product",
+        user_id=current_user.user_id,
+        username=current_user.username,
+        details={"source_type": body.source_type, "job_id": job_id, "dry_run": body.dry_run},
+    )
+    await db.commit()
     return JobAccepted(job_id=job_id, status="queued")
 
 
@@ -142,7 +153,8 @@ async def upload_catalog_file(
 async def reindex_catalog(
     body: CatalogReindexInput,
     arq_pool=Depends(get_arq_pool),
-    current_user: User = Depends(require_role("admin")),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role("admin", "catalog_operator")),
 ):
     job_id = f"job_{uuid.uuid4().hex[:12]}"
     await arq_pool.enqueue_job(
@@ -150,7 +162,69 @@ async def reindex_catalog(
         job_id,
         **body.model_dump(exclude_none=True),
     )
+    audit = AuditRepo(db)
+    await audit.log(
+        action="catalog_reindex",
+        entity_type="index_version",
+        user_id=current_user.user_id,
+        username=current_user.username,
+        details={"job_id": job_id},
+    )
+    await db.commit()
     return JobAccepted(job_id=job_id, status="queued")
+
+
+@router.get("/catalog/index-versions")
+async def list_index_versions(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """List all index versions with their status."""
+    repo = CatalogRepo(db)
+    versions = await repo.list_index_versions()
+    return {
+        "items": [
+            {
+                "index_version_id": v.index_version_id,
+                "embedding_model": v.embedding_model,
+                "embedding_version": v.embedding_version,
+                "is_active": v.is_active,
+                "product_count": v.product_count,
+                "created_by": v.created_by,
+                "created_at": v.created_at.isoformat() if v.created_at else None,
+                "activated_at": v.activated_at.isoformat() if v.activated_at else None,
+            }
+            for v in versions
+        ]
+    }
+
+
+class RollbackInput(BaseModel):
+    index_version_id: str
+
+
+@router.post("/catalog/rollback", status_code=200)
+async def rollback_index(
+    body: RollbackInput,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role("admin", "catalog_operator")),
+):
+    """Roll back to a previous index version."""
+    repo = CatalogRepo(db)
+    success = await repo.activate_index_version(body.index_version_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Index version not found")
+
+    audit = AuditRepo(db)
+    await audit.log(
+        action="index_rollback",
+        entity_type="index_version",
+        entity_id=body.index_version_id,
+        user_id=current_user.user_id,
+        username=current_user.username,
+    )
+    await db.commit()
+    return {"ok": True, "activated_version": body.index_version_id}
 
 
 @router.delete("/catalog/products/{product_id}", status_code=204)

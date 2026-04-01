@@ -232,7 +232,10 @@ def _get_best_sheet(file_contents: bytes) -> tuple[pd.DataFrame, str]:
         except Exception:
             continue
 
-    logger.info("Selected sheet '%s' from %d sheets (score=%d)", best_name, len(sheet_names), best_score)
+    logger.info(
+        "Selected sheet '%s' from %d sheets (score=%d)",
+        best_name, len(sheet_names), best_score,
+    )
     return best_df, best_name
 
 
@@ -537,7 +540,7 @@ GRID:
 {grid_text}
 
 TASK: Identify ALL distinct data tables. For each:
-1. "role": "supplier_input" (client products to match) or "catalog_reference" (our catalog) or "metadata"
+1. "role": "supplier_input" | "catalog_reference" | "metadata"
 2. "col_start", "col_end": column letters bounding the table
 3. "header_row": 1-based row number of column headers
 4. "name_col": column letter of the product name/nomenclature
@@ -570,7 +573,10 @@ Return ONLY valid JSON:
         tables = result.get("tables")
         if not isinstance(tables, list) or len(tables) == 0:
             return None
-        logger.info("LLM detected %d table(s), supplier=%s", len(tables), result.get("supplier_name"))
+        logger.info(
+            "LLM detected %d table(s), supplier=%s",
+            len(tables), result.get("supplier_name"),
+        )
         return result
     except Exception as e:
         logger.warning("LLM structure analysis failed: %s", e)
@@ -728,11 +734,10 @@ async def analyze_file_structure(file_contents: bytes) -> FileAnalysisResult:
     if df_raw.empty:
         return FileAnalysisResult()
 
-    logger.info("Analyzing structure of sheet '%s' (%d rows, %d cols)", sheet_name, len(df_raw), len(df_raw.columns))
-
-    # First try: heuristic gap detection to see if there are multiple column groups
-    col_groups = _split_into_column_groups(df_raw)
-    has_multiple_tables = len(col_groups) > 1
+    logger.info(
+        "Analyzing structure of sheet '%s' (%d rows, %d cols)",
+        sheet_name, len(df_raw), len(df_raw.columns),
+    )
 
     # Try LLM analysis (richer results)
     sample_rows: list[list] = []
@@ -753,8 +758,14 @@ async def analyze_file_structure(file_contents: bytes) -> FileAnalysisResult:
                 ce = _col_letter_to_index(table_spec["col_end"])
                 hr = int(table_spec["header_row"]) - 1
                 nc = _col_letter_to_index(table_spec["name_col"])
-                uc = _col_letter_to_index(table_spec["unit_col"]) if table_spec.get("unit_col") else None
-                pc = _col_letter_to_index(table_spec["price_col"]) if table_spec.get("price_col") else None
+                uc = (
+                    _col_letter_to_index(table_spec["unit_col"])
+                    if table_spec.get("unit_col") else None
+                )
+                pc = (
+                    _col_letter_to_index(table_spec["price_col"])
+                    if table_spec.get("price_col") else None
+                )
 
                 items = _extract_region_items(df_raw, cs, ce, hr, nc, uc, pc)
                 role = table_spec.get("role", "supplier_input")
@@ -813,12 +824,18 @@ async def parse_excel_upload(file_contents: bytes, use_ai: bool = False) -> list
             df = pd.read_excel(io.BytesIO(file_contents), header=header_idx)
         except Exception:
             df = df_raw.copy()
-            headers = [str(v).strip() if pd.notna(v) else f"col_{i}" for i, v in enumerate(df.iloc[header_idx])]
+            headers = [
+                str(v).strip() if pd.notna(v) else f"col_{i}"
+                for i, v in enumerate(df.iloc[header_idx])
+            ]
             df.columns = headers
             df = df.iloc[header_idx + 1:]
     else:
         df = df_raw.copy()
-        headers = [str(v).strip() if pd.notna(v) else f"col_{i}" for i, v in enumerate(df.iloc[header_idx])]
+        headers = [
+            str(v).strip() if pd.notna(v) else f"col_{i}"
+            for i, v in enumerate(df.iloc[header_idx])
+        ]
         df.columns = headers
         df = df.iloc[header_idx + 1:]
 
@@ -829,7 +846,10 @@ async def parse_excel_upload(file_contents: bytes, use_ai: bool = False) -> list
     target_col = None
     if use_ai:
         if not _llm_available():
-            raise ValueError("Умный поиск включен, но API ключ LLM провайдера не настроен в настройках.")
+            raise ValueError(
+                "Умный поиск включен, но API ключ LLM провайдера"
+                " не настроен в настройках."
+            )
         target_col = await _identify_column_via_llm(df)
 
     # Heuristic fallbacks

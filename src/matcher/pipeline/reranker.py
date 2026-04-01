@@ -8,6 +8,7 @@ from openai import AsyncOpenAI
 
 from matcher.config import PROVIDER_CAPABILITIES, settings
 from matcher.indexing.search import SearchCandidate
+from matcher.pipeline.circuit_breaker import provider_circuit
 from matcher.pipeline.token_tracker import TokenTracker
 
 logger = logging.getLogger(__name__)
@@ -58,6 +59,11 @@ async def rerank_candidates(
         )
         return _fallback_rerank(candidates, top_n)
 
+    # Circuit breaker: skip provider if it's been failing
+    if not provider_circuit.is_available(provider_id):
+        logger.warning("Circuit breaker open for rerank provider %s, using fallback", provider_id)
+        return _fallback_rerank(candidates, top_n)
+
     # Verify provider actually supports reranking (skip virtual providers)
     if provider_id not in ("llm-fallback",):
         caps = PROVIDER_CAPABILITIES.get(provider_id)
@@ -69,15 +75,18 @@ async def rerank_candidates(
 
     try:
         if provider_id == "llm-fallback":
-            return await _llm_rerank(query, candidates, top_n)
+            result = await _llm_rerank(query, candidates, top_n)
         elif provider_id == "local":
-            return await _local_rerank(query, candidates, top_n)
+            result = await _local_rerank(query, candidates, top_n)
         elif provider_id in ("cohere", "together", "jina", "dashscope"):
-            return await _http_rerank(query, candidates, top_n, provider_id, provider)
+            result = await _http_rerank(query, candidates, top_n, provider_id, provider)
         else:
             logger.warning(f"Rerank processor for '{provider_id}' not implemented. Falling back.")
             return _fallback_rerank(candidates, top_n)
+        provider_circuit.record_success(provider_id)
+        return result
     except Exception as e:
+        provider_circuit.record_failure(provider_id)
         logger.error(f"Reranking failed for provider {provider_id}: {e}", exc_info=True)
         return _fallback_rerank(candidates, top_n)
 

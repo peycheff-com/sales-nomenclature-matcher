@@ -56,6 +56,7 @@ class TestScoringFormula:
             semantic_score=0.8,
             rerank_score=0.8,
             critical_number_conflict=True,
+            candidate_has_identifiers=True,
         )
         result = score_candidate(f)
         assert result.penalty < 0

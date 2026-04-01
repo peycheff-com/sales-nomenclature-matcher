@@ -1,13 +1,16 @@
 import { Link, useMatchRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { BarChart3, LayoutDashboard, Settings as SettingsIcon, Database } from "lucide-react";
+import { BarChart3, ClipboardCheck, Database, LayoutDashboard, Settings as SettingsIcon, Truck, Users } from "lucide-react";
 import { getMe } from "@/api/auth";
 import { listMatchRequests } from "@/api/match";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { to: "/", label: "Рабочий стол", icon: LayoutDashboard, adminOnly: false, badgeKey: "requests" as const },
+  { to: "/review", label: "Проверка", icon: ClipboardCheck, adminOnly: false, badgeKey: null },
+  { to: "/suppliers", label: "Поставщики", icon: Truck, adminOnly: false, badgeKey: null },
   { to: "/catalog", label: "База данных", icon: Database, adminOnly: false, badgeKey: null },
+  { to: "/users", label: "Пользователи", icon: Users, adminOnly: true, badgeKey: null },
   { to: "/settings", label: "Система", icon: SettingsIcon, adminOnly: true, badgeKey: null },
 ] as const;
 

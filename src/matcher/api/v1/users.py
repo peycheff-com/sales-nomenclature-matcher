@@ -7,6 +7,7 @@ from matcher.api.deps import get_db
 from matcher.auth.deps import require_role
 from matcher.auth.security import hash_password
 from matcher.db.models import User
+from matcher.db.repos.audit import AuditRepo
 from matcher.db.repos.user import UserRepo
 from matcher.schemas.user import (
     UserCreate,
@@ -46,6 +47,15 @@ async def create_user(
         full_name=body.full_name,
         role=body.role,
         must_change_password=True,
+    )
+    audit = AuditRepo(db)
+    await audit.log(
+        action="user_create",
+        entity_type="user",
+        entity_id=user.user_id,
+        user_id=admin.user_id,
+        username=admin.username,
+        details={"new_username": body.username, "role": body.role},
     )
     await db.commit()
     return UserOut.model_validate(user)

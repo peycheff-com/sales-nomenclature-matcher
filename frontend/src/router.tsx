@@ -20,6 +20,9 @@ import ResultsPage from "@/pages/results";
 import CatalogPage from "@/pages/catalog";
 import SettingsPage from "@/pages/settings";
 import ProfilePage from "@/pages/profile";
+import ReviewPage from "@/pages/review";
+import SuppliersPage from "@/pages/suppliers";
+import UsersPage from "@/pages/users";
 import ForceChangePasswordPage from "@/pages/force-change-password";
 import { NotFound } from "@/pages/not-found";
 
@@ -112,6 +115,22 @@ const resultsRoute = createRoute({
 });
 
 
+// Review queue
+const reviewRoute = createRoute({
+  getParentRoute: () => authLayoutRoute,
+  path: "/review",
+  component: ReviewPage,
+});
+
+
+// Suppliers
+const suppliersRoute = createRoute({
+  getParentRoute: () => authLayoutRoute,
+  path: "/suppliers",
+  component: SuppliersPage,
+});
+
+
 // Catalog
 const catalogRoute = createRoute({
   getParentRoute: () => authLayoutRoute,
@@ -143,6 +162,29 @@ const settingsRoute = createRoute({
 });
 
 
+// Users management (requires admin role)
+const usersRoute = createRoute({
+  getParentRoute: () => authLayoutRoute,
+  path: "/users",
+  component: UsersPage,
+  beforeLoad: async () => {
+    try {
+      const user = await queryClient.ensureQueryData({
+        queryKey: ["me"],
+        queryFn: getMe,
+        staleTime: 5 * 60 * 1000,
+      });
+      if (user.role !== "admin") {
+        throw redirect({ to: "/" });
+      }
+    } catch (e) {
+      if (e instanceof Error) throw redirect({ to: "/" });
+      throw e;
+    }
+  },
+});
+
+
 // User profile (any authenticated user)
 const profileRoute = createRoute({
   getParentRoute: () => authLayoutRoute,
@@ -157,8 +199,11 @@ const routeTree = rootRoute.addChildren([
   authLayoutRoute.addChildren([
     dashboardRoute,
     resultsRoute,
+    reviewRoute,
+    suppliersRoute,
     catalogRoute,
     settingsRoute,
+    usersRoute,
     profileRoute,
   ]),
 ]);

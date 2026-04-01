@@ -56,9 +56,11 @@ def run_pipeline(text: str, transforms: list[Transform] | None = None) -> Normal
 
 
 def default_transforms() -> list[Transform]:
+    from matcher.normalization.abbreviations import expand_abbreviations
     from matcher.normalization.brand_detector import detect_brand
     from matcher.normalization.cyrillic_latin import cyrillic_latin_normalize
     from matcher.normalization.number_extractor import extract_numbers
+    from matcher.normalization.packaging import normalize_packaging
     from matcher.normalization.stopwords import remove_stopwords
     from matcher.normalization.tokenizer import tokenize
     from matcher.normalization.unicode_cleanup import unicode_cleanup
@@ -69,6 +71,8 @@ def default_transforms() -> list[Transform]:
         cyrillic_latin_normalize,
         extract_numbers,
         normalize_units,
+        expand_abbreviations,
+        normalize_packaging,
         detect_brand,
         remove_stopwords,
         tokenize,

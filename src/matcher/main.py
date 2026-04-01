@@ -18,7 +18,7 @@ from matcher.api.middleware import (
     RequestTimeoutMiddleware,
     SecurityHeadersMiddleware,
 )
-from matcher.api.v1 import auth, catalog, match, metrics, review, suppliers, upload, users
+from matcher.api.v1 import audit, auth, catalog, match, metrics, review, suppliers, upload, users
 from matcher.api.v1.settings import router as settings_router
 from matcher.config import settings
 from matcher.db.engine import async_session_factory, engine
@@ -117,6 +117,7 @@ def create_app() -> FastAPI:
     app.include_router(settings_router, prefix="/api/v1")
     app.include_router(upload.router, prefix="/api/v1")
     app.include_router(users.router, prefix="/api/v1")
+    app.include_router(audit.router, prefix="/api/v1")
 
     @app.get("/api/v1/health", tags=["Health"])
     async def health(response: Response):

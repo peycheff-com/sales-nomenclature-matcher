@@ -14,6 +14,7 @@ from matcher.api.deps import get_db
 from matcher.auth.deps import get_current_user, require_role
 from matcher.config import PROVIDER_CAPABILITIES, settings
 from matcher.db.models import User
+from matcher.db.repos.audit import AuditRepo
 from matcher.db.repos.settings import SettingsRepo
 from matcher.security.url_validator import SSRFError, validate_url_safe
 
@@ -364,6 +365,16 @@ async def update_settings(
 
         reset_client()
 
+    audit = AuditRepo(db)
+    await audit.log(
+        action="settings_change",
+        entity_type="settings",
+        user_id=current_user.user_id,
+        username=current_user.username,
+        details=body.model_dump(exclude_none=True, exclude={"providers_registry"}),
+    )
+    await db.commit()
+
     logger.info("Settings updated by %s", current_user.username)
     return await get_settings(current_user=current_user, db=db)
 
@@ -433,7 +444,7 @@ async def list_models(
             elif "chat" in endpoints or "generate" in endpoints:
                 m_type = "chat"
 
-        # Together: derive from "type" field which can be "chat", "embedding", "rerank", "language", etc.
+        # Together: derive from "type" field ("chat", "embedding", "rerank", etc.)
         if m_type == "language":
             m_type = "chat"
 
@@ -468,39 +479,59 @@ async def list_models(
 
 def _get_known_models(provider: str) -> list[OpenRouterModel]:
     """Return well-known models per provider as fallback/supplement."""
-    known: dict[str, list[OpenRouterModel]] = {
+    M = OpenRouterModel
+    known: dict[str, list[M]] = {
         "openrouter": _FALLBACK_MODELS,
         "openai": [
-            OpenRouterModel(id="gpt-4o", name="GPT-4o", context_length=128000, type="chat"),
-            OpenRouterModel(id="gpt-4o-mini", name="GPT-4o Mini", context_length=128000, type="chat"),
-            OpenRouterModel(id="gpt-4.1-mini", name="GPT-4.1 Mini", context_length=1000000, type="chat"),
-            OpenRouterModel(id="gpt-4.1-nano", name="GPT-4.1 Nano", context_length=1000000, type="chat"),
-            OpenRouterModel(id="text-embedding-3-small", name="Embedding 3 Small", context_length=8191, type="embedding"),
-            OpenRouterModel(id="text-embedding-3-large", name="Embedding 3 Large", context_length=8191, type="embedding"),
+            M(id="gpt-4o", name="GPT-4o", context_length=128000, type="chat"),
+            M(id="gpt-4o-mini", name="GPT-4o Mini", context_length=128000, type="chat"),
+            M(id="gpt-4.1-mini", name="GPT-4.1 Mini", context_length=1000000, type="chat"),
+            M(id="gpt-4.1-nano", name="GPT-4.1 Nano", context_length=1000000, type="chat"),
+            M(id="text-embedding-3-small", name="Embedding 3 Small",
+              context_length=8191, type="embedding"),
+            M(id="text-embedding-3-large", name="Embedding 3 Large",
+              context_length=8191, type="embedding"),
         ],
         "together": [
-            OpenRouterModel(id="meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8", name="Llama 4 Maverick", context_length=1000000, type="chat"),
-            OpenRouterModel(id="Qwen/Qwen3-235B-A22B", name="Qwen3 235B", context_length=131072, type="chat"),
-            OpenRouterModel(id="togethercomputer/m2-bert-80M-8k-retrieval", name="M2-BERT Embedding", context_length=8192, type="embedding"),
-            OpenRouterModel(id="BAAI/bge-large-en-v1.5", name="BGE Large EN v1.5", context_length=512, type="embedding"),
-            OpenRouterModel(id="Salesforce/Llama-Rank-V1", name="Llama Rank V1 (Rerank)", context_length=8192, type="rerank"),
+            M(id="meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
+              name="Llama 4 Maverick", context_length=1000000, type="chat"),
+            M(id="Qwen/Qwen3-235B-A22B", name="Qwen3 235B",
+              context_length=131072, type="chat"),
+            M(id="togethercomputer/m2-bert-80M-8k-retrieval",
+              name="M2-BERT Embedding", context_length=8192, type="embedding"),
+            M(id="BAAI/bge-large-en-v1.5", name="BGE Large EN v1.5",
+              context_length=512, type="embedding"),
+            M(id="Salesforce/Llama-Rank-V1", name="Llama Rank V1 (Rerank)",
+              context_length=8192, type="rerank"),
         ],
         "cohere": [
-            OpenRouterModel(id="command-r-plus", name="Command R+", context_length=128000, type="chat"),
-            OpenRouterModel(id="command-r", name="Command R", context_length=128000, type="chat"),
-            OpenRouterModel(id="embed-multilingual-v3.0", name="Embed Multilingual v3.0", context_length=512, type="embedding"),
-            OpenRouterModel(id="embed-english-v3.0", name="Embed English v3.0", context_length=512, type="embedding"),
-            OpenRouterModel(id="rerank-multilingual-v3.0", name="Rerank Multilingual v3.0", context_length=4096, type="rerank"),
-            OpenRouterModel(id="rerank-english-v3.0", name="Rerank English v3.0", context_length=4096, type="rerank"),
+            M(id="command-r-plus", name="Command R+",
+              context_length=128000, type="chat"),
+            M(id="command-r", name="Command R",
+              context_length=128000, type="chat"),
+            M(id="embed-multilingual-v3.0", name="Embed Multilingual v3.0",
+              context_length=512, type="embedding"),
+            M(id="embed-english-v3.0", name="Embed English v3.0",
+              context_length=512, type="embedding"),
+            M(id="rerank-multilingual-v3.0", name="Rerank Multilingual v3.0",
+              context_length=4096, type="rerank"),
+            M(id="rerank-english-v3.0", name="Rerank English v3.0",
+              context_length=4096, type="rerank"),
         ],
         "jina": [
-            OpenRouterModel(id="jina-embeddings-v3", name="Jina Embeddings v3", context_length=8192, type="embedding"),
-            OpenRouterModel(id="jina-reranker-v2-base-multilingual", name="Jina Reranker v2 Multilingual", context_length=1024, type="rerank"),
-            OpenRouterModel(id="jina-colbert-v2", name="Jina ColBERT v2", context_length=8192, type="rerank"),
+            M(id="jina-embeddings-v3", name="Jina Embeddings v3",
+              context_length=8192, type="embedding"),
+            M(id="jina-reranker-v2-base-multilingual",
+              name="Jina Reranker v2 Multilingual",
+              context_length=1024, type="rerank"),
+            M(id="jina-colbert-v2", name="Jina ColBERT v2",
+              context_length=8192, type="rerank"),
         ],
         "dashscope": [
-            OpenRouterModel(id="text-embedding-v3", name="DashScope Embedding v3", context_length=8192, type="embedding"),
-            OpenRouterModel(id="gte-rerank", name="GTE Rerank", context_length=4096, type="rerank"),
+            M(id="text-embedding-v3", name="DashScope Embedding v3",
+              context_length=8192, type="embedding"),
+            M(id="gte-rerank", name="GTE Rerank",
+              context_length=4096, type="rerank"),
         ],
     }
     return known.get(provider, [])

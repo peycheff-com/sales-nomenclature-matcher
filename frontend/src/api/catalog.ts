@@ -43,3 +43,15 @@ export async function deleteCatalogProduct(productId: string): Promise<void> {
 export async function deleteAllCatalogProducts(): Promise<void> {
   await api.delete(`catalog/products`).text();
 }
+
+export async function getIndexVersions(): Promise<{
+  items: import("./types").IndexVersionInfo[];
+}> {
+  return api.get("catalog/index-versions").json();
+}
+
+export async function rollbackIndex(indexVersionId: string): Promise<{ ok: boolean }> {
+  return api
+    .post("catalog/rollback", { json: { index_version_id: indexVersionId } })
+    .json<{ ok: boolean }>();
+}
