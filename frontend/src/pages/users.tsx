@@ -9,6 +9,7 @@ import {
   resetUserPassword,
   type UserDetail,
   type UserCreateInput,
+  type UserUpdateInput,
 } from "@/api/users";
 import { getMe } from "@/api/auth";
 import { Button } from "@/components/ui/button";
@@ -118,7 +119,7 @@ export default function UsersPage() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ userId, ...data }: { userId: string; full_name?: string; role?: string; is_active?: boolean }) =>
+    mutationFn: ({ userId, ...data }: { userId: string } & UserUpdateInput) =>
       updateUser(userId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] });

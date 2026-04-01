@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { LogOut, Menu, User, UserCircle } from "lucide-react";
 import { getMe, logout } from "@/api/auth";
 import { setAuthenticated } from "@/lib/auth-store";
@@ -15,6 +15,7 @@ import {
 
 export default function Header() {
   const { toggle } = useSidebarContext();
+  const navigate = useNavigate();
 
   const userQuery = useQuery({
     queryKey: ["me"],
@@ -41,25 +42,24 @@ export default function Header() {
       <div className="flex items-center gap-3">
         {userQuery.data && (
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-muted transition-colors">
-                <User className="h-4 w-4" />
-                <span className="hidden sm:inline">
-                  {userQuery.data.full_name || userQuery.data.username}
+            <DropdownMenuTrigger className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-muted-foreground hover:bg-muted transition-colors">
+              <User className="h-4 w-4" />
+              <span className="hidden sm:inline">
+                {userQuery.data.full_name || userQuery.data.username}
+              </span>
+              {userQuery.data.role === "admin" && (
+                <span className="rounded bg-muted px-1.5 py-0.5 text-xs">
+                  admin
                 </span>
-                {userQuery.data.role === "admin" && (
-                  <span className="rounded bg-muted px-1.5 py-0.5 text-xs">
-                    admin
-                  </span>
-                )}
-              </button>
+              )}
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem asChild>
-                <Link to="/profile" className="flex items-center gap-2 cursor-pointer">
-                  <UserCircle className="h-4 w-4" />
-                  Мой профиль
-                </Link>
+              <DropdownMenuItem
+                className="flex items-center gap-2 cursor-pointer"
+                onClick={() => navigate({ to: "/profile" })}
+              >
+                <UserCircle className="h-4 w-4" />
+                Мой профиль
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
