@@ -1,6 +1,6 @@
 """Add pending match status and persisted job metadata for recovery.
 
-Revision ID: 0009_match_request_queue_recovery
+Revision ID: 0009_req_queue_recovery
 Revises: 0008_audit_review_roles
 Create Date: 2026-04-02
 """
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision: str = "0009_match_request_queue_recovery"
+revision: str = "0009_req_queue_recovery"
 down_revision: str | None = "0008_audit_review_roles"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
