@@ -76,6 +76,7 @@ jobs:
       - name: Run tests
         env:
           PYTHONPATH: src
+          JWT_SECRET_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
         run: uv run pytest
 
   smoke-prod-compose:
@@ -108,12 +109,12 @@ jobs:
 
       - name: Wait for healthchecks
         run: |
-          for i in $(seq 1 40); do
-            api=$(docker inspect --format '{{.State.Health.Status}}' $(docker compose -f docker-compose.prod.yml -f docker-compose.prod.ci.yml --env-file .env.ci.prod ps -q api))
-            match=$(docker inspect --format '{{.State.Health.Status}}' $(docker compose -f docker-compose.prod.yml -f docker-compose.prod.ci.yml --env-file .env.ci.prod ps -q worker-match))
-            catalog=$(docker inspect --format '{{.State.Health.Status}}' $(docker compose -f docker-compose.prod.yml -f docker-compose.prod.ci.yml --env-file .env.ci.prod ps -q worker-catalog))
-            nginx=$(docker inspect --format '{{.State.Health.Status}}' $(docker compose -f docker-compose.prod.yml -f docker-compose.prod.ci.yml --env-file .env.ci.prod ps -q nginx))
-            echo "api=$api match=$match catalog=$catalog nginx=$nginx"
+          for attempt in $(seq 1 40); do
+            api=$(docker inspect --format '{{.State.Health.Status}}' "$(docker compose -f docker-compose.prod.yml -f docker-compose.prod.ci.yml --env-file .env.ci.prod ps -q api)")
+            match=$(docker inspect --format '{{.State.Health.Status}}' "$(docker compose -f docker-compose.prod.yml -f docker-compose.prod.ci.yml --env-file .env.ci.prod ps -q worker-match)")
+            catalog=$(docker inspect --format '{{.State.Health.Status}}' "$(docker compose -f docker-compose.prod.yml -f docker-compose.prod.ci.yml --env-file .env.ci.prod ps -q worker-catalog)")
+            nginx=$(docker inspect --format '{{.State.Health.Status}}' "$(docker compose -f docker-compose.prod.yml -f docker-compose.prod.ci.yml --env-file .env.ci.prod ps -q nginx)")
+            echo "attempt=$attempt api=$api match=$match catalog=$catalog nginx=$nginx"
             if [ "$api" = "healthy" ] && [ "$match" = "healthy" ] && [ "$catalog" = "healthy" ] && [ "$nginx" = "healthy" ]; then
               exit 0
             fi
