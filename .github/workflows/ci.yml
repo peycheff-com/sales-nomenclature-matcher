@@ -99,6 +99,7 @@ jobs:
           COOKIE_SAMESITE=lax
           LOG_LEVEL=INFO
           EOF
+          cp .env.ci.prod .env.production
 
       - name: Start prod-like services
         run: |
