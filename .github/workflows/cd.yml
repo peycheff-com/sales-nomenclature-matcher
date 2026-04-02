@@ -80,11 +80,11 @@ jobs:
       - name: Deploy release
         if: steps.check.outputs.skip != 'true'
         uses: appleboy/ssh-action@v1.0.3
-        envs: APP_IMAGE,NGINX_IMAGE
         with:
           host: ${{ secrets.DO_HOST }}
           username: root
           key: ${{ secrets.DO_SSH_KEY }}
+          envs: APP_IMAGE,NGINX_IMAGE
           script: |
             set -euo pipefail
             cd /opt/1C/deploy
