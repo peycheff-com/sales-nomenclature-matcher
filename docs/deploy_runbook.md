@@ -41,23 +41,28 @@
    echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
    ```
 
-3. **Pull the pinned images and start stateful services:**
+3. **Link the production env file into the deploy working directory:**
+   ```bash
+   ln -sf /opt/1C/.env.production .env.production
+   ```
+
+4. **Pull the pinned images and start stateful services:**
    ```bash
    docker compose -p 1c -f docker-compose.prod.yml pull api worker-match worker-catalog nginx
    docker compose -p 1c -f docker-compose.prod.yml up -d db redis
    ```
 
-4. **Run migrations:**
+5. **Run migrations:**
    ```bash
    docker compose -p 1c -f docker-compose.prod.yml run --rm api alembic upgrade head
    ```
 
-5. **Start the application stack:**
+6. **Start the application stack:**
    ```bash
    docker compose -p 1c -f docker-compose.prod.yml up -d --remove-orphans backup alerter api worker-match worker-catalog nginx
    ```
 
-6. **Run smoke test:**
+7. **Run smoke test:**
    ```bash
    ./scripts/smoke_test.sh https://your-domain.com --require-ready
    ```

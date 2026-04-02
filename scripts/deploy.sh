@@ -8,6 +8,8 @@ BASE_URL="${BASE_URL:-https://localhost}"
 export APP_IMAGE
 export NGINX_IMAGE
 
+ln -sf /opt/1C/.env.production .env.production
+
 if [[ -n "${GHCR_TOKEN:-}" && -n "${GHCR_USER:-}" ]]; then
   echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USER}" --password-stdin
 fi
