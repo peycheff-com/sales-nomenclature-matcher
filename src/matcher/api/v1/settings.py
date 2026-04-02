@@ -278,6 +278,8 @@ async def _persist_settings(db: AsyncSession) -> None:
         if val is not None:
             await repo.upsert(k, str(val), commit=False)
 
+    await db.commit()
+
 
 # ── Endpoints ────────────────────────────────────────────────────────────────
 
@@ -453,6 +455,7 @@ async def update_settings(
         try:
             await _persist_settings(db)
         except Exception:
+            await db.rollback()
             settings.llm_provider = original_runtime["llm_provider"]
             settings.embedding_provider = original_runtime["embedding_provider"]
             settings.rerank_provider = original_runtime["rerank_provider"]

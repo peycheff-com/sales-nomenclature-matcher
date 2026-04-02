@@ -82,31 +82,23 @@ class TestSettingsPersistenceEndpoints:
             is_active=True,
         )
 
-        # Mock SettingsRepo.upsert to track calls
-        upsert_calls = []
-
-        async def mock_upsert(self, key, value, commit=True):
-            upsert_calls.append((key, value, commit))
-
         with (
             patch("matcher.auth.deps.UserRepo") as MockUserRepo,
-            patch.object(SettingsRepo, "upsert", mock_upsert),
+            patch.object(SettingsRepo, "get_all", new_callable=AsyncMock, return_value={}),
         ):
             MockUserRepo.return_value.get_by_username = AsyncMock(return_value=mock_user)
-
-            # Also mock get_all for the _load_persisted_settings call inside get_settings
-            with patch.object(SettingsRepo, "get_all", new_callable=AsyncMock, return_value={}):
-                resp = await async_client.put(
-                    "/api/v1/settings",
-                    json={"auto_match_threshold": 0.9},
-                    headers=auth_headers,
-                )
+            resp = await async_client.put(
+                "/api/v1/settings",
+                json={"auto_match_threshold": 0.9},
+                headers=auth_headers,
+            )
 
         assert resp.status_code == 200
-        persisted_keys = [k for k, _v, _commit in upsert_calls]
+        persisted_keys = [call.args[1]["key"] for call in mock_db_session.execute.await_args_list]
         assert "auto_match_threshold" in persisted_keys
         assert "review_threshold" in persisted_keys
         assert "onec" in persisted_keys
+        assert mock_db_session.commit.await_count >= 1
 
     @pytest.mark.asyncio
     async def test_get_settings_loads_from_db(self, async_client, auth_headers, mock_db_session):
