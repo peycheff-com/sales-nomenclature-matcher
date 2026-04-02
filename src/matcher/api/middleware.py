@@ -12,6 +12,7 @@ from starlette.responses import Response
 
 from matcher.config import settings
 from matcher.logging_config import request_id_var
+from matcher.security.client_ip import get_client_ip
 from matcher.security.rate_limit import api_rate_limiter
 
 logger = logging.getLogger(__name__)
@@ -49,23 +50,22 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if request.url.path in _RATE_LIMIT_EXEMPT:
             return await call_next(request)
 
-        client_ip = (
-            request.headers.get(
-                "X-Forwarded-For", request.client.host if request.client else "unknown"
-            )
-            .split(",")[0]
-            .strip()
-        )
-
-        if api_rate_limiter.is_blocked(client_ip):
-            return JSONResponse(
-                status_code=429,
-                content={
-                    "error": "Too Many Requests",
-                    "detail": "Rate limit exceeded. Try again later.",
-                },
-            )
-        api_rate_limiter.record_attempt(client_ip)
+        client_ip = get_client_ip(request)
+        redis = getattr(request.app.state, "arq_pool", None)
+        if redis is not None:
+            try:
+                allowed = await api_rate_limiter.allow_request(redis, client_ip)
+            except Exception:
+                logger.warning("Redis-backed API rate limit unavailable; allowing request")
+                allowed = True
+            if not allowed:
+                return JSONResponse(
+                    status_code=429,
+                    content={
+                        "error": "Too Many Requests",
+                        "detail": "Rate limit exceeded. Try again later.",
+                    },
+                )
         return await call_next(request)
 
 

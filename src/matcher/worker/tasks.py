@@ -400,6 +400,13 @@ async def _do_catalog_import(ctx: dict, job_id: str, source_type: str, **kwargs)
     elif file_path:
         # Direct file upload — file already on disk
         tmp_path = Path(file_path)
+        try:
+            raw_items = parse_file(str(tmp_path))
+            logger.info("Parsed %d items from uploaded file %s", len(raw_items), tmp_path.name)
+        except Exception as e:
+            if tmp_path:
+                tmp_path.unlink(missing_ok=True)
+            return {"job_id": job_id, "status": "failed", "error": str(e)}
     else:
         # Download file from URL
         suffix = ".xlsx" if source_type == "xlsx" else ".csv"
@@ -433,6 +440,13 @@ async def _do_catalog_import(ctx: dict, job_id: str, source_type: str, **kwargs)
                 "dry_run": True,
             }
 
+        if not raw_items:
+            return {
+                "job_id": job_id,
+                "status": "failed",
+                "error": "Catalog import produced 0 rows",
+            }
+
         # Transform items
         products = []
         errors = []
@@ -442,6 +456,14 @@ async def _do_catalog_import(ctx: dict, job_id: str, source_type: str, **kwargs)
                 products.append(product)
             except Exception as e:
                 errors.append({"row": i, "error": str(e)})
+
+        if not products:
+            return {
+                "job_id": job_id,
+                "status": "failed",
+                "error": "Catalog import produced 0 valid products",
+                "error_details": errors[:20],
+            }
 
         # Upsert to database
         async with db_factory() as session:

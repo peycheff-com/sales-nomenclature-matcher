@@ -54,15 +54,15 @@ export default function SettingsPage() {
 
   const form = useForm<SettingsResponse & { new_api_keys?: Record<string, string> }>({
     defaultValues: {
-      llm_provider: "openai",
-      embedding_provider: "openai",
-      rerank_provider: "llm-fallback",
+      llm_provider: "google",
+      embedding_provider: "jina",
+      rerank_provider: "jina",
       providers_registry: [],
       new_api_keys: {},
       llm_model: "",
       llm_rerank_model: "",
       embedding_model: "",
-      embedding_dimensions: 3072,
+      embedding_dimensions: 1024,
       auto_match_threshold: 0.9,
       review_threshold: 0.6,
       retrieval_top_n: 10,
@@ -76,7 +76,7 @@ export default function SettingsPage() {
       },
       agentic_resolution_enabled: false,
       small_catalog_threshold: 500,
-      llm_matcher_enabled: false,
+      llm_matcher_enabled: true,
       llm_matcher_model: "",
       llm_matcher_batch_size: 5,
     },
@@ -520,10 +520,14 @@ export default function SettingsPage() {
                   {...form.register("embedding_dimensions", {
                     valueAsNumber: true,
                   })}
-                  placeholder="3072"
+                  placeholder="1024"
+                  min={1024}
+                  max={1024}
+                  step={0}
+                  readOnly
                 />
                 <p className="text-[10px] text-muted-foreground">
-                  Должно совпадать с параметрами выбранной модели.
+                  Для production-релиза размерность зафиксирована на 1024 до отдельной миграции pgvector.
                 </p>
               </div>
             </div>

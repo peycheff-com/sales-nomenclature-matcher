@@ -6,7 +6,8 @@ import time
 
 import requests
 
-HEALTH_URL = os.environ.get("HEALTH_URL", "http://nginx/api/v1/health")
+HEALTH_URL = os.environ.get("HEALTH_URL", "http://api:8000/api/v1/health")
+HEALTH_TARGETS = os.environ.get("HEALTH_TARGETS", "")
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 CHECK_INTERVAL = int(os.environ.get("CHECK_INTERVAL", "60"))
@@ -17,6 +18,22 @@ SLOW_RESPONSE_COUNT_TRIGGER = 3  # consecutive slow responses before alerting
 
 last_alert_time = 0
 consecutive_slow_responses = 0
+
+
+def _parse_targets() -> list[tuple[str, str]]:
+    if not HEALTH_TARGETS.strip():
+        return [("default", HEALTH_URL)]
+    targets = []
+    for item in HEALTH_TARGETS.split(","):
+        raw = item.strip()
+        if not raw:
+            continue
+        if "=" in raw:
+            name, url = raw.split("=", 1)
+            targets.append((name.strip() or "target", url.strip()))
+        else:
+            targets.append((f"target-{len(targets) + 1}", raw))
+    return targets or [("default", HEALTH_URL)]
 
 
 def send_telegram(message: str) -> None:
@@ -49,11 +66,11 @@ def _format_checks(checks: dict | None) -> str:
     return "\n".join(parts)
 
 
-def check_health() -> None:
+def _check_single_target(name: str, url: str) -> None:
     global consecutive_slow_responses
     try:
         start = time.monotonic()
-        resp = requests.get(HEALTH_URL, timeout=10)
+        resp = requests.get(url, timeout=10)
         elapsed = time.monotonic() - start
         data = resp.json()
 
@@ -70,6 +87,7 @@ def check_health() -> None:
         if resp.status_code != 200 or status != "ok":
             msg = (
                 f"\u26a0\ufe0f <b>Matcher degraded</b>\n"
+                f"Target: {name}\n"
                 f"Status: {status}\n"
                 f"Version: {version}\n"
                 f"Checks:\n{_format_checks(checks)}"
@@ -82,6 +100,7 @@ def check_health() -> None:
         elif consecutive_slow_responses >= SLOW_RESPONSE_COUNT_TRIGGER:
             send_telegram(
                 f"\u23f1 <b>Matcher slow</b>\n"
+                f"Target: {name}\n"
                 f"Response time: {elapsed:.1f}s"
                 f" (>{SLOW_RESPONSE_THRESHOLD}s"
                 f" x{consecutive_slow_responses})\n"
@@ -89,11 +108,17 @@ def check_health() -> None:
             )
     except Exception as e:
         consecutive_slow_responses = 0
-        send_telegram(f"\U0001f534 <b>Matcher DOWN</b>\nError: {e}")
+        send_telegram(f"\U0001f534 <b>Matcher DOWN</b>\nTarget: {name}\nURL: {url}\nError: {e}")
+
+
+def check_health() -> None:
+    for name, url in _parse_targets():
+        _check_single_target(name, url)
 
 
 if __name__ == "__main__":
-    print(f"Alerter started. Checking {HEALTH_URL} every {CHECK_INTERVAL}s")
+    targets = ", ".join(f"{name}={url}" for name, url in _parse_targets())
+    print(f"Alerter started. Checking {targets} every {CHECK_INTERVAL}s")
     while True:
         check_health()
         time.sleep(CHECK_INTERVAL)

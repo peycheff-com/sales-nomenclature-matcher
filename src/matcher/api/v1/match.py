@@ -15,6 +15,7 @@ from matcher.auth.deps import get_current_user, require_role
 from matcher.db.models import User
 from matcher.db.repos.match import MatchRepo
 from matcher.pipeline.orchestrator import match_single
+from matcher.queueing import enqueue_request_job
 from matcher.schemas.match import (
     BatchRequestAccepted,
     Candidate,
@@ -90,6 +91,8 @@ async def match_sync(
         source_type=body.source_type or "api",
         submitted_by=current_user.username,
         total_items=len(body.items),
+        status="pending",
+        job_name="batch_match",
     )
 
     from matcher.api.v1.settings import load_persisted_settings
@@ -154,6 +157,8 @@ async def match_batch(
         source_type=body.source_type or "api",
         submitted_by=current_user.username,
         total_items=len(body.items),
+        status="running",
+        job_name="match_sync",
     )
 
     # Store items
@@ -164,8 +169,13 @@ async def match_batch(
     await repo.create_items(request_id, items_data)
     await db.commit()
 
-    # Enqueue ARQ job
-    await arq_pool.enqueue_job("batch_match", request_id, _queue_name="match")
+    await enqueue_request_job(
+        db=db,
+        arq_pool=arq_pool,
+        request_id=request_id,
+        job_name="batch_match",
+        queue_name="match",
+    )
 
     return BatchRequestAccepted(request_id=request_id, status="queued")
 
@@ -344,7 +354,7 @@ async def retry_match_request(
     request = await repo.get_request(request_id)
     if not request:
         raise HTTPException(status_code=404, detail="Request not found")
-    if request.status not in ("running", "failed"):
+    if request.status not in ("pending", "queued", "running", "failed"):
         raise HTTPException(
             status_code=400,
             detail=f"Запрос в статусе '{request.status}' — повтор невозможен",
@@ -353,7 +363,7 @@ async def retry_match_request(
     # Reset counters and re-queue
     await repo.update_request_status(
         request_id,
-        "queued",
+        "pending",
         processed_items=0,
         auto_matched_items=0,
         review_needed_items=0,
@@ -364,7 +374,14 @@ async def retry_match_request(
     await repo.clear_item_results(request_id)
     await db.commit()
 
-    await arq.enqueue_job("batch_match", request_id, _queue_name="match")
+    await enqueue_request_job(
+        db=db,
+        arq_pool=arq,
+        request_id=request_id,
+        job_name=request.job_name or "batch_match",
+        queue_name="match",
+        job_payload=request.job_payload_json or {},
+    )
     return {"ok": True, "request_id": request_id, "status": "queued"}
 
 

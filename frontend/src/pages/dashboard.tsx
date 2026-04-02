@@ -4,6 +4,8 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { FileUp, Upload, ClipboardList, Loader2, Trash2, AlertTriangle, Database, PackageSearch, HelpCircle } from "lucide-react";
 import { toast } from "sonner";
 import { matchBatch, parseFilePreview, parseFileStructured, smartUpload, listMatchRequests, previewGoogleSheet } from "@/api/match";
+import { getCatalogStats } from "@/api/catalog";
+import { getHealth } from "@/api/health";
 import { listSuppliers } from "@/api/suppliers";
 import type { MatchItemInput } from "@/api/types";
 import { REQUEST_STATUS_LABELS } from "@/lib/constants";
@@ -97,6 +99,20 @@ export default function DashboardPage() {
   const recentQuery = useQuery({
     queryKey: ["match-requests"],
     queryFn: () => listMatchRequests(),
+  });
+
+  const healthQuery = useQuery({
+    queryKey: ["health"],
+    queryFn: getHealth,
+    retry: 1,
+    refetchInterval: 30000,
+  });
+
+  const catalogStatsQuery = useQuery({
+    queryKey: ["catalog-stats"],
+    queryFn: getCatalogStats,
+    retry: 1,
+    refetchInterval: 30000,
   });
 
   const gsheetMutation = useMutation({
@@ -330,6 +346,11 @@ export default function DashboardPage() {
   };
 
   function handleSubmit() {
+    if (!launchReady) {
+      toast.error("Система ещё не готова к production-сопоставлению. Проверьте баннер готовности.");
+      return;
+    }
+
     // Smart upload path: structured mode with catalog items
     if (structuredMode && catalogItems.length > 0 && selectedFile) {
       const items = parsedItems;
@@ -381,12 +402,46 @@ export default function DashboardPage() {
   const recentRequests = (recentQuery.data?.items ?? []).slice(0, 5);
 
   const activeSuppliers = suppliersQuery.data?.items.filter(s => s.is_active) ?? [];
+  const healthChecks = healthQuery.data?.checks ?? {};
+  const catalogStats = catalogStatsQuery.data;
+  const fullEmbeddingCoverage = catalogStats != null
+    && catalogStats.total_products > 0
+    && catalogStats.embedded_products >= catalogStats.total_products;
+  const readinessKnown = !healthQuery.isLoading && !catalogStatsQuery.isLoading;
+  const launchReady = readinessKnown
+    && healthQuery.data?.status === "ok"
+    && fullEmbeddingCoverage;
+  const launchBlockReasons = [
+    healthChecks.providers !== "ok" ? "AI-провайдеры не готовы" : null,
+    healthChecks.catalog !== "ok" ? "каталог пуст" : null,
+    healthChecks.index !== "ok" ? "поисковый индекс не готов" : null,
+    readinessKnown && !fullEmbeddingCoverage ? "эмбеддинги построены не для всего каталога" : null,
+    (healthChecks.db && healthChecks.db !== "ok") || (healthChecks.redis && healthChecks.redis !== "ok")
+      ? "внутренние зависимости недоступны"
+      : null,
+  ].filter(Boolean) as string[];
 
   return (
     <PageLayout
       title="Рабочий стол"
       description="Загрузка данных и история запросов"
     >
+      {!launchReady && (
+        <Card className="mb-6 border-amber-300 bg-amber-50">
+          <CardContent className="flex items-start gap-3 py-4">
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
+            <div className="space-y-1 text-sm text-amber-900">
+              <div className="font-medium">Загрузка новых прайс-листов заблокирована до завершения подготовки production.</div>
+              <div>
+                Сейчас: {launchBlockReasons.length > 0 ? launchBlockReasons.join(", ") : "идёт проверка готовности"}.
+              </div>
+              <div className="text-xs text-amber-800">
+                Требования запуска: непустой каталог, 100% coverage embeddings, корректно настроенные AI-провайдеры и зелёный readiness healthcheck.
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
       <Tabs defaultValue="upload" className="w-full">
         <TabsList className="mb-4">
           <TabsTrigger value="upload">Новый запрос</TabsTrigger>
@@ -816,7 +871,12 @@ export default function DashboardPage() {
           <Button
             size="lg"
             onClick={handleSubmit}
-            disabled={currentItems.length === 0 || matchMutation.isPending || parseMutation.isPending}
+            disabled={
+              currentItems.length === 0
+              || matchMutation.isPending
+              || parseMutation.isPending
+              || !launchReady
+            }
             className="w-full"
           >
             {matchMutation.isPending ? (
@@ -853,6 +913,7 @@ export default function DashboardPage() {
                 <div className="space-y-2">
                   {recentRequests.map((req) => {
                     const statusColor: Record<string, string> = {
+                      pending: "bg-amber-100 text-amber-800",
                       queued: "bg-gray-100 text-gray-800",
                       running: "bg-blue-100 text-blue-800",
                       done: "bg-green-100 text-green-800",
@@ -908,6 +969,11 @@ export default function DashboardPage() {
             <AlertDialogAction
               onClick={() => {
                 if (confirmSubmit) {
+                  if (!launchReady) {
+                    toast.error("Система ещё не готова к запуску новых запросов.");
+                    setConfirmSubmit(null);
+                    return;
+                  }
                   matchMutation.mutate({
                     supplier_id: supplierId,
                     source_type: confirmSubmit.ext,

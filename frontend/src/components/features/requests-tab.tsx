@@ -147,7 +147,7 @@ export function RequestsTab() {
           cmp = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
           break;
         case "status": {
-          const statusOrder: Record<string, number> = { queued: 0, running: 1, done: 2, failed: 3 };
+          const statusOrder: Record<string, number> = { pending: 0, queued: 1, running: 2, done: 3, failed: 4 };
           cmp = (statusOrder[a.status] ?? 99) - (statusOrder[b.status] ?? 99);
           break;
         }
@@ -163,6 +163,7 @@ export function RequestsTab() {
   const suppliersMap = new Map(suppliersQuery.data?.items.map(s => [s.supplier_id, s.supplier_name]));
 
   const statusColor: Record<string, string> = {
+    pending: "bg-amber-100 text-amber-800",
     queued: "bg-gray-100 text-gray-800",
     running: "bg-blue-100 text-blue-800",
     done: "bg-green-100 text-green-800",
@@ -234,6 +235,7 @@ export function RequestsTab() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Все статусы</SelectItem>
+              <SelectItem value="pending">Подготовка</SelectItem>
               <SelectItem value="queued">В очереди</SelectItem>
               <SelectItem value="running">Обрабатывается</SelectItem>
               <SelectItem value="done">Завершено</SelectItem>

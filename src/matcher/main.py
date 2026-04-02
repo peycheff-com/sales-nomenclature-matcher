@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -9,7 +8,6 @@ from arq.connections import RedisSettings
 from fastapi import FastAPI, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from prometheus_fastapi_instrumentator import Instrumentator
-from sqlalchemy import text, update
 
 from matcher.api.error_handlers import register_error_handlers
 from matcher.api.middleware import (
@@ -19,10 +17,11 @@ from matcher.api.middleware import (
     SecurityHeadersMiddleware,
 )
 from matcher.api.v1 import audit, auth, catalog, match, metrics, review, suppliers, upload, users
+from matcher.api.v1.settings import load_persisted_settings
 from matcher.api.v1.settings import router as settings_router
 from matcher.config import settings
 from matcher.db.engine import async_session_factory, engine
-from matcher.db.models import MatchRequest
+from matcher.health import readiness_checks
 from matcher.logging_config import setup_logging
 
 logger = logging.getLogger(__name__)
@@ -38,22 +37,11 @@ async def lifespan(app: FastAPI):
     app.state.arq_pool = await create_pool(redis_settings)
     logger.info("ARQ Redis pool initialized")
 
-    # Reset stale "running" requests left over from a previous crash
     try:
         async with async_session_factory() as session:
-            result = await session.execute(
-                update(MatchRequest)
-                .where(MatchRequest.status == "running")
-                .values(
-                    status="failed",
-                    error_message="Server restarted during processing",
-                )
-            )
-            if result.rowcount:
-                logger.warning("Reset %d stale running requests to failed", result.rowcount)
-            await session.commit()
+            await load_persisted_settings(session, force=True)
     except Exception:
-        logger.exception("Failed to reset stale requests on startup")
+        logger.exception("Failed to load persisted settings on startup")
 
     yield
 
@@ -104,7 +92,7 @@ def create_app() -> FastAPI:
 
     # Prometheus metrics (exposed at /metrics)
     Instrumentator(
-        excluded_handlers=["/metrics", "/api/v1/health"],
+        excluded_handlers=["/metrics", "/api/v1/health", "/api/v1/health/live"],
     ).instrument(app).expose(app, include_in_schema=False)
 
     # Routers
@@ -119,42 +107,22 @@ def create_app() -> FastAPI:
     app.include_router(users.router, prefix="/api/v1")
     app.include_router(audit.router, prefix="/api/v1")
 
+    @app.get("/api/v1/health/live", tags=["Health"])
+    async def health_live():
+        return {"status": "ok", "version": "0.1.0"}
+
     @app.get("/api/v1/health", tags=["Health"])
     async def health(response: Response):
-        checks = {}
-
-        # Check DB (with timeout)
-        try:
-
-            async def _check_db():
-                async with async_session_factory() as session:
-                    await session.execute(text("SELECT 1"))
-
-            await asyncio.wait_for(_check_db(), timeout=5.0)
-            checks["db"] = "ok"
-        except Exception as e:
-            logger.warning("Health check DB failed: %s", e)
-            checks["db"] = "error"
-
-        # Check Redis (with timeout)
-        try:
-            pool = app.state.arq_pool
-            await asyncio.wait_for(pool.ping(), timeout=3.0)
-            checks["redis"] = "ok"
-        except Exception as e:
-            logger.warning("Health check Redis failed: %s", e)
-            checks["redis"] = "error"
-
+        checks = await readiness_checks(
+            session_factory=async_session_factory,
+            redis_pool=app.state.arq_pool,
+        )
         all_ok = all(v == "ok" for v in checks.values())
         if not all_ok:
             response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
 
         status_text = "ok" if all_ok else "degraded"
-
-        result = {"status": status_text, "version": "0.1.0"}
-        if settings.log_level.upper() == "DEBUG":
-            result["checks"] = checks
-        return result
+        return {"status": status_text, "version": "0.1.0", "checks": checks}
 
     return app
 

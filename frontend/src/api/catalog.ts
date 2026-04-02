@@ -43,10 +43,6 @@ export async function deleteCatalogProduct(productId: string): Promise<void> {
   await api.delete(`catalog/products/${productId}`).text();
 }
 
-export async function deleteAllCatalogProducts(): Promise<void> {
-  await api.delete(`catalog/products`).text();
-}
-
 export async function getIndexVersions(): Promise<{
   items: import("./types").IndexVersionInfo[];
 }> {

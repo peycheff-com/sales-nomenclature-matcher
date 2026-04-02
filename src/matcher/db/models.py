@@ -150,7 +150,7 @@ class MatchRequest(Base):
     __tablename__ = "match_requests"
     __table_args__ = (
         CheckConstraint(
-            "status in ('queued','running','done','failed')",
+            "status in ('pending','queued','running','done','failed')",
             name="ck_match_requests_status",
         ),
     )
@@ -162,6 +162,8 @@ class MatchRequest(Base):
     source_type: Mapped[str] = mapped_column(Text, nullable=False)
     submitted_by: Mapped[str | None] = mapped_column(Text, nullable=True)
     file_name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    job_name: Mapped[str] = mapped_column(Text, nullable=False, server_default="batch_match")
+    job_payload_json: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
     status: Mapped[str] = mapped_column(Text, nullable=False)
     total_items: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     processed_items: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")

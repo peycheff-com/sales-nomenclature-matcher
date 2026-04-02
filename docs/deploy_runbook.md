@@ -2,71 +2,125 @@
 
 ## Pre-deploy
 
-1. **Backup database:**
+1. **Verify CI for the exact release commit:**
+   - backend lint green
+   - frontend lint/type/build green
+   - backend tests green
+   - prod-compose smoke green
+
+2. **Backup database:**
    ```bash
-   docker compose -f docker-compose.prod.yml exec db pg_dump -U matcher matcher > backup_$(date +%Y%m%d_%H%M%S).sql
+   docker compose -p 1c -f docker-compose.prod.yml exec db pg_dump -U matcher matcher > backup_$(date +%Y%m%d_%H%M%S).sql
    ```
 
-2. **Pull latest code:**
+3. **Pull deployment manifests only:**
    ```bash
    git pull origin main
    ```
 
-3. **Review migrations:**
+4. **Review migrations:**
    ```bash
    alembic history --verbose
    ```
 
+5. **Harden the host firewall if not already applied:**
+   ```bash
+   sudo ./infra/scripts/harden_host.sh
+   ```
+
 ## Deploy
 
-1. **Build images:**
+1. **Export immutable image tags:**
    ```bash
-   docker compose -f docker-compose.prod.yml build
+   export APP_IMAGE=ghcr.io/<owner>/sales-nomenclature-matcher-app:<commit-sha>
+   export NGINX_IMAGE=ghcr.io/<owner>/sales-nomenclature-matcher-nginx:<commit-sha>
    ```
 
-2. **Run migrations:**
+2. **Login to GHCR (if needed):**
    ```bash
-   docker compose -f docker-compose.prod.yml run --rm api alembic upgrade head
+   echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
    ```
 
-3. **Restart services:**
+3. **Pull the pinned images and start stateful services:**
    ```bash
-   docker compose -f docker-compose.prod.yml up -d
+   docker compose -p 1c -f docker-compose.prod.yml pull api worker-match worker-catalog nginx
+   docker compose -p 1c -f docker-compose.prod.yml up -d db redis
    ```
 
-4. **Run smoke test:**
+4. **Run migrations:**
    ```bash
-   ./scripts/smoke_test.sh https://your-domain.com
+   docker compose -p 1c -f docker-compose.prod.yml run --rm api alembic upgrade head
    ```
+
+5. **Start the application stack:**
+   ```bash
+   docker compose -p 1c -f docker-compose.prod.yml up -d --remove-orphans backup alerter api worker-match worker-catalog nginx
+   ```
+
+6. **Run smoke test:**
+   ```bash
+   ./scripts/smoke_test.sh https://your-domain.com --require-ready
+   ```
+
+## Bootstrap
+
+1. **Load the production catalog, build embeddings, create baseline suppliers, save the initial quality report:**
+   ```bash
+   python scripts/bootstrap_production.py \
+     --catalog-file /path/to/master-catalog.xlsx \
+     --supplier "Supplier A" \
+     --supplier "Supplier B"
+   ```
+
+2. **Re-run the smoke test after bootstrap:**
+   ```bash
+   ./scripts/smoke_test.sh https://your-domain.com --require-ready
+   ```
+
+## Launch Rehearsal
+
+1. Run a real 50-row supplier workbook through the dashboard and confirm p95 under 20 seconds.
+2. Run a real 200-row supplier workbook and confirm p95 under 60 seconds.
+3. Confirm `/api/v1/health` returns `status=ok` with `db`, `redis`, `providers`, `catalog`, and `index` all green.
+4. Confirm `GET /api/v1/catalog/stats` shows non-zero catalog and 100% embedding coverage.
+5. Confirm the golden-set quality gate is at or above the baseline.
+6. Force one controlled API failure and verify the alerter reports the failing target.
+7. Run one backup-and-restore drill before opening access to operators.
 
 ## Post-deploy
 
-1. Check health: `GET /api/v1/health`
-2. Check logs: `docker compose -f docker-compose.prod.yml logs -f api worker`
-3. Verify catalog stats: `GET /api/v1/catalog/stats`
+1. Check liveness: `GET /api/v1/health/live`
+2. Check readiness: `GET /api/v1/health`
+3. Check logs: `docker compose -p 1c -f docker-compose.prod.yml logs -f api worker-match worker-catalog nginx`
+4. Verify catalog stats: `GET /api/v1/catalog/stats`
+5. Verify ARQ health:
+   ```bash
+   docker compose -p 1c -f docker-compose.prod.yml exec worker-match arq --check matcher.worker.settings.MatchWorkerSettings
+   docker compose -p 1c -f docker-compose.prod.yml exec worker-catalog arq --check matcher.worker.settings.CatalogWorkerSettings
+   ```
 
 ## Rollback
 
-1. **Stop services:**
+1. **Pin the previous known-good images:**
    ```bash
-   docker compose -f docker-compose.prod.yml stop api worker
+   export APP_IMAGE=ghcr.io/<owner>/sales-nomenclature-matcher-app:<previous-commit-sha>
+   export NGINX_IMAGE=ghcr.io/<owner>/sales-nomenclature-matcher-nginx:<previous-commit-sha>
    ```
 
 2. **Rollback migration (if needed):**
    ```bash
-   docker compose -f docker-compose.prod.yml run --rm api alembic downgrade -1
+   docker compose -p 1c -f docker-compose.prod.yml run --rm api alembic downgrade -1
    ```
 
-3. **Restore previous image:**
+3. **Restart the stack on the pinned images:**
    ```bash
-   git checkout <previous-tag>
-   docker compose -f docker-compose.prod.yml build
-   docker compose -f docker-compose.prod.yml up -d
+   docker compose -p 1c -f docker-compose.prod.yml pull api worker-match worker-catalog nginx
+   docker compose -p 1c -f docker-compose.prod.yml up -d --remove-orphans backup alerter api worker-match worker-catalog nginx
    ```
 
 4. **Restore database (if needed):**
    ```bash
-   cat backup_YYYYMMDD.sql | docker compose -f docker-compose.prod.yml exec -T db psql -U matcher matcher
+   cat backup_YYYYMMDD.sql | docker compose -p 1c -f docker-compose.prod.yml exec -T db psql -U matcher matcher
    ```
 
 ## Index Rollback

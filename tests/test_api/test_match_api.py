@@ -53,7 +53,16 @@ class TestHealthEndpoint:
     def test_health(self, client):
         resp = client.get("/api/v1/health")
         assert resp.status_code == 200
-        assert resp.json() == {"status": "ok"}
+        data = resp.json()
+        assert data["status"] == "ok"
+        assert data["version"] == "0.1.0"
+        assert data["checks"]["db"] == "ok"
+        assert data["checks"]["redis"] == "ok"
+
+    def test_live_health(self, client):
+        resp = client.get("/api/v1/health/live")
+        assert resp.status_code == 200
+        assert resp.json() == {"status": "ok", "version": "0.1.0"}
 
 
 class TestMatchEndpoint:

@@ -1,8 +1,7 @@
-"""Simple in-memory rate limiter for brute-force protection.
+"""Rate limiting helpers.
 
-NOTE: In-memory store is per-worker-process. With multiple uvicorn workers,
-the effective rate limit is multiplied by the number of workers. For
-production with strict rate limiting, migrate to Redis-backed storage.
+`RateLimiter` remains as an in-memory fallback/test helper.
+`RedisRateLimiter` is the production path shared by all API workers.
 """
 
 from __future__ import annotations
@@ -10,6 +9,8 @@ from __future__ import annotations
 import time
 from collections import defaultdict
 from dataclasses import dataclass
+
+from arq import ArqRedis
 
 
 @dataclass
@@ -73,8 +74,64 @@ class RateLimiter:
         self._buckets.pop(key, None)
 
 
-# Singleton for login rate limiting: 5 attempts per minute, 5-minute block
-login_rate_limiter = RateLimiter(max_attempts=5, window_seconds=60, block_seconds=300)
+class RedisRateLimiter:
+    """Redis-backed shared rate limiter."""
 
-# General API rate limiter: 60 requests per minute per IP, 1-minute block
-api_rate_limiter = RateLimiter(max_attempts=60, window_seconds=60, block_seconds=60)
+    def __init__(
+        self,
+        *,
+        prefix: str,
+        max_attempts: int,
+        window_seconds: int,
+        block_seconds: int,
+    ) -> None:
+        self.prefix = prefix
+        self.max_attempts = max_attempts
+        self.window_seconds = window_seconds
+        self.block_seconds = block_seconds
+
+    def _attempts_key(self, key: str) -> str:
+        return f"ratelimit:{self.prefix}:attempts:{key}"
+
+    def _blocked_key(self, key: str) -> str:
+        return f"ratelimit:{self.prefix}:blocked:{key}"
+
+    async def is_blocked(self, redis: ArqRedis, key: str) -> bool:
+        return bool(await redis.exists(self._blocked_key(key)))
+
+    async def record_attempt(self, redis: ArqRedis, key: str) -> int:
+        blocked_key = self._blocked_key(key)
+        attempts_key = self._attempts_key(key)
+
+        count = await redis.incr(attempts_key)
+        if count == 1:
+            await redis.expire(attempts_key, self.window_seconds)
+
+        if count >= self.max_attempts:
+            await redis.set(blocked_key, "1", ex=self.block_seconds)
+        return count
+
+    async def reset(self, redis: ArqRedis, key: str) -> None:
+        await redis.delete(self._attempts_key(key), self._blocked_key(key))
+
+    async def allow_request(self, redis: ArqRedis, key: str) -> bool:
+        attempts_key = self._attempts_key(key)
+        count = await redis.incr(attempts_key)
+        if count == 1:
+            await redis.expire(attempts_key, self.window_seconds)
+        return count <= self.max_attempts
+
+
+login_rate_limiter = RedisRateLimiter(
+    prefix="login",
+    max_attempts=5,
+    window_seconds=60,
+    block_seconds=300,
+)
+
+api_rate_limiter = RedisRateLimiter(
+    prefix="api",
+    max_attempts=60,
+    window_seconds=60,
+    block_seconds=60,
+)

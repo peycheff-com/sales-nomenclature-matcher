@@ -9,6 +9,7 @@ from matcher.auth.deps import get_current_user
 from matcher.db.models import User
 from matcher.db.repos.match import MatchRepo
 from matcher.ingestion.parser import analyze_file_structure, parse_excel_upload
+from matcher.queueing import enqueue_request_job
 from matcher.schemas.match import BatchRequestAccepted
 
 router = APIRouter(tags=["Upload"])
@@ -92,6 +93,8 @@ async def upload_match_file(
         file_name=file.filename,
         submitted_by=current_user.username,
         total_items=len(items),
+        status="pending",
+        job_name="batch_match",
     )
 
     # Convert items to dict structure for repo
@@ -102,8 +105,13 @@ async def upload_match_file(
     await repo.create_items(request_id, items_data)
     await db.commit()
 
-    # Enqueue ARQ job
-    await arq_pool.enqueue_job("batch_match", request_id, _queue_name="match")
+    await enqueue_request_job(
+        db=db,
+        arq_pool=arq_pool,
+        request_id=request_id,
+        job_name="batch_match",
+        queue_name="match",
+    )
 
     return BatchRequestAccepted(request_id=request_id, status="queued")
 
@@ -220,6 +228,14 @@ async def smart_upload(
         file_name=file.filename,
         submitted_by=current_user.username,
         total_items=len(result.supplier_items),
+        status="pending",
+        job_name="smart_upload",
+        job_payload={
+            "catalog_items": [
+                {"raw_text": i["raw_text"], "unit": i.get("unit")} for i in result.catalog_items
+            ],
+            "catalog_count": len(result.catalog_items),
+        },
     )
 
     # Store supplier items
@@ -234,17 +250,18 @@ async def smart_upload(
     await repo.create_items(request_id, items_data)
     await db.commit()
 
-    # Enqueue the smart_upload worker task with catalog items inline
-    # (avoids re-reading the file in the worker)
-    catalog_items_payload = [
-        {"raw_text": i["raw_text"], "unit": i.get("unit")} for i in result.catalog_items
-    ]
-    await arq_pool.enqueue_job(
-        "smart_upload",
-        request_id,
-        catalog_items=catalog_items_payload,
-        catalog_count=len(result.catalog_items),
-        _queue_name="match",
+    await enqueue_request_job(
+        db=db,
+        arq_pool=arq_pool,
+        request_id=request_id,
+        job_name="smart_upload",
+        queue_name="match",
+        job_payload={
+            "catalog_items": [
+                {"raw_text": i["raw_text"], "unit": i.get("unit")} for i in result.catalog_items
+            ],
+            "catalog_count": len(result.catalog_items),
+        },
     )
 
     return BatchRequestAccepted(request_id=request_id, status="queued")

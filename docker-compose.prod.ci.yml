@@ -1,0 +1,30 @@
+services:
+  api:
+    build:
+      context: .
+      args:
+        USE_LOCAL: "false"
+    image: matcher-app:ci
+
+  worker-match:
+    image: matcher-app:ci
+    build:
+      context: .
+      args:
+        USE_LOCAL: "false"
+
+  worker-catalog:
+    image: matcher-app:ci
+    build:
+      context: .
+      args:
+        USE_LOCAL: "false"
+
+  nginx:
+    build:
+      context: .
+      dockerfile: infra/nginx/Dockerfile.ci
+    image: matcher-nginx:ci
+    ports:
+      - "8080:80"
+    volumes: []

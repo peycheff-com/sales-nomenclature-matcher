@@ -11,6 +11,7 @@ export const STATUS_LABELS: Record<string, string> = {
 };
 
 export const REQUEST_STATUS_LABELS: Record<string, string> = {
+  pending: "Подготовка",
   queued: "В очереди",
   running: "Обработка",
   done: "Готово",

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from copy import deepcopy
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
@@ -111,8 +112,8 @@ class SettingsUpdateInput(BaseModel):
             raise ValueError("retrieval_top_n must be between 1 and 500")
         if self.rerank_top_n is not None and not (1 <= self.rerank_top_n <= 100):
             raise ValueError("rerank_top_n must be between 1 and 100")
-        if self.embedding_dimensions is not None and not (64 <= self.embedding_dimensions <= 4096):
-            raise ValueError("embedding_dimensions must be between 64 and 4096")
+        if self.embedding_dimensions is not None and self.embedding_dimensions != 1024:
+            raise ValueError("embedding_dimensions is fixed at 1024 for this release")
         return self
 
 
@@ -215,7 +216,10 @@ async def load_persisted_settings(db: AsyncSession, force: bool = False) -> None
                 persisted_providers = json.loads(stored["providers_registry"])
                 for pid, pdata in persisted_providers.items():
                     if pid in settings.providers_registry:
-                        settings.providers_registry[pid].update(pdata)
+                        for key, value in pdata.items():
+                            if key == "api_key" and settings.env_provider_api_key(pid):
+                                continue
+                            settings.providers_registry[pid][key] = value
                     else:
                         settings.providers_registry[pid] = pdata
             except Exception as e:
@@ -227,6 +231,8 @@ async def load_persisted_settings(db: AsyncSession, force: bool = False) -> None
             except Exception:
                 logger.warning("Failed to parse persisted 1C settings, keeping defaults")
 
+        settings.embedding_dimensions = 1024
+        settings.apply_env_provider_secrets()
         _db_loaded = True
     logger.info("Loaded persisted settings from DB")
 
@@ -234,21 +240,31 @@ async def load_persisted_settings(db: AsyncSession, force: bool = False) -> None
 async def _persist_settings(db: AsyncSession) -> None:
     """Write current threshold + 1C settings to DB."""
     repo = SettingsRepo(db)
-    await repo.upsert("auto_match_threshold", str(settings.auto_match_threshold))
-    await repo.upsert("review_threshold", str(settings.review_threshold))
-    await repo.upsert("retrieval_top_n", str(settings.retrieval_top_n))
-    await repo.upsert("rerank_top_n", str(settings.rerank_top_n))
+    await repo.upsert("auto_match_threshold", str(settings.auto_match_threshold), commit=False)
+    await repo.upsert("review_threshold", str(settings.review_threshold), commit=False)
+    await repo.upsert("retrieval_top_n", str(settings.retrieval_top_n), commit=False)
+    await repo.upsert("rerank_top_n", str(settings.rerank_top_n), commit=False)
     await repo.upsert(
-        "agentic_resolution_enabled", str(settings.agentic_resolution_enabled).lower()
+        "agentic_resolution_enabled",
+        str(settings.agentic_resolution_enabled).lower(),
+        commit=False,
     )
-    await repo.upsert("embedding_dimensions", str(settings.embedding_dimensions))
-    await repo.upsert("small_catalog_threshold", str(settings.small_catalog_threshold))
-    await repo.upsert("llm_matcher_enabled", str(settings.llm_matcher_enabled).lower())
-    await repo.upsert("llm_matcher_model", str(settings.llm_matcher_model))
-    await repo.upsert("llm_matcher_batch_size", str(settings.llm_matcher_batch_size))
-    await repo.upsert("onec", _onec_settings.model_dump_json())
+    await repo.upsert("embedding_dimensions", str(settings.embedding_dimensions), commit=False)
+    await repo.upsert(
+        "small_catalog_threshold",
+        str(settings.small_catalog_threshold),
+        commit=False,
+    )
+    await repo.upsert(
+        "llm_matcher_enabled",
+        str(settings.llm_matcher_enabled).lower(),
+        commit=False,
+    )
+    await repo.upsert("llm_matcher_model", str(settings.llm_matcher_model), commit=False)
+    await repo.upsert("llm_matcher_batch_size", str(settings.llm_matcher_batch_size), commit=False)
+    await repo.upsert("onec", _onec_settings.model_dump_json(), commit=False)
 
-    await repo.upsert("providers_registry", json.dumps(settings.providers_registry))
+    await repo.upsert("providers_registry", json.dumps(settings.providers_registry), commit=False)
 
     for k in (
         "llm_provider",
@@ -260,7 +276,7 @@ async def _persist_settings(db: AsyncSession) -> None:
     ):
         val = getattr(settings, k)
         if val is not None:
-            await repo.upsert(k, str(val))
+            await repo.upsert(k, str(val), commit=False)
 
 
 # ── Endpoints ────────────────────────────────────────────────────────────────
@@ -365,6 +381,27 @@ async def update_settings(
     # Apply all field updates under lock
     # (minimizes window for concurrent reads to see partial state)
     async with _settings_lock:
+        original_runtime = {
+            "llm_provider": settings.llm_provider,
+            "embedding_provider": settings.embedding_provider,
+            "rerank_provider": settings.rerank_provider,
+            "providers_registry": deepcopy(settings.providers_registry),
+            "llm_model": settings.llm_model,
+            "llm_rerank_model": settings.llm_rerank_model,
+            "embedding_model": settings.embedding_model,
+            "embedding_dimensions": settings.embedding_dimensions,
+            "auto_match_threshold": settings.auto_match_threshold,
+            "review_threshold": settings.review_threshold,
+            "retrieval_top_n": settings.retrieval_top_n,
+            "rerank_top_n": settings.rerank_top_n,
+            "agentic_resolution_enabled": settings.agentic_resolution_enabled,
+            "small_catalog_threshold": settings.small_catalog_threshold,
+            "llm_matcher_enabled": settings.llm_matcher_enabled,
+            "llm_matcher_model": settings.llm_matcher_model,
+            "llm_matcher_batch_size": settings.llm_matcher_batch_size,
+            "onec": _onec_settings.model_copy(deep=True),
+        }
+
         if body.llm_provider is not None:
             settings.llm_provider = body.llm_provider
         if body.embedding_provider is not None:
@@ -375,7 +412,7 @@ async def update_settings(
         if body.providers_registry is not None:
             for p in body.providers_registry:
                 if p.id in settings.providers_registry:
-                    if p.api_key is not None:
+                    if p.api_key is not None and not settings.env_provider_api_key(p.id):
                         settings.providers_registry[p.id]["api_key"] = p.api_key
                     if p.base_url is not None:
                         settings.providers_registry[p.id]["base_url"] = p.base_url
@@ -416,7 +453,27 @@ async def update_settings(
         try:
             await _persist_settings(db)
         except Exception:
+            settings.llm_provider = original_runtime["llm_provider"]
+            settings.embedding_provider = original_runtime["embedding_provider"]
+            settings.rerank_provider = original_runtime["rerank_provider"]
+            settings.providers_registry = original_runtime["providers_registry"]
+            settings.llm_model = original_runtime["llm_model"]
+            settings.llm_rerank_model = original_runtime["llm_rerank_model"]
+            settings.embedding_model = original_runtime["embedding_model"]
+            settings.embedding_dimensions = original_runtime["embedding_dimensions"]
+            settings.auto_match_threshold = original_runtime["auto_match_threshold"]
+            settings.review_threshold = original_runtime["review_threshold"]
+            settings.retrieval_top_n = original_runtime["retrieval_top_n"]
+            settings.rerank_top_n = original_runtime["rerank_top_n"]
+            settings.agentic_resolution_enabled = original_runtime["agentic_resolution_enabled"]
+            settings.small_catalog_threshold = original_runtime["small_catalog_threshold"]
+            settings.llm_matcher_enabled = original_runtime["llm_matcher_enabled"]
+            settings.llm_matcher_model = original_runtime["llm_matcher_model"]
+            settings.llm_matcher_batch_size = original_runtime["llm_matcher_batch_size"]
+            _onec_settings = original_runtime["onec"]
+            settings.apply_env_provider_secrets()
             logger.warning("Failed to persist settings to DB", exc_info=True)
+            raise HTTPException(status_code=500, detail="Failed to persist settings")
 
     # Reset cached embedding client when provider/key changes
     if body.embedding_provider or body.providers_registry:

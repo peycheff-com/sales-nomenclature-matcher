@@ -40,13 +40,14 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/api/v1/health || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/api/v1/health/live || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 15s
     volumes:
       - ./src:/app/src
+      - catalog_uploads:/var/lib/matcher/uploads
 
   worker:
     build:
@@ -62,6 +63,12 @@ services:
         condition: service_healthy
     volumes:
       - ./src:/app/src
+    healthcheck:
+      test: ["CMD", "arq", "--check", "matcher.worker.settings.MatchWorkerSettings"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
 
   catalog-worker:
     build:
@@ -77,6 +84,14 @@ services:
         condition: service_healthy
     volumes:
       - ./src:/app/src
+      - catalog_uploads:/var/lib/matcher/uploads
+    healthcheck:
+      test: ["CMD", "arq", "--check", "matcher.worker.settings.CatalogWorkerSettings"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
 
 volumes:
   pgdata:
+  catalog_uploads:

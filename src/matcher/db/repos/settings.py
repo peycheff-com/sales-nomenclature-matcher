@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from inspect import isawaitable
+
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,7 +12,7 @@ class SettingsRepo:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
-    async def upsert(self, key: str, value: str | None) -> None:
+    async def upsert(self, key: str, value: str | None, *, commit: bool = True) -> None:
         """INSERT or UPDATE a setting by key."""
         await self.session.execute(
             text(
@@ -20,7 +22,8 @@ class SettingsRepo:
             ),
             {"key": key, "value": value},
         )
-        await self.session.commit()
+        if commit:
+            await self.session.commit()
 
     async def get(self, key: str, default: str | None = None) -> str | None:
         """Get a single setting value by key."""
@@ -34,4 +37,7 @@ class SettingsRepo:
     async def get_all(self) -> dict[str, str | None]:
         """Return all settings as a {key: value} dict."""
         result = await self.session.execute(text("SELECT key, value FROM system_settings"))
-        return {row[0]: row[1] for row in result.fetchall()}
+        rows = result.fetchall()
+        if isawaitable(rows):
+            rows = await rows
+        return {row[0]: row[1] for row in rows}

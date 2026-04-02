@@ -109,6 +109,31 @@ class TestEvaluateQualityGate:
         assert result.passed is False
         assert any("fp" in r.lower() for r in result.regressions)
 
+    async def test_fp_rate_uses_false_positive_alias(self):
+        session = AsyncMock()
+        prev_report = MagicMock()
+        prev_report.top1_accuracy = Decimal("0.92")
+        prev_report.top3_recall = Decimal("0.95")
+        prev_report.auto_match_fp_rate = Decimal("0.05")
+
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = prev_report
+        session.execute.return_value = mock_result
+
+        with patch("matcher.pipeline.quality_gate.MetricsRepo") as MockMetricsRepo:
+            repo = MockMetricsRepo.return_value
+            repo.compute_quality_metrics = AsyncMock(
+                return_value={
+                    "total_cases": 100,
+                    "top1_accuracy": 0.92,
+                    "top3_recall": 0.95,
+                    "auto_match_false_positive_rate": 0.07,
+                }
+            )
+            result = await evaluate_quality_gate(session)
+        assert result.passed is False
+        assert any("fp" in r.lower() for r in result.regressions)
+
     async def test_multiple_regressions_reported(self):
         session = AsyncMock()
         prev_report = MagicMock()

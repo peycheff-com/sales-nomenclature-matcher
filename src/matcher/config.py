@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, model_validator
@@ -155,11 +156,12 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+asyncpg://matcher:matcher@localhost:5432/matcher"
     redis_url: str = "redis://localhost:6379"
+    catalog_upload_dir: str = "/var/lib/matcher/uploads"
 
     # Provider: "openai" | "openrouter" | "google"
-    embedding_provider: str = "openai"
-    llm_provider: str = "openai"
-    rerank_provider: str = "llm-fallback"
+    embedding_provider: str = "jina"
+    llm_provider: str = "google"
+    rerank_provider: str = "jina"
 
     # Dynamic Provider Registry
     providers_registry: dict[str, dict[str, str]] = {
@@ -263,17 +265,30 @@ class Settings(BaseSettings):
     small_catalog_threshold: int = 500  # Below this, retrieval returns all products
 
     # LLM Matcher mode
-    llm_matcher_enabled: bool = False
+    llm_matcher_enabled: bool = True
     llm_matcher_model: str = ""  # if empty, uses llm_model
     llm_matcher_batch_size: int = 5  # items per LLM call in small-catalog batch mode
 
     # Embedding config
-    embedding_model: str = "text-embedding-3-large"
+    embedding_model: str = "jina-embeddings-v3"
     embedding_dimensions: int = 1024
 
     # LLM config (for reranking fallback / explanation generation)
-    llm_model: str = "gpt-4o-mini"
+    llm_model: str = "gemini-2.5-flash"
     llm_rerank_model: str = ""  # if empty, uses llm_model
+
+    # Provider secrets are env-first in production. Persisted DB settings are
+    # still allowed for local/dev and as a fallback when env vars are absent.
+    openai_api_key: str = ""
+    openrouter_api_key: str = ""
+    together_api_key: str = ""
+    dashscope_api_key: str = ""
+    jina_api_key: str = ""
+    google_api_key: str = ""
+    cohere_api_key: str = ""
+    yandex_api_key: str = ""
+    gigachat_api_key: str = ""
+    moonshot_api_key: str = ""
 
     def provider_supports(self, provider_id: str, role: str) -> bool:
         """Check if a provider supports a given role ('chat', 'embeddings', 'rerank')."""
@@ -288,25 +303,74 @@ class Settings(BaseSettings):
             return caps.supports_rerank
         return False
 
+    def env_provider_api_keys(self) -> dict[str, str]:
+        return {
+            "openai": self.openai_api_key,
+            "openrouter": self.openrouter_api_key,
+            "together": self.together_api_key,
+            "dashscope": self.dashscope_api_key,
+            "jina": self.jina_api_key,
+            "google": self.google_api_key,
+            "cohere": self.cohere_api_key,
+            "yandex": self.yandex_api_key,
+            "gigachat": self.gigachat_api_key,
+            "moonshot": self.moonshot_api_key,
+        }
+
+    def env_provider_api_key(self, provider_id: str) -> str:
+        return self.env_provider_api_keys().get(provider_id, "")
+
+    def apply_env_provider_secrets(self) -> None:
+        for provider_id, api_key in self.env_provider_api_keys().items():
+            if not api_key:
+                continue
+            provider = self.providers_registry.get(provider_id)
+            if provider is None:
+                continue
+            provider["api_key"] = api_key
+
+    def effective_provider_api_key(self, provider_id: str) -> str:
+        env_api_key = self.env_provider_api_key(provider_id)
+        if env_api_key:
+            return env_api_key
+        provider = self.providers_registry.get(provider_id)
+        return provider.get("api_key", "") if provider else ""
+
+    def effective_provider_base_url(self, provider_id: str) -> str:
+        provider = self.providers_registry.get(provider_id)
+        return provider.get("base_url", "") if provider else ""
+
     @property
     def active_embedding_api_key(self) -> str:
-        provider = self.providers_registry.get(self.embedding_provider)
-        return provider.get("api_key", "") if provider else ""
+        return self.effective_provider_api_key(self.embedding_provider)
 
     @property
     def active_embedding_base_url(self) -> str:
-        provider = self.providers_registry.get(self.embedding_provider)
-        return provider.get("base_url", "") if provider else ""
+        return self.effective_provider_base_url(self.embedding_provider)
 
     @property
     def active_llm_api_key(self) -> str:
-        provider = self.providers_registry.get(self.llm_provider)
-        return provider.get("api_key", "") if provider else ""
+        return self.effective_provider_api_key(self.llm_provider)
 
     @property
     def active_llm_base_url(self) -> str:
-        provider = self.providers_registry.get(self.llm_provider)
-        return provider.get("base_url", "") if provider else ""
+        return self.effective_provider_base_url(self.llm_provider)
+
+    @property
+    def active_rerank_api_key(self) -> str:
+        if self.rerank_provider == "llm-fallback":
+            return self.active_llm_api_key
+        return self.effective_provider_api_key(self.rerank_provider)
+
+    @property
+    def active_rerank_base_url(self) -> str:
+        if self.rerank_provider == "llm-fallback":
+            return self.active_llm_base_url
+        return self.effective_provider_base_url(self.rerank_provider)
+
+    @property
+    def catalog_upload_path(self) -> Path:
+        return Path(self.catalog_upload_dir)
 
     @property
     def async_database_url(self) -> str:
@@ -330,3 +394,4 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+settings.apply_env_provider_secrets()

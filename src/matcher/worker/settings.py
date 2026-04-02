@@ -17,28 +17,39 @@ async def match_startup(ctx: dict) -> None:
     """Match worker startup: inject DB + recover orphaned match requests."""
     import logging
 
-    from sqlalchemy import update
-
-    from matcher.db.models import MatchRequest
+    from matcher.db.repos.match import MatchRepo
 
     await _base_startup(ctx)
 
     logger = logging.getLogger(__name__)
     try:
         async with async_session_factory() as session:
-            result = await session.execute(
-                update(MatchRequest)
-                .where(MatchRequest.status == "running")
-                .values(status="queued")
-                .returning(MatchRequest.request_id)
-            )
-            orphaned = [row[0] for row in result.all()]
+            repo = MatchRepo(session)
+            recoverable = await repo.list_recoverable_requests()
+            orphaned = [req.request_id for req in recoverable]
             if orphaned:
+                for req in recoverable:
+                    await repo.clear_item_results(req.request_id)
+                    await repo.update_request_status(
+                        req.request_id,
+                        "queued",
+                        processed_items=0,
+                        auto_matched_items=0,
+                        review_needed_items=0,
+                        no_match_items=0,
+                        error_message=None,
+                    )
                 await session.commit()
                 redis = ctx.get("redis")
                 if redis:
-                    for rid in orphaned:
-                        await redis.enqueue_job("batch_match", rid, _queue_name="match")
+                    for req in recoverable:
+                        await redis.enqueue_job(
+                            req.job_name or "batch_match",
+                            req.request_id,
+                            _queue_name="match",
+                            _job_id=req.request_id,
+                            **(req.job_payload_json or {}),
+                        )
                 logger.warning("Recovered %d orphaned requests: %s", len(orphaned), orphaned)
             else:
                 logger.info("No orphaned requests found on startup")

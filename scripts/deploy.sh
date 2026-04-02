@@ -1,34 +1,30 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-DEPLOY_DIR="/opt/matcher"
-REPO_DIR="$DEPLOY_DIR/repo"
-COMPOSE="docker compose -f docker-compose.prod.yml"
+COMPOSE="docker compose -p 1c -f docker-compose.prod.yml"
+APP_IMAGE="${APP_IMAGE:?Set APP_IMAGE to a GHCR app image tag}"
+NGINX_IMAGE="${NGINX_IMAGE:?Set NGINX_IMAGE to a GHCR nginx image tag}"
+BASE_URL="${BASE_URL:-https://localhost}"
+export APP_IMAGE
+export NGINX_IMAGE
 
-cd "$REPO_DIR"
+if [[ -n "${GHCR_TOKEN:-}" && -n "${GHCR_USER:-}" ]]; then
+  echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USER}" --password-stdin
+fi
 
-echo "=== Pulling latest code ==="
-git pull origin main
+echo "=== Pulling immutable images ==="
+$COMPOSE pull api worker-match worker-catalog nginx
 
-echo "=== Building images ==="
-$COMPOSE build
+echo "=== Starting stateful dependencies ==="
+$COMPOSE up -d db redis
 
 echo "=== Running migrations ==="
 $COMPOSE run --rm api alembic upgrade head
 
-echo "=== Starting services ==="
-$COMPOSE up -d --remove-orphans
+echo "=== Starting application services ==="
+$COMPOSE up -d --remove-orphans backup alerter api worker-match worker-catalog nginx
 
-echo "=== Waiting for health check ==="
-sleep 10
-if curl -sf http://localhost/api/v1/health > /dev/null 2>&1; then
-    echo "=== Deploy successful ==="
-else
-    echo "=== HEALTH CHECK FAILED ==="
-    if [ -n "${TELEGRAM_BOT_TOKEN:-}" ] && [ -n "${TELEGRAM_CHAT_ID:-}" ]; then
-        curl -s "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-            -d "chat_id=${TELEGRAM_CHAT_ID}" \
-            -d "text=Deploy FAILED: health check failed at $(date)" > /dev/null 2>&1
-    fi
-    exit 1
-fi
+echo "=== Waiting for health checks ==="
+sleep 15
+./scripts/smoke_test.sh "${BASE_URL}" --require-ready
+echo "=== Deploy successful ==="

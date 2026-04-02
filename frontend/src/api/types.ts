@@ -65,7 +65,7 @@ export interface MatchRequestDetails {
   supplier_id?: string;
   source_type?: string;
   file_name?: string;
-  status: "queued" | "running" | "done" | "failed";
+  status: "pending" | "queued" | "running" | "done" | "failed";
   total_items: number;
   processed_items: number;
   auto_matched_items: number;
@@ -155,6 +155,10 @@ export interface SettingsResponse {
   retrieval_top_n: number;
   rerank_top_n: number;
   agentic_resolution_enabled: boolean;
+  small_catalog_threshold: number;
+  llm_matcher_enabled: boolean;
+  llm_matcher_model: string;
+  llm_matcher_batch_size: number;
   onec: OneCConnectionSettings;
 }
 
@@ -232,3 +236,8 @@ export interface SupplierMapping {
   created_at?: string;
 }
 
+export interface HealthResponse {
+  status: "ok" | "degraded";
+  version: string;
+  checks: Record<string, string>;
+}

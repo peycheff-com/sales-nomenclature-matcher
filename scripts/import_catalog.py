@@ -11,16 +11,19 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from matcher.config import settings
+from matcher.db.engine import async_session_factory
+from matcher.db.repos.catalog import CatalogRepo
 from matcher.ingestion.file_adapter import parse_file
 from matcher.ingestion.transformer import transform_item
 
 
-async def main(file_path: str, dry_run: bool = False) -> None:
+async def load_catalog_products(file_path: str) -> tuple[list[dict], int]:
     raw_items = parse_file(file_path)
     print(f"Parsed {len(raw_items)} items from {file_path}")
+    if not raw_items:
+        raise RuntimeError("Catalog import produced 0 rows")
 
-    transformed = []
+    transformed: list[dict] = []
     errors = 0
     for raw in raw_items:
         try:
@@ -32,6 +35,22 @@ async def main(file_path: str, dry_run: bool = False) -> None:
                 print(f"  Error transforming '{raw.name}': {e}")
 
     print(f"Transformed: {len(transformed)}, Errors: {errors}")
+    if not transformed:
+        raise RuntimeError("Catalog import produced 0 valid products")
+    return transformed, errors
+
+
+async def import_catalog_file(file_path: str) -> tuple[int, int]:
+    transformed, errors = await load_catalog_products(file_path)
+    async with async_session_factory() as session:
+        repo = CatalogRepo(session)
+        affected = await repo.upsert_products(transformed)
+        await session.commit()
+    return affected, errors
+
+
+async def main(file_path: str, dry_run: bool = False) -> None:
+    transformed, errors = await load_catalog_products(file_path)
 
     if dry_run:
         print("Dry run — not writing to database")
@@ -41,44 +60,10 @@ async def main(file_path: str, dry_run: bool = False) -> None:
                 print(f"    brand: {item['normalized_brand']}")
         return
 
-    # Insert into database
-    from sqlalchemy import text
-    from sqlalchemy.ext.asyncio import create_async_engine
-
-    engine = create_async_engine(settings.async_database_url)
-    async with engine.begin() as conn:
-        for item in transformed:
-            await conn.execute(
-                text("""
-                    INSERT INTO catalog_products (
-                        product_id, onec_ref, code, article, name, full_name,
-                        normalized_name, normalized_full_name, brand, normalized_brand,
-                        manufacturer, manufacturer_code, category_id, category_path,
-                        unit, packaging, size_value, size_unit, weight_value, weight_unit,
-                        volume_value, volume_unit, attributes_json, search_document,
-                        is_active, source_hash
-                    ) VALUES (
-                        :product_id, :onec_ref, :code, :article, :name, :full_name,
-                        :normalized_name, :normalized_full_name, :brand, :normalized_brand,
-                        :manufacturer, :manufacturer_code, :category_id, :category_path,
-                        :unit, :packaging, :size_value, :size_unit, :weight_value, :weight_unit,
-                        :volume_value, :volume_unit, :attributes_json, :search_document,
-                        :is_active, :source_hash
-                    )
-                    ON CONFLICT (product_id) DO UPDATE SET
-                        name = EXCLUDED.name,
-                        normalized_name = EXCLUDED.normalized_name,
-                        article = EXCLUDED.article,
-                        brand = EXCLUDED.brand,
-                        normalized_brand = EXCLUDED.normalized_brand,
-                        search_document = EXCLUDED.search_document,
-                        source_hash = EXCLUDED.source_hash,
-                        updated_at = now()
-                """),
-                {**item, "attributes_json": str(item["attributes_json"])},
-            )
-    await engine.dispose()
-    print(f"Imported {len(transformed)} items to database")
+    affected, _ = await import_catalog_file(file_path)
+    print(f"Imported {affected} items to database")
+    if errors:
+        print(f"Completed with {errors} transformation errors")
 
 
 if __name__ == "__main__":

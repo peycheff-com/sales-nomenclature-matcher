@@ -108,6 +108,8 @@ async def evaluate_quality_gate(
             result.improvements.append(f"Top-3 recall improved by {-drop:.1%}")
 
     cur_fp = current.get("auto_match_fp_rate")
+    if cur_fp is None:
+        cur_fp = current.get("auto_match_false_positive_rate")
     prev_fp = prev.get("auto_match_fp_rate")
     if cur_fp is not None and prev_fp is not None:
         increase = cur_fp - prev_fp

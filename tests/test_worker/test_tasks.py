@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -61,3 +62,20 @@ class TestCatalogImport:
         # Should fail on download, not on source_type validation
         assert result["status"] == "failed"
         assert "Unsupported" not in result.get("error", "")
+
+    @pytest.mark.asyncio
+    async def test_uploaded_file_path_zero_rows_fails(self, tmp_path: Path):
+        upload_path = tmp_path / "catalog.csv"
+        upload_path.write_text("name\n", encoding="utf-8")
+
+        with patch("matcher.ingestion.file_adapter.parse_file", return_value=[]):
+            result = await catalog_import(
+                {"db_factory": MagicMock()},
+                "job_uploaded",
+                source_type="csv",
+                file_path=str(upload_path),
+            )
+
+        assert result["status"] == "failed"
+        assert "0 rows" in result["error"]
+        assert upload_path.exists() is False

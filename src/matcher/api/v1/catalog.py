@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import tempfile
 import uuid
 from pathlib import Path
 
@@ -10,9 +9,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from matcher.api.deps import get_arq_pool, get_db
 from matcher.auth.deps import get_current_user, require_role
+from matcher.config import settings
 from matcher.db.models import User
 from matcher.db.repos.audit import AuditRepo
 from matcher.db.repos.catalog import CatalogRepo
+from matcher.queueing import enqueue_unique_job
 from matcher.schemas.catalog import CatalogImportInput, CatalogReindexInput, JobAccepted
 
 
@@ -110,14 +111,15 @@ async def import_catalog(
 ):
     """Import catalog from 1C OData or file URL."""
     job_id = f"job_{uuid.uuid4().hex[:12]}"
-    await arq_pool.enqueue_job(
+    await enqueue_unique_job(
+        arq_pool,
         "catalog_import",
         job_id,
+        "catalog",
         source_type=body.source_type,
         file_url=body.file_url,
         dry_run=body.dry_run,
         source_version=body.source_version,
-        _queue_name="catalog",
     )
     audit = AuditRepo(db)
     await audit.log(
@@ -135,6 +137,7 @@ async def import_catalog(
 async def upload_catalog_file(
     file: UploadFile = File(...),
     arq_pool=Depends(get_arq_pool),
+    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_role("admin", "operator")),
 ):
     """Upload a CSV/XLSX catalog file directly and enqueue import."""
@@ -164,19 +167,34 @@ async def upload_catalog_file(
         if content[:4] != b"\x50\x4b\x03\x04":
             raise HTTPException(status_code=400, detail="File content does not match .xlsx format.")
 
-    # Save uploaded file to temp directory
-    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False, dir="/tmp") as tmp:
-        tmp.write(content)
-        tmp_path = tmp.name
-
     job_id = f"job_{uuid.uuid4().hex[:12]}"
-    await arq_pool.enqueue_job(
-        "catalog_import",
-        job_id,
-        source_type=source_type,
-        file_path=tmp_path,
-        _queue_name="catalog",
+    upload_dir = settings.catalog_upload_path
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    tmp_path = upload_dir / f"{job_id}{suffix}"
+    tmp_path.write_bytes(content)
+
+    try:
+        await enqueue_unique_job(
+            arq_pool,
+            "catalog_import",
+            job_id,
+            "catalog",
+            source_type=source_type,
+            file_path=str(tmp_path),
+        )
+    except Exception:
+        tmp_path.unlink(missing_ok=True)
+        raise
+
+    audit = AuditRepo(db)
+    await audit.log(
+        action="catalog_upload",
+        entity_type="catalog_product",
+        user_id=current_user.user_id,
+        username=current_user.username,
+        details={"job_id": job_id, "filename": file.filename, "source_type": source_type},
     )
+    await db.commit()
     return JobAccepted(job_id=job_id, status="queued")
 
 
@@ -188,11 +206,12 @@ async def reindex_catalog(
     current_user: User = Depends(require_role("admin", "catalog_operator")),
 ):
     job_id = f"job_{uuid.uuid4().hex[:12]}"
-    await arq_pool.enqueue_job(
+    await enqueue_unique_job(
+        arq_pool,
         "catalog_reindex",
         job_id,
+        "catalog",
         **body.model_dump(exclude_none=True),
-        _queue_name="catalog",
     )
     audit = AuditRepo(db)
     await audit.log(
@@ -279,8 +298,8 @@ async def delete_all_catalog_products(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_role("admin", "operator")),
 ):
-    """Delete ALL catalog products."""
-    repo = CatalogRepo(db)
-    await repo.delete_all_products()
-    await db.commit()
-    return None
+    """Bulk wipe is not available from the public API."""
+    raise HTTPException(
+        status_code=410,
+        detail="Bulk catalog wipe is disabled. Use the operations runbook instead.",
+    )

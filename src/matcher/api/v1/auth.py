@@ -20,6 +20,7 @@ from matcher.schemas.user import (
     ProfileUpdate,
     UserBrief,
 )
+from matcher.security.client_ip import get_client_ip
 from matcher.security.rate_limit import login_rate_limiter
 
 router = APIRouter(tags=["Auth"])
@@ -91,16 +92,28 @@ async def login(
     db: AsyncSession = Depends(get_db),
 ):
     # Rate limiting by client IP
-    client_ip = request.client.host if request.client else "unknown"
-    if login_rate_limiter.is_blocked(client_ip):
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Too many login attempts. Please try again later.",
-        )
+    client_ip = get_client_ip(request)
+    redis = getattr(request.app.state, "arq_pool", None)
+    if redis is not None:
+        try:
+            if await login_rate_limiter.is_blocked(redis, client_ip):
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail="Too many login attempts. Please try again later.",
+                )
+        except HTTPException:
+            raise
+        except Exception:
+            # Fail open on limiter outages to avoid auth lockout during Redis issues.
+            pass
 
     user = await UserRepo(db).get_by_username(form_data.username)
     if not user or not verify_password(form_data.password, user.hashed_password):
-        login_rate_limiter.record_attempt(client_ip)
+        if redis is not None:
+            try:
+                await login_rate_limiter.record_attempt(redis, client_ip)
+            except Exception:
+                pass
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
@@ -113,7 +126,11 @@ async def login(
         )
 
     # Successful login - reset rate limiter for this IP
-    login_rate_limiter.reset(client_ip)
+    if redis is not None:
+        try:
+            await login_rate_limiter.reset(redis, client_ip)
+        except Exception:
+            pass
 
     token = create_access_token(data={"sub": user.username, "role": user.role})
 

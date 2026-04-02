@@ -31,15 +31,20 @@ class MatchRepo:
         submitted_by: str | None,
         total_items: int,
         file_name: str | None = None,
+        status: str = "pending",
+        job_name: str = "batch_match",
+        job_payload: dict | None = None,
     ) -> MatchRequest:
         req = MatchRequest(
             request_id=request_id,
             supplier_id=supplier_id,
             source_type=source_type,
             submitted_by=submitted_by,
-            status="queued",
+            status=status,
             total_items=total_items,
             file_name=file_name,
+            job_name=job_name,
+            job_payload_json=job_payload or {},
         )
         self.session.add(req)
         await self.session.flush()
@@ -82,10 +87,23 @@ class MatchRepo:
         )
         return result.scalar_one_or_none()
 
+    async def list_recoverable_requests(self) -> list[MatchRequest]:
+        result = await self.session.execute(
+            select(MatchRequest).where(
+                MatchRequest.status.in_(("pending", "queued", "running")),
+                MatchRequest.job_name.in_(("batch_match", "smart_upload")),
+            )
+        )
+        return list(result.scalars().all())
+
     async def update_request_status(self, request_id: str, status: str, **counters: object) -> None:
         values: dict = {"status": status}
         if status == "running":
             values["started_at"] = datetime.now(UTC)
+            values["finished_at"] = None
+        elif status in ("pending", "queued"):
+            values["started_at"] = None
+            values["finished_at"] = None
         elif status in ("done", "failed"):
             values["finished_at"] = datetime.now(UTC)
         values.update(counters)

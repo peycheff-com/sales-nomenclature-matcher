@@ -1,10 +1,12 @@
-"""Tests for in-memory rate limiter."""
+"""Tests for rate limiting helpers."""
 
 from __future__ import annotations
 
 from unittest.mock import patch
 
-from matcher.security.rate_limit import RateLimiter
+import pytest
+
+from matcher.security.rate_limit import RateLimiter, RedisRateLimiter
 
 
 class TestRateLimiter:
@@ -110,3 +112,66 @@ class TestRateLimiter:
             limiter.record_attempt(key)
 
         assert limiter.is_blocked(key) is False
+
+
+class _FakeRedis:
+    def __init__(self) -> None:
+        self.values: dict[str, int | str] = {}
+
+    async def exists(self, key: str) -> int:
+        return 1 if key in self.values else 0
+
+    async def incr(self, key: str) -> int:
+        current = int(self.values.get(key, 0))
+        current += 1
+        self.values[key] = current
+        return current
+
+    async def expire(self, key: str, seconds: int) -> bool:  # noqa: ARG002
+        return True
+
+    async def set(self, key: str, value: str, ex: int | None = None) -> bool:  # noqa: ARG002
+        self.values[key] = value
+        return True
+
+    async def delete(self, *keys: str) -> int:
+        deleted = 0
+        for key in keys:
+            if key in self.values:
+                del self.values[key]
+                deleted += 1
+        return deleted
+
+
+class TestRedisRateLimiter:
+    @pytest.mark.asyncio
+    async def test_login_blocking_and_reset(self):
+        redis = _FakeRedis()
+        limiter = RedisRateLimiter(
+            prefix="login",
+            max_attempts=2,
+            window_seconds=60,
+            block_seconds=300,
+        )
+
+        assert await limiter.is_blocked(redis, "1.2.3.4") is False
+        await limiter.record_attempt(redis, "1.2.3.4")
+        await limiter.record_attempt(redis, "1.2.3.4")
+        assert await limiter.is_blocked(redis, "1.2.3.4") is True
+
+        await limiter.reset(redis, "1.2.3.4")
+        assert await limiter.is_blocked(redis, "1.2.3.4") is False
+
+    @pytest.mark.asyncio
+    async def test_api_allow_request_enforces_limit(self):
+        redis = _FakeRedis()
+        limiter = RedisRateLimiter(
+            prefix="api",
+            max_attempts=2,
+            window_seconds=60,
+            block_seconds=60,
+        )
+
+        assert await limiter.allow_request(redis, "5.6.7.8") is True
+        assert await limiter.allow_request(redis, "5.6.7.8") is True
+        assert await limiter.allow_request(redis, "5.6.7.8") is False

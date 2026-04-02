@@ -109,6 +109,7 @@ class MetricsRepo:
             "auto_match_false_positive_rate": (
                 round(auto_fp / auto_total, 4) if auto_total > 0 else None
             ),
+            "auto_match_fp_rate": (round(auto_fp / auto_total, 4) if auto_total > 0 else None),
             "review_acceptance_rate": (
                 round(review_acceptance, 4) if review_acceptance is not None else None
             ),

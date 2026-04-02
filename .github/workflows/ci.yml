@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
   lint-backend:
@@ -23,9 +23,9 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: uv sync --dev
+        run: uv sync --extra dev
 
-      - name: Run Ruff Linting
+      - name: Run Ruff
         run: uv run ruff check . --output-format=github
 
   lint-frontend:
@@ -41,6 +41,10 @@ jobs:
       - name: Install frontend dependencies
         working-directory: frontend
         run: npm ci
+
+      - name: Lint frontend
+        working-directory: frontend
+        run: npm run lint
 
       - name: TypeScript check
         working-directory: frontend
@@ -67,9 +71,63 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: uv sync --dev
+        run: uv sync --extra dev
 
-      - name: Run Tests
+      - name: Run tests
         env:
           PYTHONPATH: src
         run: uv run pytest
+
+  smoke-prod-compose:
+    runs-on: ubuntu-latest
+    needs: [test]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create CI env file
+        run: |
+          cat > .env.ci.prod <<'EOF'
+          POSTGRES_PASSWORD=matcher
+          REDIS_PASSWORD=matcher
+          DATABASE_URL=postgresql+psycopg://matcher:matcher@db:5432/matcher
+          REDIS_URL=redis://:matcher@redis:6379/0
+          JWT_SECRET_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+          CORS_ORIGINS=["http://localhost:8080"]
+          COOKIE_SECURE=false
+          COOKIE_SAMESITE=lax
+          LOG_LEVEL=INFO
+          EOF
+
+      - name: Start prod-like services
+        run: |
+          docker compose \
+            -f docker-compose.prod.yml \
+            -f docker-compose.prod.ci.yml \
+            --env-file .env.ci.prod \
+            up -d --build db redis api worker-match worker-catalog nginx
+
+      - name: Wait for healthchecks
+        run: |
+          for i in $(seq 1 40); do
+            api=$(docker inspect --format '{{.State.Health.Status}}' $(docker compose -f docker-compose.prod.yml -f docker-compose.prod.ci.yml --env-file .env.ci.prod ps -q api))
+            match=$(docker inspect --format '{{.State.Health.Status}}' $(docker compose -f docker-compose.prod.yml -f docker-compose.prod.ci.yml --env-file .env.ci.prod ps -q worker-match))
+            catalog=$(docker inspect --format '{{.State.Health.Status}}' $(docker compose -f docker-compose.prod.yml -f docker-compose.prod.ci.yml --env-file .env.ci.prod ps -q worker-catalog))
+            nginx=$(docker inspect --format '{{.State.Health.Status}}' $(docker compose -f docker-compose.prod.yml -f docker-compose.prod.ci.yml --env-file .env.ci.prod ps -q nginx))
+            echo "api=$api match=$match catalog=$catalog nginx=$nginx"
+            if [ "$api" = "healthy" ] && [ "$match" = "healthy" ] && [ "$catalog" = "healthy" ] && [ "$nginx" = "healthy" ]; then
+              exit 0
+            fi
+            sleep 5
+          done
+          docker compose -f docker-compose.prod.yml -f docker-compose.prod.ci.yml --env-file .env.ci.prod ps
+          docker compose -f docker-compose.prod.yml -f docker-compose.prod.ci.yml --env-file .env.ci.prod logs api worker-match worker-catalog nginx
+          exit 1
+
+      - name: Smoke probe
+        run: |
+          curl -f http://localhost:8080/health
+          docker compose -f docker-compose.prod.yml -f docker-compose.prod.ci.yml --env-file .env.ci.prod exec -T api python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health/live')"
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f docker-compose.prod.yml -f docker-compose.prod.ci.yml --env-file .env.ci.prod down -v

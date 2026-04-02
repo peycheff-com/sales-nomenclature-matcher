@@ -85,8 +85,8 @@ class TestSettingsPersistenceEndpoints:
         # Mock SettingsRepo.upsert to track calls
         upsert_calls = []
 
-        async def mock_upsert(self, key, value):
-            upsert_calls.append((key, value))
+        async def mock_upsert(self, key, value, commit=True):
+            upsert_calls.append((key, value, commit))
 
         with (
             patch("matcher.auth.deps.UserRepo") as MockUserRepo,
@@ -103,7 +103,7 @@ class TestSettingsPersistenceEndpoints:
                 )
 
         assert resp.status_code == 200
-        persisted_keys = [k for k, v in upsert_calls]
+        persisted_keys = [k for k, _v, _commit in upsert_calls]
         assert "auto_match_threshold" in persisted_keys
         assert "review_threshold" in persisted_keys
         assert "onec" in persisted_keys
@@ -160,3 +160,55 @@ class TestSettingsPersistenceEndpoints:
 
         # Clean up: reset flag for other tests
         settings_module._db_loaded = False
+
+    @pytest.mark.asyncio
+    async def test_update_settings_rejects_non_1024_embedding_dimensions(
+        self, async_client, auth_headers
+    ):
+        mock_user = User(
+            user_id="u1",
+            username="test_admin",
+            hashed_password="x",
+            role="admin",
+            is_active=True,
+        )
+
+        with patch("matcher.auth.deps.UserRepo") as MockUserRepo:
+            MockUserRepo.return_value.get_by_username = AsyncMock(return_value=mock_user)
+            resp = await async_client.put(
+                "/api/v1/settings",
+                json={"embedding_dimensions": 3072},
+                headers=auth_headers,
+            )
+
+        assert resp.status_code == 422
+        assert "1024" in resp.text
+
+    @pytest.mark.asyncio
+    async def test_env_provider_secret_wins_over_db_value(self, mock_db_session):
+        import matcher.api.v1.settings as settings_module
+        from matcher.config import settings
+
+        settings_module._db_loaded = False
+        original_key = settings.google_api_key
+        original_registry = json.loads(json.dumps(settings.providers_registry))
+
+        try:
+            settings.google_api_key = "env-google-key"
+            settings.apply_env_provider_secrets()
+
+            stored = {
+                "providers_registry": json.dumps(
+                    {"google": {"id": "google", "api_key": "db-google-key"}}
+                )
+            }
+
+            with patch.object(SettingsRepo, "get_all", new_callable=AsyncMock, return_value=stored):
+                await settings_module.load_persisted_settings(mock_db_session, force=True)
+
+            assert settings.providers_registry["google"]["api_key"] == "env-google-key"
+        finally:
+            settings.google_api_key = original_key
+            settings.providers_registry = original_registry
+            settings.apply_env_provider_secrets()
+            settings_module._db_loaded = False
