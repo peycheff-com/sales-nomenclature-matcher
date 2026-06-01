@@ -1,0 +1,4 @@
+[[IgnoredVulns]]
+id = "PYSEC-2026-161"
+ignoreUntil = 2026-09-01
+reason = "Starlette 1.0.1 is outside FastAPI 0.135.x's compatible dependency range; revisit when FastAPI supports the fixed Starlette series."
