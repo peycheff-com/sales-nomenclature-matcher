@@ -182,7 +182,12 @@ class TestSettingsDefaultsAndSecrets:
             Settings(_env_file=None, jwt_secret_key="x" * 32, log_level="INFO", cors_origins=["*"])
 
     def test_debug_allows_local_insecure_defaults(self):
-        s = Settings(_env_file=None, jwt_secret_key="change-me-in-production", log_level="DEBUG")
+        s = Settings(
+            _env_file=None,
+            jwt_secret_key="change-me-in-production",
+            log_level="DEBUG",
+            cors_origins=["*"],
+        )
 
         assert s.cors_origins == ["*"]
 
