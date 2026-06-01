@@ -70,19 +70,6 @@ export function ModelCombobox({
           <CommandList>
             <CommandEmpty>
               {isLoading ? "Загрузка моделей..." : "Модели не найдены."}
-              {search && (
-                <Button 
-                  variant="link" 
-                  className="mt-2 text-primary"
-                  onClick={() => {
-                    onChange(search)
-                    setOpen(false)
-                    setSearch("")
-                  }}
-                >
-                  Использовать "{search}"
-                </Button>
-              )}
             </CommandEmpty>
             <CommandGroup>
               {options.map((option) => (

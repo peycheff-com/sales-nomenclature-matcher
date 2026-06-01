@@ -210,3 +210,29 @@ class TestEvaluateQualityGate:
             result = await evaluate_quality_gate(session, max_accuracy_drop=0.05)
         assert result.passed is True
         assert len(result.regressions) == 0
+
+    async def test_improvements_are_reported_for_all_metrics(self):
+        session = AsyncMock()
+        prev_report = MagicMock()
+        prev_report.top1_accuracy = Decimal("0.80")
+        prev_report.top3_recall = Decimal("0.82")
+        prev_report.auto_match_fp_rate = Decimal("0.08")
+
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = prev_report
+        session.execute.return_value = mock_result
+
+        with patch("matcher.pipeline.quality_gate.MetricsRepo") as MockMetricsRepo:
+            repo = MockMetricsRepo.return_value
+            repo.compute_quality_metrics = AsyncMock(
+                return_value={
+                    "total_cases": 100,
+                    "top1_accuracy": 0.84,
+                    "top3_recall": 0.87,
+                    "auto_match_fp_rate": 0.04,
+                }
+            )
+            result = await evaluate_quality_gate(session)
+
+        assert result.passed is True
+        assert len(result.improvements) == 3

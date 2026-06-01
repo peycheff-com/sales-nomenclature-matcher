@@ -287,9 +287,8 @@ export default function ResultsTable({ requestId }: ResultsTableProps) {
     return result;
   }, [fetchedData, debouncedSearchQuery, reviewFilter]);
 
-  const totalPages = itemsQuery.data
-    ? Math.ceil(itemsQuery.data.total / PAGE_SIZE)
-    : 0;
+  const totalItems = itemsQuery.data?.total ?? 0;
+  const totalPages = Math.ceil(totalItems / PAGE_SIZE);
 
   // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
@@ -418,7 +417,7 @@ export default function ResultsTable({ requestId }: ResultsTableProps) {
           <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden max-w-[200px]">
             <div
               className="h-full bg-primary/60 rounded-full transition-all"
-              style={{ width: `${filteredData.length > 0 ? (filteredData.filter(i => !!i.final_decision).length / filteredData.length) * 100 : 0}%` }}
+              style={{ width: `${(filteredData.filter(i => !!i.final_decision).length / filteredData.length) * 100}%` }}
             />
           </div>
         </div>
@@ -439,7 +438,7 @@ export default function ResultsTable({ requestId }: ResultsTableProps) {
               </Button>
             </>
           ) : (
-            <Button size="sm" variant="outline" onClick={approveAllAutoMatches} disabled={bulkMutation.isPending || itemsQuery.isLoading || autoMatchesOnPage.length === 0}>
+            <Button size="sm" variant="outline" onClick={approveAllAutoMatches} disabled={bulkMutation.isPending || itemsQuery.isLoading}>
               <Check className="h-4 w-4 mr-1 text-green-600"/> Принять авто ({autoMatchesOnPage.length} на стр.)
             </Button>
           )}
@@ -472,13 +471,11 @@ export default function ResultsTable({ requestId }: ResultsTableProps) {
                     className={`${header.column.getCanSort() ? "cursor-pointer select-none hover:bg-muted/50" : ""} ${colMeta?.className ?? ""}`}
                     onClick={header.column.getToggleSortingHandler()}
                   >
-                    {header.isPlaceholder ? null : (
-                      <div className="flex items-center gap-1">
-                        {flexRender(header.column.columnDef.header, header.getContext())}
-                        {header.column.getIsSorted() === "asc" ? <ChevronDown className="h-3 w-3 rotate-180" /> : null}
-                        {header.column.getIsSorted() === "desc" ? <ChevronDown className="h-3 w-3" /> : null}
-                      </div>
-                    )}
+                    <div className="flex items-center gap-1">
+                      {flexRender(header.column.columnDef.header, header.getContext())}
+                      {header.column.getIsSorted() === "asc" ? <ChevronDown className="h-3 w-3 rotate-180" /> : null}
+                      {header.column.getIsSorted() === "desc" ? <ChevronDown className="h-3 w-3" /> : null}
+                    </div>
                   </TableHead>
                   );
                 })}
@@ -552,7 +549,7 @@ export default function ResultsTable({ requestId }: ResultsTableProps) {
         <Pagination
           page={page}
           totalPages={totalPages}
-          total={itemsQuery.data?.total ?? 0}
+          total={totalItems}
           pageSize={PAGE_SIZE}
           onPageChange={(p) => {
             setPage(p);

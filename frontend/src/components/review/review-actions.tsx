@@ -67,7 +67,7 @@ export default function ReviewActions({ item, onReviewed }: ReviewActionsProps) 
   function handleCorrect() {
     mutation.mutate({
       final_decision: "corrected",
-      final_product_id: correctedProductId || undefined,
+      final_product_id: correctedProductId,
       create_alias: true,
       create_supplier_mapping: true,
     });
