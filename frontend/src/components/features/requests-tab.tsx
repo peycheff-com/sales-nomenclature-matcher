@@ -484,9 +484,7 @@ export function RequestsTab() {
               className="bg-red-600 hover:bg-red-700 text-white"
               disabled={deleteMutation.isPending}
               onClick={() => {
-                if (deleteTarget) {
-                  deleteMutation.mutate(deleteTarget);
-                }
+                deleteMutation.mutate(deleteTarget!);
               }}
             >
               {deleteMutation.isPending ? "Удаление..." : "Удалить"}

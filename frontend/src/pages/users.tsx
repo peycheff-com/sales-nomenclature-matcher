@@ -209,6 +209,11 @@ export default function UsersPage() {
     setResetPassword(pw);
   }
 
+  function handleCreateDialogChange(open: boolean) {
+    setIsCreateOpen(open);
+    if (!open) resetCreateForm();
+  }
+
   const users = usersQuery.data?.items ?? [];
   const currentUserId = meQuery.data?.user_id;
 
@@ -216,10 +221,7 @@ export default function UsersPage() {
     <div className="flex items-center gap-2">
       <Dialog
         open={isCreateOpen}
-        onOpenChange={(open) => {
-          setIsCreateOpen(open);
-          if (!open) resetCreateForm();
-        }}
+        onOpenChange={handleCreateDialogChange}
       >
         <DialogTrigger className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground shadow hover:bg-primary/90 h-9 px-4 py-2">
           <Plus className="mr-2 h-4 w-4" />
@@ -298,7 +300,7 @@ export default function UsersPage() {
               )}
             </div>
             <DialogFooter>
-              <Button variant="outline" type="button" onClick={() => setIsCreateOpen(false)}>
+              <Button variant="outline" type="button" onClick={() => handleCreateDialogChange(false)}>
                 Отмена
               </Button>
               <Button type="submit" disabled={createMutation.isPending}>
@@ -555,12 +557,10 @@ export default function UsersPage() {
             <AlertDialogAction
               disabled={!resetPassword || resetPassword.length < 6 || resetPasswordMutation.isPending}
               onClick={() => {
-                if (resetTarget) {
-                  resetPasswordMutation.mutate({
-                    userId: resetTarget.user_id,
-                    password: resetPassword,
-                  });
-                }
+                resetPasswordMutation.mutate({
+                  userId: resetTarget!.user_id,
+                  password: resetPassword,
+                });
               }}
             >
               Сбросить пароль
@@ -590,13 +590,11 @@ export default function UsersPage() {
             <AlertDialogAction
               className="bg-orange-600 hover:bg-orange-700 text-white"
               onClick={() => {
-                if (deactivateTarget) {
-                  updateMutation.mutate({
-                    userId: deactivateTarget.user_id,
-                    is_active: false,
-                  });
-                  setDeactivateTarget(null);
-                }
+                updateMutation.mutate({
+                  userId: deactivateTarget!.user_id,
+                  is_active: false,
+                });
+                setDeactivateTarget(null);
               }}
             >
               Отключить

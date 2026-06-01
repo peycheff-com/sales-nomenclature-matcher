@@ -84,6 +84,10 @@ PROVIDER_CAPABILITIES: dict[str, ProviderCapabilities] = {
         supports_embeddings=True,
         supports_rerank=True,
         rerank_mode="local",
+        notes=(
+            "Free local mode: sentence-transformers for embeddings/rerank "
+            "and Ollama-compatible chat."
+        ),
     ),
     # Regional providers (beta stubs — OpenAI-compatible, no custom API code yet)
     "yandex": ProviderCapabilities(
@@ -158,17 +162,17 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379"
     catalog_upload_dir: str = "/var/lib/matcher/uploads"
 
-    # Provider: "openai" | "openrouter" | "google"
-    embedding_provider: str = "jina"
-    llm_provider: str = "google"
-    rerank_provider: str = "jina"
+    # Free local mode is the default. Hosted providers remain optional.
+    embedding_provider: str = "local"
+    llm_provider: str = "local"
+    rerank_provider: str = "local"
 
     # Dynamic Provider Registry
     providers_registry: dict[str, dict[str, str]] = {
         "local": {
             "id": "local",
             "name": "Local Pipeline (OSS)",
-            "api_key": "none",
+            "api_key": "ollama",
             "base_url": "http://localhost:11434/v1",
         },
         "openai": {
@@ -270,11 +274,11 @@ class Settings(BaseSettings):
     llm_matcher_batch_size: int = 5  # items per LLM call in small-catalog batch mode
 
     # Embedding config
-    embedding_model: str = "jina-embeddings-v3"
-    embedding_dimensions: int = 1024
+    embedding_model: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+    embedding_dimensions: int = 384
 
     # LLM config (for reranking fallback / explanation generation)
-    llm_model: str = "gemini-2.5-flash"
+    llm_model: str = "qwen2.5:7b-instruct"
     llm_rerank_model: str = ""  # if empty, uses llm_model
 
     # Provider secrets are env-first in production. Persisted DB settings are

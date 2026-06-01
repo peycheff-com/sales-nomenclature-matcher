@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from matcher.pipeline import token_tracker
 from matcher.pipeline.token_tracker import COST_PER_1M, DEFAULT_COST, TokenTracker
 
 
@@ -101,6 +102,22 @@ class TestTokenTracker:
         mock_session.execute.assert_not_awaited()
         mock_session.flush.assert_not_awaited()
 
+    @pytest.mark.asyncio
+    async def test_flush_clears_records_when_db_write_fails(self):
+        """flush() logs and clears accumulated records even when persistence fails."""
+        tracker = TokenTracker(request_id="req_error")
+        tracker.record("embed", "openai", "text-embedding-3-small", prompt_tokens=100)
+
+        mock_session = AsyncMock()
+        mock_session.execute = AsyncMock(side_effect=RuntimeError("db down"))
+        mock_session.flush = AsyncMock()
+
+        await tracker.flush(mock_session)
+
+        mock_session.execute.assert_awaited_once()
+        mock_session.flush.assert_not_awaited()
+        assert tracker.total_tokens == 0
+
     def test_total_tokens_with_explicit_total(self):
         """When total_tokens is provided explicitly, it should be used instead of sum."""
         tracker = TokenTracker(request_id="req_006")
@@ -154,3 +171,29 @@ class TestTokenTracker:
         )
 
         assert tracker.total_cost == embed_cost + llm_cost
+
+    def test_estimate_cost_matches_pricing_by_prefix(self, monkeypatch: pytest.MonkeyPatch):
+        """Versioned model names should match configured base model pricing."""
+        monkeypatch.setitem(
+            token_tracker.COST_PER_1M,
+            "vendor/model",
+            {"prompt": 1.0, "completion": 2.0},
+        )
+
+        assert token_tracker._estimate_cost("vendor/model:latest", 1000, 500) == Decimal(
+            "0.002"
+        )
+
+    def test_load_pricing_falls_back_for_missing_or_invalid_config(self):
+        """Pricing loading should tolerate missing or invalid YAML config files."""
+        with patch("builtins.open", side_effect=FileNotFoundError):
+            models, default = token_tracker._load_pricing()
+
+        assert models == {}
+        assert default == token_tracker._FALLBACK_DEFAULT_COST
+
+        with patch("builtins.open", side_effect=RuntimeError("bad file")):
+            models, default = token_tracker._load_pricing()
+
+        assert models == {}
+        assert default == token_tracker._FALLBACK_DEFAULT_COST

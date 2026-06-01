@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from pydantic import ValidationError
 
 from matcher.config import PROVIDER_CAPABILITIES, Settings
 
@@ -151,3 +152,131 @@ class TestRegionalProviders:
         caps = PROVIDER_CAPABILITIES[pid]
         assert caps.is_beta is True
         assert caps.region == region
+
+
+class TestSettingsDefaultsAndSecrets:
+    """Settings should default to free local mode and keep production guardrails."""
+
+    def test_defaults_are_free_local_first(self):
+        s = Settings(_env_file=None, jwt_secret_key="x" * 32, log_level="DEBUG")
+
+        assert s.embedding_provider == "local"
+        assert s.llm_provider == "local"
+        assert s.rerank_provider == "local"
+        assert s.embedding_dimensions == 384
+        assert s.embedding_model == "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+        assert s.llm_model == "qwen2.5:7b-instruct"
+        assert s.active_embedding_base_url == "http://localhost:11434/v1"
+
+    def test_insecure_jwt_secret_rejected_outside_debug(self):
+        with pytest.raises(ValidationError, match="JWT_SECRET_KEY is insecure"):
+            Settings(
+                _env_file=None,
+                jwt_secret_key="change-me-in-production",
+                log_level="INFO",
+                cors_origins=["https://example.com"],
+            )
+
+    def test_wildcard_cors_rejected_outside_debug(self):
+        with pytest.raises(ValidationError, match="CORS_ORIGINS contains"):
+            Settings(_env_file=None, jwt_secret_key="x" * 32, log_level="INFO", cors_origins=["*"])
+
+    def test_debug_allows_local_insecure_defaults(self):
+        s = Settings(_env_file=None, jwt_secret_key="change-me-in-production", log_level="DEBUG")
+
+        assert s.cors_origins == ["*"]
+
+    def test_env_provider_secrets_override_registry_values(self):
+        s = Settings(
+            _env_file=None,
+            jwt_secret_key="x" * 32,
+            log_level="DEBUG",
+            openai_api_key="env-openai",
+            providers_registry={
+                "openai": {
+                    "id": "openai",
+                    "name": "OpenAI",
+                    "api_key": "stored-openai",
+                    "base_url": "https://api.openai.com/v1",
+                },
+            },
+        )
+
+        assert s.env_provider_api_key("openai") == "env-openai"
+        assert s.effective_provider_api_key("openai") == "env-openai"
+        assert s.effective_provider_api_key("missing") == ""
+        assert s.effective_provider_base_url("missing") == ""
+
+        s.apply_env_provider_secrets()
+        assert s.providers_registry["openai"]["api_key"] == "env-openai"
+
+    def test_env_provider_secrets_ignore_missing_registry_entries(self):
+        s = Settings(
+            _env_file=None,
+            jwt_secret_key="x" * 32,
+            log_level="DEBUG",
+            openai_api_key="env-openai",
+            embedding_provider="missing",
+            llm_provider="missing",
+            providers_registry={},
+        )
+
+        s.apply_env_provider_secrets()
+
+        assert s.active_embedding_api_key == ""
+        assert s.active_embedding_base_url == ""
+        assert s.active_llm_api_key == ""
+        assert s.active_llm_base_url == ""
+        assert s.active_rerank_api_key == ""
+        assert s.active_rerank_base_url == ""
+        assert str(s.catalog_upload_path) == s.catalog_upload_dir
+
+    def test_rerank_llm_fallback_reuses_active_llm_provider(self):
+        s = Settings(
+            _env_file=None,
+            jwt_secret_key="x" * 32,
+            log_level="DEBUG",
+            llm_provider="openrouter",
+            rerank_provider="llm-fallback",
+            openrouter_api_key="router-key",
+        )
+
+        assert s.active_llm_api_key == "router-key"
+        assert s.active_rerank_api_key == "router-key"
+        assert s.active_rerank_base_url == "https://openrouter.ai/api/v1"
+
+    @pytest.mark.parametrize(
+        ("database_url", "async_url", "sync_url"),
+        [
+            (
+                "postgresql://user:pass@localhost/db",
+                "postgresql+asyncpg://user:pass@localhost/db",
+                "postgresql://user:pass@localhost/db",
+            ),
+            (
+                "postgresql+psycopg://user:pass@localhost/db",
+                "postgresql+asyncpg://user:pass@localhost/db",
+                "postgresql://user:pass@localhost/db",
+            ),
+            (
+                "postgresql+asyncpg://user:pass@localhost/db",
+                "postgresql+asyncpg://user:pass@localhost/db",
+                "postgresql://user:pass@localhost/db",
+            ),
+        ],
+    )
+    def test_database_url_driver_conversions(
+        self,
+        database_url: str,
+        async_url: str,
+        sync_url: str,
+    ):
+        s = Settings(
+            _env_file=None,
+            jwt_secret_key="x" * 32,
+            log_level="DEBUG",
+            database_url=database_url,
+        )
+
+        assert s.async_database_url == async_url
+        assert s.sync_database_url == sync_url

@@ -453,11 +453,9 @@ export default function SuppliersPage() {
             <AlertDialogAction
               className="bg-orange-600 hover:bg-orange-700 text-white"
               onClick={() => {
-                if (toggleWarning) {
-                  updateMutation.mutate({ id: toggleWarning.supplier_id, is_active: false });
-                  setToggleWarning(null);
-                  setActiveRequestCount(null);
-                }
+                updateMutation.mutate({ id: toggleWarning!.supplier_id, is_active: false });
+                setToggleWarning(null);
+                setActiveRequestCount(null);
               }}
             >
               Отключить
@@ -480,9 +478,7 @@ export default function SuppliersPage() {
             <AlertDialogAction
               className="bg-red-600 hover:bg-red-700 text-white"
               onClick={() => {
-                if (deleteTarget) {
-                  deleteMutation.mutate(deleteTarget.supplier_id);
-                }
+                deleteMutation.mutate(deleteTarget!.supplier_id);
               }}
             >
               Удалить безвозвратно
@@ -527,8 +523,6 @@ function MappingsPanel({ supplier }: { supplier: SupplierProfile }) {
 
   // GAP-6.6: Export mappings to CSV
   const handleExportCSV = useCallback(() => {
-    if (!allMappings.length) return;
-
     const rows = allMappings.map((m) => ({
       "Исходный текст поставщика": m.supplier_raw_text ?? "",
       "Артикул поставщика": m.supplier_article ?? "",

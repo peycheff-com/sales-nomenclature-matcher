@@ -98,3 +98,29 @@ class TestURLValidator:
         """Non-http(s) schemes such as ftp should be rejected."""
         with pytest.raises(SSRFError, match="scheme"):
             validate_url_safe("ftp://example.com/file.txt")
+
+    def test_wraps_url_parse_errors(self):
+        """Parser failures should surface as SSRF validation errors."""
+        with patch("matcher.security.url_validator.urlparse", side_effect=ValueError("broken")):
+            with pytest.raises(SSRFError, match="Invalid URL: broken"):
+                validate_url_safe("https://example.com")
+
+    def test_rejects_unresolvable_hostname(self):
+        """DNS failures should be rejected instead of silently allowing the URL."""
+        with patch(
+            "matcher.security.url_validator.socket.getaddrinfo",
+            side_effect=socket.gaierror("not found"),
+        ):
+            with pytest.raises(SSRFError, match="Cannot resolve hostname"):
+                validate_url_safe("https://missing.example.com")
+
+    def test_rejects_invalid_resolved_ip_address(self):
+        """Unexpected resolver output should be treated as unsafe."""
+        def resolver(host, port, *args, **kwargs):
+            return [
+                (socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_TCP, "", ("not-an-ip", port))
+            ]
+
+        with patch("matcher.security.url_validator.socket.getaddrinfo", resolver):
+            with pytest.raises(SSRFError, match="Invalid IP address resolved"):
+                validate_url_safe("https://weird.example.com")

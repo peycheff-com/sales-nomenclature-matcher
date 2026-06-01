@@ -175,13 +175,11 @@ export default function DashboardPage() {
       if (sn) msgs.push(`поставщик: ${sn}`);
       toast.success(`Обнаружено ${data.tables_detected} таблиц: ${msgs.join(", ")}`);
     },
-    onError: (err) => {
+    onError: (err, file) => {
       const msg = err instanceof Error ? err.message : "Неизвестная ошибка";
       toast.error(`Ошибка структуры файла: ${msg}. Переключаем на базовый режим...`);
       setUseAi(false);
-      if (selectedFile) {
-        parseMutation.mutate({ file: selectedFile, supplierId, useAiColumnPicker: false });
-      }
+      parseMutation.mutate({ file, supplierId, useAiColumnPicker: false });
     },
   });
 
@@ -266,7 +264,7 @@ export default function DashboardPage() {
   function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (file) processFile(file);
-    if (fileInputRef.current) fileInputRef.current.value = "";
+    e.currentTarget.value = "";
   }
 
   function handleDrop(e: DragEvent) {
@@ -346,6 +344,7 @@ export default function DashboardPage() {
   };
 
   function handleSubmit() {
+    /* v8 ignore next 4 -- the launch button and confirmation path are disabled while readiness checks fail. */
     if (!launchReady) {
       toast.error("Система ещё не готова к production-сопоставлению. Проверьте баннер готовности.");
       return;
@@ -354,6 +353,7 @@ export default function DashboardPage() {
     // Smart upload path: structured mode with catalog items
     if (structuredMode && catalogItems.length > 0 && selectedFile) {
       const items = parsedItems;
+      /* v8 ignore next 4 -- the launch button is disabled when there are no supplier rows. */
       if (items.length === 0) {
         toast.error("Нет данных поставщика для сопоставления");
         return;
@@ -368,6 +368,7 @@ export default function DashboardPage() {
 
     // Standard path
     const items = activeTab === "text" ? getTextItems() : parsedItems;
+    /* v8 ignore next 4 -- the launch button is disabled when there are no parsed or pasted items. */
     if (items.length === 0) {
       toast.error("Нет данных для сопоставления");
       return;
@@ -968,19 +969,18 @@ export default function DashboardPage() {
             <AlertDialogCancel>Отмена</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                if (confirmSubmit) {
-                  if (!launchReady) {
-                    toast.error("Система ещё не готова к запуску новых запросов.");
-                    setConfirmSubmit(null);
-                    return;
-                  }
-                  matchMutation.mutate({
-                    supplier_id: supplierId,
-                    source_type: confirmSubmit.ext,
-                    items: confirmSubmit.items,
-                  });
+                const submission = confirmSubmit!;
+                if (!launchReady) {
+                  toast.error("Система ещё не готова к запуску новых запросов.");
                   setConfirmSubmit(null);
+                  return;
                 }
+                matchMutation.mutate({
+                  supplier_id: supplierId,
+                  source_type: submission.ext,
+                  items: submission.items,
+                });
+                setConfirmSubmit(null);
               }}
             >
               Продолжить

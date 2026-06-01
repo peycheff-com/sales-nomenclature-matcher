@@ -68,14 +68,17 @@ async def embed_texts(
     max_retries: int = 3,
     token_tracker: TokenTracker | None = None,
 ) -> list[list[float]]:
-    """Embed a list of texts using the configured provider (OpenAI or OpenRouter).
+    """Embed a list of texts using the configured provider.
 
-    Both providers use the OpenAI-compatible /embeddings endpoint.
-    Google uses its own native REST API via batchEmbedContents.
+    Local mode uses sentence-transformers. OpenAI-compatible providers use
+    /embeddings. Google uses its native REST API via batchEmbedContents.
     Returns list of embedding vectors in same order as input texts.
     """
     model = model or settings.embedding_model
     dimensions = dimensions or settings.embedding_dimensions
+
+    if settings.embedding_provider == "local":
+        return await _embed_texts_local(texts, model, dimensions, batch_size, token_tracker)
 
     if settings.embedding_provider == "google":
         return await _embed_texts_google(
@@ -136,6 +139,59 @@ async def embed_single(
     """Embed a single text string."""
     results = await embed_texts([text], token_tracker=token_tracker)
     return results[0]
+
+
+async def _embed_texts_local(
+    texts: Sequence[str],
+    model: str,
+    dimensions: int | None,
+    batch_size: int,
+    token_tracker: TokenTracker | None = None,
+) -> list[list[float]]:
+    """Embed text with a local sentence-transformers model."""
+    try:
+        from sentence_transformers import SentenceTransformer
+    except ImportError as exc:
+        raise RuntimeError(
+            "Local embeddings require the optional local dependencies. "
+            "Install them with `uv sync --extra local` or choose a hosted embedding provider."
+        ) from exc
+
+    global _local_embedding_model
+    if "_local_embedding_model" not in globals() or _local_embedding_model is None:
+        logger.info("Loading local embedding model: %s", model)
+        _local_embedding_model = SentenceTransformer(model)
+
+    all_embeddings: list[list[float]] = []
+    for i in range(0, len(texts), batch_size):
+        batch = texts[i : i + batch_size]
+        vectors = await asyncio.to_thread(
+            _local_embedding_model.encode,
+            list(batch),
+            normalize_embeddings=True,
+            show_progress_bar=False,
+        )
+        for vector in vectors:
+            values = vector.tolist() if hasattr(vector, "tolist") else list(vector)
+            if dimensions and len(values) != dimensions:
+                logger.debug(
+                    "Local embedding dimension is %s, configured dimension is %s",
+                    len(values),
+                    dimensions,
+                )
+            all_embeddings.append([float(v) for v in values])
+
+        if token_tracker:
+            est_tokens = sum(len(t.split()) * 2 for t in batch)
+            token_tracker.record(
+                operation="embed",
+                provider="local",
+                model=model,
+                prompt_tokens=est_tokens,
+                total_tokens=est_tokens,
+            )
+
+    return all_embeddings
 
 
 async def _embed_texts_google(

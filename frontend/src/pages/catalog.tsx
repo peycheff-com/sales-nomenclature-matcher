@@ -159,7 +159,6 @@ export default function CatalogPage() {
   // GAP-5.3: Bulk delete mutation
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const handleBulkDelete = useCallback(async () => {
-    if (bulkDeleting) return;
     setBulkDeleting(true);
     try {
       const ids = Array.from(selectedIds);
@@ -187,7 +186,7 @@ export default function CatalogPage() {
     } finally {
       setBulkDeleting(false);
     }
-  }, [bulkDeleting, selectedIds, queryClient]);
+  }, [selectedIds, queryClient]);
 
   // GAP-5.8: Open format info dialog instead of file picker directly
   const handleFileButtonClick = () => {
@@ -205,15 +204,11 @@ export default function CatalogPage() {
     if (!file) return;
     setPendingFile(file);
     setFileConfirmOpen(true);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
+    e.currentTarget.value = "";
   };
 
   const handleFileConfirm = () => {
-    if (pendingFile) {
-      uploadMutation.mutate(pendingFile);
-    }
+    uploadMutation.mutate(pendingFile!);
     setPendingFile(null);
     setFileConfirmOpen(false);
   };

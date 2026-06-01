@@ -40,3 +40,33 @@ def test_decide_defaults_unchanged_without_custom():
     # Strict mode default auto=0.96 → review_needed
     result_strict = decide(scoring, strict_mode=True)
     assert result_strict.status == "review_needed"
+
+
+def test_decide_uses_supplier_and_category_threshold_fallbacks():
+    features = PairFeatures()
+    scoring = ScoringResult(final_score=0.86, features=features)
+
+    supplier_result = decide(
+        scoring,
+        supplier_thresholds={"auto_threshold": 0.85, "review_threshold": 0.60},
+        category_thresholds={"tools": {"auto_threshold": 0.99, "review_threshold": 0.98}},
+        category="tools",
+    )
+    assert supplier_result.status == "auto_match"
+
+    category_result = decide(
+        scoring,
+        category_thresholds={"tools": {"auto_threshold": 0.90, "review_threshold": 0.85}},
+        category="tools",
+    )
+    assert category_result.status == "review_needed"
+
+
+def test_decide_forbids_auto_match_when_scoring_sets_hard_gate():
+    features = PairFeatures()
+    scoring = ScoringResult(final_score=0.99, features=features, auto_match_forbidden=True)
+
+    result = decide(scoring)
+
+    assert result.status == "review_needed"
+    assert result.auto_match_forbidden is True
