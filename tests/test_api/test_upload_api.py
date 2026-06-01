@@ -39,6 +39,15 @@ def _upload_files(name: str = "input.xlsx", content: bytes | None = None) -> dic
     }
 
 
+def _assert_parse_received_xlsx_with_ai(parse: AsyncMock) -> None:
+    parse.assert_awaited_once()
+    args, kwargs = parse.await_args
+
+    assert isinstance(args[0], bytes)
+    assert args[0].startswith(b"PK")
+    assert kwargs == {"use_ai": True}
+
+
 class TestExcelValidation:
     def test_validate_excel_content_accepts_xlsx_and_legacy_xls_headers(self):
         _validate_excel_content(_xlsx_bytes())
@@ -137,7 +146,7 @@ class TestUploadEndpoints:
 
         assert resp.status_code == 202
         load.assert_awaited_once_with(mock_db_session, force=True)
-        parse.assert_awaited_once_with(_xlsx_bytes(), use_ai=True)
+        _assert_parse_received_xlsx_with_ai(parse)
 
     @pytest.mark.asyncio
     async def test_upload_match_file_rejects_empty_parse(self, async_client, auth_headers):
@@ -230,7 +239,7 @@ class TestUploadEndpoints:
             )
 
         assert resp.status_code == 200
-        parse.assert_awaited_once_with(_xlsx_bytes(), use_ai=True)
+        _assert_parse_received_xlsx_with_ai(parse)
 
     @pytest.mark.asyncio
     async def test_parse_match_file_rejects_oversized_files(self, async_client, auth_headers):
